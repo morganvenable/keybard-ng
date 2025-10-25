@@ -5,15 +5,16 @@ import { ArrowLeft, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { usePanels } from "@/contexts/PanelsContext";
-import TapdanceEditor from "./components/BindingEditor/TapdanceEditor";
 import BasicKeyboards from "./Panels/BasicKeyboards";
 import CombosPanel from "./Panels/CombosPanel";
 import LayersPanel from "./Panels/LayersPanel";
 import MacrosPanel from "./Panels/MacrosPanel";
 import MiscKeysPanel from "./Panels/MiscKeysPanel/MiscKeysPanel";
+import OverridesPanel from "./Panels/OverridesPanel";
 import QmkKeysPanel from "./Panels/QmkKeysPanel";
 import SettingsPanel from "./Panels/SettingsPanel";
 import TapdancePanel from "./Panels/TapdancePanel";
+import BindingEditorContainer from "./components/BindingEditor/BindingEditorContainer";
 
 export const DETAIL_SIDEBAR_WIDTH = "32rem";
 
@@ -39,7 +40,7 @@ const AlternativeHeader = () => {
 const SecondarySidebar: React.FC<SecondarySidebarProps> = ({}) => {
     const primarySidebar = useSidebar("primary-nav", { defaultOpen: false });
     const primaryOffset = primarySidebar.state === "collapsed" ? "calc(var(--sidebar-width-icon) + var(--spacing)*4)" : "calc(var(--sidebar-width-base) + var(--spacing)*4)";
-    const { activePanel, handleCloseDetails, state, alternativeHeader, handleCloseEditor, itemToEdit, setItemToEdit } = usePanels();
+    const { activePanel, handleCloseDetails, state, alternativeHeader, itemToEdit, setItemToEdit } = usePanels();
 
     const handleClose = React.useCallback(() => {
         setItemToEdit(null);
@@ -55,9 +56,10 @@ const SecondarySidebar: React.FC<SecondarySidebarProps> = ({}) => {
 
         if (activePanel === "keyboard") return <BasicKeyboards />;
         if (activePanel === "layers") return <LayersPanel />;
-        if (activePanel === "tapdances") return <TapdancePanel onEditTapdance={setItemToEdit} currentTapdance={itemToEdit} />;
+        if (activePanel === "tapdances") return <TapdancePanel />;
         if (activePanel === "macros") return <MacrosPanel />;
         if (activePanel === "combos") return <CombosPanel />;
+        if (activePanel === "overrides") return <OverridesPanel />;
         if (activePanel === "qmk") return <QmkKeysPanel />;
         if (activePanel === "misc") return <MiscKeysPanel />;
         if (activePanel === "settings") return <SettingsPanel />;
@@ -95,7 +97,7 @@ const SecondarySidebar: React.FC<SecondarySidebarProps> = ({}) => {
             </SidebarHeader>
             <SidebarContent className="px-4">
                 {renderContent()}
-                {itemToEdit !== null ? <TapdanceEditor /> : null}
+                {itemToEdit !== null ? <BindingEditorContainer /> : null}
             </SidebarContent>
         </Sidebar>
     );
@@ -121,6 +123,8 @@ const getPanelTitle = (panel: string | null) => {
             return "Misc Keys";
         case "combos":
             return "Combos";
+        case "overrides":
+            return "Overrides";
         case "settings":
             return "Settings";
         case "about":

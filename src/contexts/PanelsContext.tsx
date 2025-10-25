@@ -14,6 +14,8 @@ interface PanelsContextType {
     handleCloseEditor: () => void;
     itemToEdit: number | null;
     setItemToEdit: React.Dispatch<React.SetStateAction<number | null>>;
+    bindingTypeToEdit: string | null;
+    setBindingTypeToEdit: React.Dispatch<React.SetStateAction<string | null>>;
 
     name: string;
     state: "expanded" | "collapsed";
@@ -32,6 +34,7 @@ export const PanelsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [alternativeHeader, setAlternativeHeader] = useState<boolean>(false);
     const [panelToGoBack, setPanelToGoBack] = useState<string | null>(null);
     const [itemToEdit, setItemToEdit] = useState<number | null>(null);
+    const [bindingTypeToEdit, setBindingTypeToEdit] = useState<string | null>(null);
 
     const sidebar = useSidebar("details-panel", { defaultOpen: false });
     const { isMobile, open: detailsOpen, state: detailsState, setOpen, setOpenMobile } = sidebar;
@@ -88,6 +91,8 @@ export const PanelsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 handleCloseEditor,
                 itemToEdit,
                 setItemToEdit,
+                bindingTypeToEdit,
+                setBindingTypeToEdit,
                 ...sidebar,
             }}
         >

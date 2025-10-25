@@ -1,7 +1,7 @@
 import { FC } from "react";
 
 interface Props {
-    label: string;
+    label?: string;
     binding?: any;
 }
 
@@ -15,7 +15,7 @@ const EditorKey: FC<Props> = ({ label, binding }) => {
     return (
         <div className="flex flex-row justify-start items-center">
             {binding.str !== "" ? <div className={classes.emptyKey}>{binding.str}</div> : <div className={classes.key} />}
-            <div className="font-medium text-gray-600 px-5">{label}</div>
+            {label && <div className="font-medium text-gray-600 px-5">{label}</div>}
         </div>
     );
 };

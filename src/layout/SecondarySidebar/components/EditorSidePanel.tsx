@@ -25,7 +25,7 @@ interface Props {
 }
 
 const EditorSidePanel: FC<Props> = ({ parentPanel }) => {
-    const { setActivePanel, activePanel, setAlternativeHeader, setPanelToGoBack } = usePanels();
+    const { setActivePanel, activePanel, setAlternativeHeader, setPanelToGoBack, bindingTypeToEdit } = usePanels();
     return (
         <div className="absolute top-0 left-0 h-full items-center justify-start flex">
             <div className="bg-white rounded-r-3xl text-gray-400 flex items-center flex-col justify-around py-3 px-2 gap-1">
@@ -38,7 +38,7 @@ const EditorSidePanel: FC<Props> = ({ parentPanel }) => {
                         onClick={() => {
                             setActivePanel(i.panel!);
                             setAlternativeHeader(true);
-                            setPanelToGoBack(parentPanel!);
+                            setPanelToGoBack(bindingTypeToEdit!);
                         }}
                     >
                         {i.icon}

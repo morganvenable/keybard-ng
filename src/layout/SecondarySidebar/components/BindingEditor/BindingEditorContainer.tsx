@@ -1,19 +1,40 @@
+import ComboIcon from "@/components/ComboIcon";
+import MacrosIcon from "@/components/icons/MacrosIcon";
+import OverridesIcon from "@/components/icons/Overrides";
+import TapdanceIcon from "@/components/icons/Tapdance";
 import { usePanels } from "@/contexts/PanelsContext";
+import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 import { FC } from "react";
 import EditorSidePanel from "../EditorSidePanel";
+import ComboEditor from "./ComboEditor";
+import OverrideEditor from "./OverrideEditor";
+import TapdanceEditor from "./TapdanceEditor";
 
-interface Props {
-    children: React.ReactNode;
-    icon: React.ReactNode;
-    label: string;
-}
+interface Props {}
 
-const BindingEditorContainer: FC<Props> = ({ children, icon, label }) => {
+const icons = {
+    tapdances: <TapdanceIcon />,
+    macros: <MacrosIcon />,
+    combos: <ComboIcon />,
+    overrides: <OverridesIcon />,
+};
+
+const labels = {
+    tapdances: "Tapdance Key",
+    macros: "Macro Key",
+    combos: "Combo Key",
+    overrides: "Override",
+};
+
+const BindingEditorContainer: FC<Props> = ({}) => {
+    const { itemToEdit, handleCloseEditor, bindingTypeToEdit } = usePanels();
     const classes = {
-        container: "absolute right-[-400px] bg-kb-gray-medium h-[550px] w-[400px] rounded-r-2xl p-5 flex flex-col top-[calc(50vh-300px)]",
+        container: cn(
+            "absolute  bg-kb-gray-medium rounded-r-2xl p-5 flex flex-col top-[calc(50vh-300px)]",
+            bindingTypeToEdit === "overrides" ? "w-[500px] right-[-500px]" : "w-[400px] right-[-400px]"
+        ),
     };
-    const { itemToEdit, handleCloseEditor } = usePanels();
 
     return (
         <div className={classes.container}>
@@ -21,10 +42,10 @@ const BindingEditorContainer: FC<Props> = ({ children, icon, label }) => {
                 <EditorSidePanel parentPanel="tapdances" />
                 <div className="flex flex-row items-center">
                     <div className="flex flex-col bg-black h-14 w-14 rounded-sm flex-shrink-0 items-center ">
-                        <div className="h-5 w-5 mt-3 text-white">{icon}</div>
+                        <div className="h-5 w-5 mt-3 text-white">{(icons as any)[bindingTypeToEdit!]}</div>
                         <span className="text-sm text-white">{itemToEdit}</span>
                     </div>
-                    <div className="pl-5 text-xl font-normal">{label}</div>
+                    <div className="pl-5 text-xl font-normal">{(labels as any)[bindingTypeToEdit!]}</div>
                 </div>
                 <button
                     type="button"
@@ -34,7 +55,9 @@ const BindingEditorContainer: FC<Props> = ({ children, icon, label }) => {
                     <X className="h-5 w-5" />
                 </button>
             </div>
-            {children}
+            {bindingTypeToEdit === "tapdances" && <TapdanceEditor />}
+            {bindingTypeToEdit === "combos" && <ComboEditor />}
+            {bindingTypeToEdit === "overrides" && <OverrideEditor />}
         </div>
     );
 };

@@ -3,14 +3,14 @@ import { GripVerticalIcon, PencilIcon } from "lucide-react";
 import { FC, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { usePanels } from "@/contexts/PanelsContext";
 import { cn } from "@/lib/utils";
 
 interface Props {
     icon: React.ReactNode;
     editElement?: React.ReactNode;
     items?: Array<any>;
-    itemToEdit?: number | null;
-    setItemToEdit: (item: number | null) => void;
+    bindingType: string;
 }
 
 interface ItemGroup<T> {
@@ -20,7 +20,8 @@ interface ItemGroup<T> {
     endIndex: number;
 }
 
-const BindingsList: FC<Props> = ({ editElement, icon, itemToEdit = null, setItemToEdit, items = [] }) => {
+const BindingsList: FC<Props> = ({ editElement, icon, bindingType, items = [] }) => {
+    const { itemToEdit, setItemToEdit, setBindingTypeToEdit, setAlternativeHeader, setPanelToGoBack, setActivePanel } = usePanels();
     const itemsCount = items.length;
     const [groups, setGroups] = useState<ItemGroup<any>[]>([]);
     const [activeGroup, setActiveGroup] = useState<ItemGroup<any>>(groups[0] || null);
@@ -52,7 +53,18 @@ const BindingsList: FC<Props> = ({ editElement, icon, itemToEdit = null, setItem
         return activeGroup.items.map((_, localIndex) => {
             const absoluteIndex = localIndex + activeGroup.startIndex;
             const editButton = (
-                <Button size="sm" variant="ghost" onClick={() => setItemToEdit(absoluteIndex)} className="px-4 py-1  group-hover/item:opacity-100 opacity-0">
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                        setItemToEdit(absoluteIndex);
+                        setBindingTypeToEdit(bindingType);
+                        setAlternativeHeader(true);
+                        setPanelToGoBack(bindingType);
+                        setActivePanel("layers");
+                    }}
+                    className="px-4 py-1  group-hover/item:opacity-100 opacity-0"
+                >
                     <PencilIcon className="h-4 w-4" />
                 </Button>
             );
