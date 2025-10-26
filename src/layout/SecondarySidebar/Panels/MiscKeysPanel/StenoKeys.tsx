@@ -1,11 +1,13 @@
 import Keyboard, { KeyboardOptions } from "react-simple-keyboard";
 
+import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { commonKeyboardOptions } from "@/shared/CommonKeyboardOptions";
 import { useRef } from "react";
 
 const StenoKeys = () => {
     const group1Ref = useRef(null);
     const group2Ref = useRef(null);
+    const { assignKeycode } = useKeyBinding();
 
     // shared display labels (only keys used in each group's options will be referenced)
     const display = {
@@ -59,6 +61,9 @@ const StenoKeys = () => {
 
     const group1Options: KeyboardOptions = {
         ...commonKeyboardOptions,
+        onKeyPress: (button: string) => {
+            assignKeycode(button.replace(/{|}/g, ""));
+        },
         layout: {
             default: [
                 "{STN_N1} {STN_N2} {STN_N3} {STN_N4} {STN_N5}",
@@ -80,6 +85,9 @@ const StenoKeys = () => {
 
     const group2Options: KeyboardOptions = {
         ...commonKeyboardOptions,
+        onKeyPress: (button: string) => {
+            assignKeycode(button.replace(/{|}/g, ""));
+        },
         layout: {
             default: [
                 "{STN_N7} {STN_N8} {STN_N9} {STN_NA} {STN_NB} {STN_NC}",

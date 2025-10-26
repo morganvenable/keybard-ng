@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import EditLayer from "@/components/EditLayer";
 import LayersIcon from "@/components/icons/Layers";
 import { Button } from "@/components/ui/button";
+import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { useVial } from "@/contexts/VialContext";
 import { cn } from "@/lib/utils";
 import { svalService } from "@/services/sval.service";
@@ -14,6 +15,7 @@ const layerModifiers = ["MO", "DF", "TG", "TT", "OSL", "TO"];
 const LayersPanel = () => {
     const [activeModifier, setActiveModifier] = useState<string>(layerModifiers[0]);
     const { keyboard } = useVial();
+    const { assignKeycode } = useKeyBinding();
     useEffect(() => {
         console.log("Keyboard updated:", keyboard);
     }, [keyboard]);
@@ -51,7 +53,10 @@ const LayersPanel = () => {
                             </div>
                             <span className="text-md text-left w-full border-b border-b-dashed py-2">{layer}</span>
                             <div className="flex flex-row flex-shrink-0 items-center gap-1">
-                                <div className="flex flex-col bg-black h-12 w-12 rounded-sm flex-shrink-0 items-center">
+                                <div
+                                    className="flex flex-col bg-black h-12 w-12 rounded-sm flex-shrink-0 items-center cursor-pointer border-2 hover:border-red-600 border-transparent transition-all"
+                                    onClick={() => assignKeycode(`${activeModifier}(${i})`)}
+                                >
                                     <LayersIcon className="h-4 w-4 mt-2 mb-1 text-white" />
                                     <span className="text-xs text-white">{i}</span>
                                 </div>

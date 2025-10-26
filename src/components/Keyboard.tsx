@@ -15,7 +15,7 @@ interface KeyboardProps {
     setSelectedLayer: (layer: number) => void;
 }
 
-export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, onKeyClick, selectedLayer, setSelectedLayer }) => {
+export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer, setSelectedLayer }) => {
     const { selectKeyboardKey, selectedTarget } = useKeyBinding();
     const [localSelectedKey, setLocalSelectedKey] = useState<{ row: number; col: number } | null>(null);
 
@@ -25,9 +25,6 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, onKeyClick, select
     const handleKeyClick = (row: number, col: number) => {
         setLocalSelectedKey({ row, col });
         selectKeyboardKey(selectedLayer, row, col);
-        if (onKeyClick) {
-            onKeyClick(selectedLayer, row, col);
-        }
     };
 
     // Check if this key is the globally selected target

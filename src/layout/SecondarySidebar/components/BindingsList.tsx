@@ -3,6 +3,7 @@ import { GripVerticalIcon, PencilIcon } from "lucide-react";
 import { FC, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { usePanels } from "@/contexts/PanelsContext";
 import { cn } from "@/lib/utils";
 
@@ -20,11 +21,17 @@ interface ItemGroup<T> {
     endIndex: number;
 }
 
+const suffixByType = {
+    tapdances: "TD",
+    macros: "M",
+};
+
 const BindingsList: FC<Props> = ({ editElement, icon, bindingType, items = [] }) => {
     const { itemToEdit, setItemToEdit, setBindingTypeToEdit, setAlternativeHeader, setPanelToGoBack, setActivePanel } = usePanels();
     const itemsCount = items.length;
     const [groups, setGroups] = useState<ItemGroup<any>[]>([]);
     const [activeGroup, setActiveGroup] = useState<ItemGroup<any>>(groups[0] || null);
+    const { assignKeycode } = useKeyBinding();
     if (itemsCount === 0) {
         return <div className="grid place-items-center h-full text-center text-sm text-muted-foreground px-6">No items available. Please add some first.</div>;
     }
@@ -82,7 +89,13 @@ const BindingsList: FC<Props> = ({ editElement, icon, bindingType, items = [] })
                     </div>
                     <span className="text-md text-left w-full border-b border-b-dashed py-2"></span>
                     <div className="flex flex-row flex-shrink-0 items-center gap-1">
-                        <div className="flex flex-col bg-black h-12 w-12 rounded-sm flex-shrink-0 items-center ">
+                        <div
+                            className="flex flex-col bg-black h-12 w-12 rounded-sm flex-shrink-0 items-center cursor-pointer border-2 hover:border-red-600 border-transparent transition-all"
+                            onClick={() => {
+                                console.log("assigning", `${(suffixByType as any)[bindingType]}(${absoluteIndex})`);
+                                assignKeycode(`${(suffixByType as any)[bindingType]}(${absoluteIndex})`);
+                            }}
+                        >
                             <div className="h-4 w-4 mt-2 mb-1 text-white">{icon}</div>
                             <span className="text-xs text-white">{absoluteIndex}</span>
                         </div>

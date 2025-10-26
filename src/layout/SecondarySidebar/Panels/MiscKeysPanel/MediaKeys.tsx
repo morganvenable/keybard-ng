@@ -1,12 +1,17 @@
 import Keyboard, { KeyboardOptions } from "react-simple-keyboard";
 
+import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { commonKeyboardOptions } from "@/shared/CommonKeyboardOptions";
 import { useRef } from "react";
 
 const MediaKeys = () => {
+    const { assignKeycode } = useKeyBinding();
     const mediaKeysRef = useRef(null);
     const keyboardOptions: KeyboardOptions = {
         ...commonKeyboardOptions,
+        onKeyPress: (button: string) => {
+            assignKeycode(button.replace(/{|}/g, ""));
+        },
         /**
          * Layout by:
          * Sterling Butters (https://github.com/SterlingButters)

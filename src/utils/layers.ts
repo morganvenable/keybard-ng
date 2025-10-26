@@ -1,7 +1,7 @@
 import { KEYMAP } from "../constants/keygen";
+import { keyService } from "../services/key.service";
 import type { KeyboardInfo } from "../types/vial.types";
 import { getKeyContents } from "./keys";
-import { keyService } from "../services/key.service";
 // Convert HSV to RGB for CSS color
 export const hsvToRgb = (h: number, s: number, v: number): string => {
     // HSV values are typically 0-255, normalize them
@@ -85,7 +85,7 @@ export const getKeyLabel = (
     // Fallback to the string representation
     const modifierMatch = keyString.match(/^([A-Z]+)\((KC_[A-Z0-9_]+)\)$/);
     if (modifierMatch) {
-        console.log("Key contents:", keyContents);
+        // console.log("Key contents:", keyContents);
     }
     return {
         label: keyString,

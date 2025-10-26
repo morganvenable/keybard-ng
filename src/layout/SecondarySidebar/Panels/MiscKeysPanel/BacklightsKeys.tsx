@@ -1,12 +1,17 @@
 import Keyboard, { KeyboardOptions } from "react-simple-keyboard";
 
+import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { commonKeyboardOptions } from "@/shared/CommonKeyboardOptions";
 import { useRef } from "react";
 
 const BacklightsKeys = () => {
     const backlightsRef = useRef(null);
+    const { assignKeycode } = useKeyBinding();
     const keyboardOptions: KeyboardOptions = {
         ...commonKeyboardOptions,
+        onKeyPress: (button: string) => {
+            assignKeycode(button.replace(/{|}/g, ""));
+        },
         /**
          * Backlight / RGB layout following provided HTML. 3 rows of 9 keys.
          */

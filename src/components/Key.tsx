@@ -46,7 +46,6 @@ export const Key: React.FC<KeyProps> = ({ x, y, w, h, keycode, label, row, col, 
         bottomStr = show;
     }
     if (keyContents?.type === "layer") {
-        console.log("Layer key:", keyContents);
         l = keyContents.str;
         topStr = keyContents.top;
     }

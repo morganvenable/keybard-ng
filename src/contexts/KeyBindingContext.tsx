@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useRef, useState } from "react";
 
 import { MATRIX_COLS } from "@/constants/svalboard-layout";
 import { keyService } from "@/services/key.service";
@@ -32,6 +32,12 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const { keyboard, setKeyboard } = useVial();
     const [selectedTarget, setSelectedTarget] = useState<BindingTarget | null>(null);
     const [isBinding, setIsBinding] = useState(false);
+
+    // Use a ref to always have access to the current selectedTarget value
+    const selectedTargetRef = useRef<BindingTarget | null>(null);
+
+    // Keep the ref in sync with the state
+    selectedTargetRef.current = selectedTarget;
 
     const selectKeyboardKey = useCallback(
         (layer: number, row: number, col: number) => {
@@ -78,19 +84,25 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setIsBinding(true);
     }, []);
 
+    const clearSelection = useCallback(() => {
+        setSelectedTarget(null);
+        setIsBinding(false);
+    }, []);
+
     const assignKeycode = useCallback(
         (keycode: number | string) => {
-            if (!selectedTarget || !keyboard) return;
-
-            const updatedKeyboard = { ...keyboard };
-
+            // Use the ref to get the current value
+            const currentTarget = selectedTargetRef.current;
+            if (!currentTarget || !keyboard) return;
+            const updatedKeyboard = JSON.parse(JSON.stringify(keyboard));
+            console.log("assignKeycode called with", keycode, "for target", currentTarget);
             // Convert keycode string to number using keyService
             const keycodeValue = typeof keycode === "string" ? keyService.parse(keycode) : keycode;
-            console.log("assignKeycode to keyboard", selectedTarget, keycode, "->", keycodeValue);
+            console.log("assignKeycode to keyboard", currentTarget, keycode, "->", keycodeValue);
 
-            switch (selectedTarget.type) {
+            switch (currentTarget.type) {
                 case "keyboard": {
-                    const { layer, row, col } = selectedTarget;
+                    const { layer, row, col } = currentTarget;
                     if (layer === undefined || row === undefined || col === undefined) break;
 
                     const matrixPos = row * MATRIX_COLS + col;
@@ -102,7 +114,7 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 }
 
                 case "combo": {
-                    const { comboId, comboSlot } = selectedTarget;
+                    const { comboId, comboSlot } = currentTarget;
                     if (comboId === undefined || comboSlot === undefined) break;
 
                     // combos is actually an array of arrays with 5 string elements
@@ -119,7 +131,7 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 }
 
                 case "tapdance": {
-                    const { tapdanceId, tapdanceSlot } = selectedTarget;
+                    const { tapdanceId, tapdanceSlot } = currentTarget;
                     if (tapdanceId === undefined || tapdanceSlot === undefined) break;
 
                     // tapdance is actually an array with objects having tap/hold/doubletap/taphold properties
@@ -145,13 +157,8 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setKeyboard(updatedKeyboard);
             clearSelection();
         },
-        [selectedTarget, keyboard, setKeyboard]
+        [keyboard, setKeyboard, clearSelection]
     );
-
-    const clearSelection = useCallback(() => {
-        setSelectedTarget(null);
-        setIsBinding(false);
-    }, []);
 
     const value: KeyBindingContextType = {
         selectedTarget,
