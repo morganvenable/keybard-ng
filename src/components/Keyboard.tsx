@@ -94,7 +94,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer, set
             </div>
 
             {selectedTarget && selectedTarget.row && selectedTarget.col && (
-                <div className="bg-white text-black p-4 mt-4 rounded shadow-md w-64 absolute bottom-5 right-5 rounded-2xl">
+                <div className="bg-white text-black p-4 mt-4 rounded shadow-md absolute bottom-5 right-5 rounded-2xl transition-all">
                     <h4>Selected Key</h4>
                     <p>
                         <b>Position</b>: Row {selectedTarget.row}, Col {selectedTarget.col}
@@ -103,7 +103,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer, set
                         <b>Matrix</b>: {selectedTarget.row * MATRIX_COLS + selectedTarget.col}
                     </p>
                     <p>
-                        <b>Keycode</b>: {getKeycodeName(layerKeymap[selectedTarget.row * MATRIX_COLS + localSelectedKey.col] || 0)}
+                        <b>Keycode</b>: {getKeycodeName(layerKeymap[selectedTarget.row * MATRIX_COLS + (selectedTarget?.col || 0)] || 0)}
                     </p>
                 </div>
             )}

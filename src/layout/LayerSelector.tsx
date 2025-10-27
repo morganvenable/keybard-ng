@@ -1,6 +1,7 @@
 import EditLayer from "@/components/EditLayer";
 import LayersIcon from "@/components/icons/Layers";
 import { Dialog } from "@/components/ui/dialog";
+import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { useVial } from "@/contexts/VialContext";
 import { svalService } from "@/services/sval.service";
 import { colorClasses } from "@/utils/colors";
@@ -15,9 +16,11 @@ interface Props {
 const LayerSelector: FC<Props> = ({ selectedLayer, setSelectedLayer }) => {
     const { keyboard } = useVial();
     const layerKeymap = keyboard!.keymap?.[selectedLayer] || [];
+    const { clearSelection } = useKeyBinding();
 
     const handleSelectLayer = (layer: number) => () => {
         setSelectedLayer(layer);
+        clearSelection();
     };
     const layerColor = keyboard!.cosmetic?.layer_colors?.[selectedLayer] || "primary";
     return (

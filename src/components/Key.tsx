@@ -30,6 +30,7 @@ export const Key: React.FC<KeyProps> = ({ x, y, w, h, keycode, label, row, col, 
 
     const hasModifiers = keyContents && ["modmask"].includes(keyContents.type);
     const handleClick = () => {
+        console.log("content clicked", keyContents);
         if (onClick) {
             onClick(row, col);
         }
@@ -55,7 +56,7 @@ export const Key: React.FC<KeyProps> = ({ x, y, w, h, keycode, label, row, col, 
         l = keyContents.tdid;
     }
     if (keyContents?.type === "macro") {
-        l = keyContents.str.replace("M", "");
+        l = keyContents.top.replace("M", "");
     }
     if (keyContents?.type === "user") {
         l = keyContents.str;
@@ -92,13 +93,18 @@ export const Key: React.FC<KeyProps> = ({ x, y, w, h, keycode, label, row, col, 
         );
     }
 
+    if (keyContents?.type === "OSM") {
+        topStr = "OSM";
+        l = keyContents.str;
+    }
+
     return (
         <div className="absolute top-0 left-0">
             <div
                 className={`
                     absolute ${
                         colorClasses[layerColor]
-                    } flex items-center justify-center cursor-pointer transition-all duration-200 ease-in-out rounded-md uppercase flex flex-col items-center justify-between
+                    } flex items-center overflow-hidden justify-center cursor-pointer transition-all duration-200 ease-in-out rounded-md uppercase flex flex-col items-center justify-between
                     ${selected ? "border-2 border-kb-gray bg-red-500 text-white" : "border-2 border-kb-gray hover:border-red-500"}
                   `}
                 style={style}
@@ -108,12 +114,13 @@ export const Key: React.FC<KeyProps> = ({ x, y, w, h, keycode, label, row, col, 
                 data-col={col}
                 title={keycode}
             >
-                {topStr !== "" && <span className=" text-xs whitespace-nowrap bg-green-800 w-full rounded-t-sm text-center py-0">{topStr}</span>}
+                {topStr !== "" && <span className=" text-xs whitespace-nowrap bg-black/40 w-full rounded-t-sm text-center py-0">{topStr}</span>}
                 {keyContents?.type === "tapdance" && <TapdanceIcon className=" mt-2 h-8" />}
                 {keyContents?.type === "macro" && <MacrosIcon className=" mt-2 h-8" />}
                 <div
-                    className="text-md text-center w-full h-full justify-center items-center flex font-semibold"
-                    style={keyContents?.type === "user" ? { whiteSpace: "pre-line", fontSize: "0.7rem" } : {}}
+                    className="text-center w-full h-full justify-center items-center flex font-semibold"
+                    // @ts-ignore
+                    style={["user", "OSM"].includes(keyContents?.type) ? { whiteSpace: "pre-line", fontSize: "0.5rem", textWrap: "break" } : {}}
                 >
                     {l}
                 </div>

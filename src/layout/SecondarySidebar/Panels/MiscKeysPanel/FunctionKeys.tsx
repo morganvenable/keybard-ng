@@ -1,3 +1,5 @@
+import "./MiscKeys.css";
+
 import Keyboard, { KeyboardOptions } from "react-simple-keyboard";
 
 import { useKeyBinding } from "@/contexts/KeyBindingContext";

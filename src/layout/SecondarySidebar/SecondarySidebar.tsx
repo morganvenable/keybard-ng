@@ -12,8 +12,8 @@ import CombosPanel from "./Panels/CombosPanel";
 import LayersPanel from "./Panels/LayersPanel";
 import MacrosPanel from "./Panels/MacrosPanel";
 import MiscKeysPanel from "./Panels/MiscKeysPanel/MiscKeysPanel";
-import QMKKeys from "./Panels/MiscKeysPanel/QMKKeys";
 import OverridesPanel from "./Panels/OverridesPanel";
+import QmkKeyPanel from "./Panels/QmkKeysPanel";
 import SettingsPanel from "./Panels/SettingsPanel";
 import TapdancePanel from "./Panels/TapdancePanel";
 import BindingEditorContainer from "./components/BindingEditor/BindingEditorContainer";
@@ -62,7 +62,7 @@ const SecondarySidebar: React.FC<SecondarySidebarProps> = ({}) => {
         if (activePanel === "macros") return <MacrosPanel />;
         if (activePanel === "combos") return <CombosPanel />;
         if (activePanel === "overrides") return <OverridesPanel />;
-        if (activePanel === "qmk") return <QMKKeys />;
+        if (activePanel === "qmk") return <QmkKeyPanel />;
         if (activePanel === "misc") return <MiscKeysPanel />;
         if (activePanel === "settings") return <SettingsPanel />;
 
