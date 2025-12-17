@@ -21,6 +21,8 @@ export interface KeyProp {
     bbox?: any;
     mat?: any;
     crosshairs?: string;
+    matrix?: number[];
+    align?: number;
 }
 
 export interface KleDeserializeResult {
@@ -172,41 +174,25 @@ export class KleService {
     }
 
     deserializeToKeylayout(kbinfo: any, rows: any[]): any {
-        const keylayout: any = {};
+        const keylayout = {};
         const deserialized = this.deserialize(rows);
         const meta = deserialized.meta;
         const dkeys = deserialized.keys;
-
         for (let i = 0; i < dkeys.length; i++) {
             const key = dkeys[i];
-            // Format "row,col" expected in first label
-            if (key.labels && key.labels[0]) {
-                const parts = key.labels[0].split(',');
-                if (parts.length === 2) {
-                    const row = parseInt(parts[0]);
-                    const col = parseInt(parts[1]);
-                    if (!isNaN(row) && !isNaN(col)) {
-                        key.row = row;
-                        key.col = col;
-                        // Add math rendering logic if we need 'rect', 'bbox' etc.
-                        // For now we just return the props. 
-                        // If file size is smaller, it might be because 'rect'/'bbox' matrices weren't calculated.
-                        // But the USER wants 'keyboard.kbi' style output which implies fully calculated.
-                        
-                        // We need `getRenderParms` logic to populate proper x/y/rects
-                        // But looking at keyboard.kbi, it uses `x`, `y` directly from current state?
-                        // keyboard.kbi 0: { x: 10.6, y: 6 ... } which matches key props.
-                        // But it also has "rect", "bbox", "mat".
-                        // So yes, we need the render calc logic to match exactly.
-                        
-                        this.calcRenderData(key);
-                        
-                        keylayout[(row * kbinfo.cols) + col] = Object.assign({}, meta, key);
-                    }
-                }
+            let [row, col] = key.labels[0].split(',') as [any, any];
+            if (row && col) {
+                row = parseInt(row);
+                col = parseInt(col);
+                key.row = row;
+                key.col = col;
+                
+                
+                this.calcRenderData(key);
+                (keylayout as any)[row * kbinfo.cols + col] = Object.assign({}, meta, key);
             }
-        }
-        return keylayout;
+    }
+    return keylayout;
     }
     
     // Minimal render calc to populate rects/bbox/mat

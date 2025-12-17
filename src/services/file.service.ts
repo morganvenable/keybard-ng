@@ -133,9 +133,24 @@ export class FileService {
 
     async downloadKBI(kbinfo: KeyboardInfo, includeMacros: boolean = true): Promise<void> {
         const copy = structuredClone(kbinfo);
+
+        // Ensure keylayout exists
+        if (!(copy as any).keylayout && copy.payload?.layouts?.keymap) {
+             try {
+                 (copy as any).keylayout = this.kleService.deserializeToKeylayout(copy, copy.payload.layouts.keymap as unknown as any[]);
+             } catch (e) {
+                 console.warn("Could not generate keylayout for export", e);
+             }
+        }
         if (!includeMacros && copy.macros) {
             // Clear macros
              copy.macros = (copy.macros as any).map((m: any, mid: number) => ({ mid: mid, actions: [] }));
+        }
+
+        if (copy.keymap) {
+             (copy as any).keymap = copy.keymap.map(layer => 
+                 layer.map(keycode => keyService.stringify(keycode))
+             );
         }
 
         const kbi = JSON.stringify(copy, undefined, 2);
@@ -228,8 +243,11 @@ export class FileService {
         // .kbi usually does.
         
         if (kbinfo.payload?.layouts?.keymap) {
-             (kbinfo as any).keylayout = this.deserializeToKeylayout(kbinfo, kbinfo.payload.layouts.keymap as any);
+             kbinfo.keylayout = this.deserializeToKeylayout(kbinfo, kbinfo.payload.layouts.keymap as any);
         }
+
+        // Normalize keycodes (string -> number) if necessary
+        this.normalizeKeymap(kbinfo);
 
         return kbinfo;
     }

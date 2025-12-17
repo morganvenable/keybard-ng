@@ -65,6 +65,7 @@ export class VialService {
         this.combo = new ComboService(usb);
         this.override = new OverrideService(usb);
         this.qmk = new QMKService(usb);
+        this.kle = new KleService();
     }
 
     static isWebHIDSupported(): boolean {

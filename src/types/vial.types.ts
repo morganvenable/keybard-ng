@@ -29,6 +29,7 @@ export interface KeyboardInfo {
         layer?: Record<string, string>;
         layer_colors?: Record<string, string>;
     };
+    keylayout?: Record<string, any>; // Using any for now to match KLE output structure
 }
 
 export interface KeyboardPayload {
@@ -62,6 +63,8 @@ export interface KeyLayout {
     text: string;
     textColor: string;
     textSize: number[];
+    align?: number;
+    matrix?: number[];
     w: number;
     width2: number;
     x: number;
