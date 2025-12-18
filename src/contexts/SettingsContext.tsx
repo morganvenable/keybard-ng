@@ -174,18 +174,21 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [settings, setSettings] = useState<SettingsState>({});
+    const [loaded, setLoaded] = useState(false);
     const settingsService = new SettingsService();
 
     // Load settings from localStorage on mount
     useEffect(() => {
         const loadedSettings = settingsService.load();
         setSettings(loadedSettings);
+        setLoaded(true);
     }, []);
 
     // Save settings to localStorage whenever they change
     useEffect(() => {
+        if (!loaded) return;
         settingsService.save(settings);
-    }, [settings]);
+    }, [settings, loaded]);
 
     const updateSetting = useCallback((name: string, value: string | number | boolean) => {
         setSettings((prev) => ({
