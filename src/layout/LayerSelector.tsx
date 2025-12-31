@@ -1,5 +1,5 @@
 import EditLayer from "@/components/EditLayer";
-import LayersIcon from "@/components/icons/Layers";
+import LayersDefaultIcon from "@/components/icons/LayersDefault";
 import { Dialog } from "@/components/ui/dialog";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { useVial } from "@/contexts/VialContext";
@@ -26,7 +26,7 @@ const LayerSelector: FC<Props> = ({ selectedLayer, setSelectedLayer }) => {
     return (
         <div className="w-full">
             <div className=" py-7 overflow-hidden flex-shrink-0 flex items-center justify-start text-gray-500 gap-1 pl-4 w-full">
-                <LayersIcon className="h-5 w-5 mr-2 text-black" />
+                <LayersDefaultIcon className="h-5 w-5 mr-2 text-black" />
                 <div className="max-w-full flex flex-row overflow-hidden flex-grow-0 gap-2">
                     {Array.from({ length: keyboard!.layers || 16 }, (_, i) => {
                         const layer = svalService.getLayerNameNoLabel(keyboard!, i);

@@ -1,5 +1,5 @@
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { ChevronsLeftRightEllipsis, Cpu, HelpCircle, Layers, LucideIcon, Settings } from "lucide-react";
+import { ChevronsLeftRightEllipsis, Cpu, HelpCircle, LucideIcon, Settings } from "lucide-react";
 
 import ComboIcon from "@/components/ComboIcon";
 import KeyboardIcon from "@/components/icons/Keyboard";
@@ -7,6 +7,7 @@ import MacrosIcon from "@/components/icons/MacrosIcon";
 import MatrixTesterIcon from "@/components/icons/MatrixTester";
 import OverridesIcon from "@/components/icons/Overrides";
 import TapdanceIcon from "@/components/icons/Tapdance";
+import LayersDefaultIcon from "@/components/icons/LayersDefault";
 import Logo from "@/components/Logo";
 import { usePanels } from "@/contexts/PanelsContext";
 import { cn } from "@/lib/utils";
@@ -20,7 +21,7 @@ export type SidebarItem = {
 
 export const primarySidebarItems: SidebarItem[] = [
     { title: "Basic Keyboard", url: "keyboard", icon: KeyboardIcon },
-    { title: "Layers", url: "layers", icon: Layers },
+    { title: "Layers", url: "layers", icon: LayersDefaultIcon },
     { title: "Tapdances", url: "tapdances", icon: TapdanceIcon },
     { title: "Macros", url: "macros", icon: MacrosIcon },
     { title: "Combos", url: "combos", icon: ComboIcon },
