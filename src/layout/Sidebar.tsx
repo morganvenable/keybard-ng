@@ -1,7 +1,8 @@
-import { ChevronsLeftRightEllipsis, ChevronsRight, Cpu, HelpCircle, LucideIcon, Settings } from "lucide-react";
+import { ChevronsRight, Cpu, HelpCircle, LucideIcon, Settings } from "lucide-react";
 import { useCallback } from "react";
 
 import ComboIcon from "@/components/ComboIcon";
+import GamepadDirectional from "@/components/icons/GamepadDirectional";
 import KeyboardIcon from "@/components/icons/Keyboard";
 import LayersDefaultIcon from "@/components/icons/LayersDefault";
 import MacrosIcon from "@/components/icons/MacrosIcon";
@@ -36,13 +37,13 @@ export type SidebarItem = {
 
 export const primarySidebarItems: SidebarItem[] = [
     { title: "Keys", url: "keyboard", icon: KeyboardIcon },
+    { title: "Misc Keys", url: "misc", icon: GamepadDirectional },
     { title: "Layers", url: "layers", icon: LayersDefaultIcon },
-    { title: "Tapdances", url: "tapdances", icon: TapdanceIcon },
-    { title: "Macros", url: "macros", icon: MacrosIcon },
+    { title: "Tap Dances", url: "tapdances", icon: TapdanceIcon },
     { title: "Combos", url: "combos", icon: ComboIcon },
+    { title: "Macros", url: "macros", icon: MacrosIcon },
     { title: "Overrides", url: "overrides", icon: OverridesIcon },
     { title: "QMK Keys", url: "qmk", icon: Cpu },
-    { title: "Misc Keys", url: "misc", icon: ChevronsLeftRightEllipsis },
     { title: "Matrix Tester", url: "matrixtester", icon: MatrixTesterIcon },
 ];
 

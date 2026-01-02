@@ -64,6 +64,7 @@ const ComboRow: React.FC<ComboRowProps> = React.memo(({ index, onEdit }) => {
                     col={0}
                     keycode=""
                     label={index.toString()} // Just show the index
+                    keyContents={{ type: "combo" }}
                     layerColor="sidebar"
                     headerClassName="bg-kb-sidebar-dark"
                     isRelative

@@ -9,6 +9,8 @@ import { UNIT_SIZE } from "../constants/svalboard-layout";
 import LayersIcon from "./icons/Layers";
 import MacrosIcon from "./icons/MacrosIcon";
 import TapdanceIcon from "./icons/Tapdance";
+import ComboIcon from "./ComboIcon";
+import OverridesIcon from "./icons/Overrides";
 
 interface KeyProps {
     x: number; // X position in key units
@@ -145,6 +147,8 @@ export const Key: React.FC<KeyProps> = ({
             {topStr !== "" && <span className={cn("text-sm whitespace-nowrap w-full rounded-t-sm text-center text-white font-semibold py-0", headerClassName)}>{topStr}</span>}
             {keyContents?.type === "tapdance" && <TapdanceIcon className=" mt-2 h-8" />}
             {keyContents?.type === "macro" && <MacrosIcon className=" mt-2 h-8" />}
+            {keyContents?.type === "combo" && <ComboIcon className=" mt-2 h-8" />}
+            {keyContents?.type === "override" && <OverridesIcon className=" mt-2 h-8" />}
             <div
                 className="text-center w-full h-full justify-center items-center flex font-semibold"
                 // @ts-ignore

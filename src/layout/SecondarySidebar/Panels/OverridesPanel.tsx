@@ -61,6 +61,7 @@ const OverrideRow: React.FC<OverrideRowProps> = React.memo(({ index, onEdit }) =
                     col={0}
                     keycode=""
                     label={index.toString()}
+                    keyContents={{ type: "override" }}
                     layerColor="sidebar"
                     headerClassName="bg-kb-sidebar-dark"
                     isRelative
