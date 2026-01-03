@@ -116,18 +116,24 @@ const AppSidebar = () => {
         panelToGoBack,
         alternativeHeader,
         setPanelToGoBack,
-        setAlternativeHeader
+        setAlternativeHeader,
+        open,
+        handleCloseDetails,
     } = usePanels();
 
     const handleItemSelect = useCallback(
         (item: SidebarItem) => {
-            setActivePanel(item.url);
-            openDetails();
-            setPanelToGoBack(null);
-            setAlternativeHeader(false);
-            setItemToEdit(null);
+            if (activePanel === item.url && open) {
+                handleCloseDetails();
+            } else {
+                setActivePanel(item.url);
+                openDetails();
+                setPanelToGoBack(null);
+                setAlternativeHeader(false);
+                setItemToEdit(null);
+            }
         },
-        [openDetails, setActivePanel, setPanelToGoBack, setAlternativeHeader, setItemToEdit]
+        [activePanel, open, handleCloseDetails, setActivePanel, openDetails, setPanelToGoBack, setAlternativeHeader, setItemToEdit]
     );
 
     const activePrimaryIndex = primarySidebarItems.findIndex((item) => item.url === activePanel);
