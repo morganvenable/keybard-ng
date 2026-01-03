@@ -8,7 +8,7 @@ import BasicKeyboards from "./Panels/BasicKeyboards";
 import CombosPanel from "./Panels/CombosPanel";
 import LayersPanel from "./Panels/LayersPanel";
 import MacrosPanel from "./Panels/MacrosPanel";
-import MiscKeysPanel from "./Panels/MiscKeysPanel/MiscKeysPanel";
+import SpecialKeysPanel from "./Panels/SpecialKeysPanel/SpecialKeysPanel";
 import OverridesPanel from "./Panels/OverridesPanel";
 import QmkKeyPanel from "./Panels/QmkKeysPanel";
 import SettingsPanel from "./Panels/SettingsPanel";
@@ -21,17 +21,9 @@ import { usePanels } from "@/contexts/PanelsContext";
 export const DETAIL_SIDEBAR_WIDTH = "32rem";
 
 /**
- * Valid panel identifiers used for title resolution
- */
-type PanelId =
-    | "keyboard" | "layers" | "tapdances" | "macros"
-    | "qmk" | "misc" | "combos" | "overrides"
-    | "settings" | "about";
-
-/**
  * Resolves the human-readable title for a given panel identifier.
  */
-const getPanelTitle = (panel: string | null): string => {
+const getPanelTitle = (panel: string | null | undefined): string => {
     if (!panel) return "Details";
 
     const titles: Record<string, string> = {
@@ -40,7 +32,7 @@ const getPanelTitle = (panel: string | null): string => {
         tapdances: "Tap Dances",
         macros: "Macros",
         qmk: "QMK Keys",
-        misc: "Misc Keys",
+        special: "Special Keys",
         combos: "Combos",
         overrides: "Overrides",
         settings: "Settings",
@@ -112,7 +104,7 @@ const SecondarySidebar = () => {
             case "combos": return <CombosPanel />;
             case "overrides": return <OverridesPanel />;
             case "qmk": return <QmkKeyPanel />;
-            case "misc": return <MiscKeysPanel />;
+            case "special": return <SpecialKeysPanel />;
             case "settings": return <SettingsPanel />;
             default:
                 return (

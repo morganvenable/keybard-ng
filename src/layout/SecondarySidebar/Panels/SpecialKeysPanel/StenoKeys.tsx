@@ -1,9 +1,19 @@
 import { Key } from "@/components/Key";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
+import { useLayer } from "@/contexts/LayerContext";
+import { useVial } from "@/contexts/VialContext";
 import { keyService } from "@/services/key.service";
+
+import { hoverBackgroundClasses, hoverBorderClasses } from "@/utils/colors";
 
 const StenoKeys = () => {
     const { assignKeycode } = useKeyBinding();
+    const { keyboard } = useVial();
+    const { selectedLayer } = useLayer();
+
+    const layerColorName = keyboard?.cosmetic?.layer_colors?.[selectedLayer] || "primary";
+    const hoverBorderColor = hoverBorderClasses[layerColorName] || hoverBorderClasses["primary"];
+    const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
 
     const group1Keys = [
         { keycode: "STN_N1", label: "#₁" },
@@ -57,50 +67,35 @@ const StenoKeys = () => {
         { keycode: "STN_U", label: "U" },
     ];
 
+    const keys = [
+        ...group1Keys,
+        ...group2Keys
+    ];
+
     return (
         <div className="flex flex-col gap-2">
-            <span className="font-semibold text-lg text-slate-700">All Steno Keys</span>
-            <div className="flex flex-row gap-4">
-                <div className="flex-1 flex flex-wrap gap-2 content-start">
-                    {group1Keys.map((k) => (
-                        <Key
-                            key={k.keycode}
-                            x={0}
-                            y={0}
-                            w={1}
-                            h={1}
-                            row={0}
-                            col={0}
-                            keycode={k.keycode}
-                            label={keyService.define(k.keycode)?.str || k.label}
-                            layerColor="sidebar"
-                            headerClassName="bg-kb-sidebar-dark"
-                            isRelative
-                            className="h-[60px] w-[60px]"
-                            onClick={() => assignKeycode(k.keycode)}
-                        />
-                    ))}
-                </div>
-                <div className="flex-1 flex flex-wrap gap-2 content-start">
-                    {group2Keys.map((k) => (
-                        <Key
-                            key={k.keycode}
-                            x={0}
-                            y={0}
-                            w={1}
-                            h={1}
-                            row={0}
-                            col={0}
-                            keycode={k.keycode}
-                            label={keyService.define(k.keycode)?.str || k.label}
-                            layerColor="sidebar"
-                            headerClassName="bg-kb-sidebar-dark"
-                            isRelative
-                            className="h-[60px] w-[60px]"
-                            onClick={() => assignKeycode(k.keycode)}
-                        />
-                    ))}
-                </div>
+            <span className="font-semibold text-lg text-slate-700">Steno Keys</span>
+            <div className="flex flex-wrap gap-2">
+                {keys.map((k) => (
+                    <Key
+                        key={k.keycode}
+                        x={0}
+                        y={0}
+                        w={1}
+                        h={1}
+                        row={0}
+                        col={0}
+                        keycode={k.keycode}
+                        label={keyService.define(k.keycode)?.str || k.label}
+                        layerColor="sidebar"
+                        headerClassName="bg-kb-sidebar-dark"
+                        isRelative
+                        className="h-[60px] w-[60px]"
+                        hoverBorderColor={hoverBorderColor}
+                        hoverBackgroundColor={hoverBackgroundColor}
+                        onClick={() => assignKeycode(k.keycode)}
+                    />
+                ))}
             </div>
         </div>
     );

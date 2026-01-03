@@ -37,7 +37,7 @@ export type SidebarItem = {
 
 export const primarySidebarItems: SidebarItem[] = [
     { title: "Keys", url: "keyboard", icon: KeyboardIcon },
-    { title: "Misc Keys", url: "misc", icon: GamepadDirectional },
+    { title: "Special Keys", url: "special", icon: GamepadDirectional },
     { title: "Layers", url: "layers", icon: LayersDefaultIcon },
     { title: "Tap Dances", url: "tapdances", icon: TapdanceIcon },
     { title: "Combos", url: "combos", icon: ComboIcon },

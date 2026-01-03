@@ -66,7 +66,7 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
                     </TooltipContent>
                 </Tooltip>
 
-                <div className="max-w-full flex flex-row overflow-hidden flex-grow-0 gap-2">
+                <div className="max-w-full flex flex-row overflow-visible flex-grow-0 gap-2 p-1">
                     {Array.from({ length: keyboard.layers || 16 }, (_, i) => {
                         const layerData = keyboard.keymap?.[i];
                         const isEmpty = layerData ? vialService.isLayerEmpty(layerData) : true;
@@ -85,7 +85,7 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
                                 onClick={handleSelectLayer(i)}
                                 onDoubleClick={() => handleOpenEditor(i)}
                                 className={cn(
-                                    "px-5 py-1 rounded-full transition-all text-sm font-medium cursor-pointer border-none outline-none",
+                                    "px-5 py-1 rounded-full transition-all text-sm font-medium cursor-pointer border-none outline-none whitespace-nowrap",
                                     isActive
                                         ? "bg-gray-800 text-white shadow-md scale-105"
                                         : "bg-transparent text-gray-600 hover:bg-gray-200"

@@ -4,23 +4,27 @@ import React, { useMemo } from "react";
 import { Key } from "@/components/Key";
 import { Button } from "@/components/ui/button";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
+import { useLayer } from "@/contexts/LayerContext";
 import { usePanels } from "@/contexts/PanelsContext";
 import { useVial } from "@/contexts/VialContext";
-import { getKeyContents } from "@/utils/keys";
 import { KeyboardInfo } from "@/types/vial.types";
+import { hoverBackgroundClasses, hoverBorderClasses } from "@/utils/colors";
+import { getKeyContents } from "@/utils/keys";
 
 interface TapdanceRowProps {
     index: number;
     keyboard: KeyboardInfo;
     onAssignKeycode: (keycode: string) => void;
     onEdit: (index: number) => void;
+    hoverBorderColor?: string;
+    hoverBackgroundColor?: string;
 }
 
 /**
  * Renders a single row in the Tapdances panel.
  * Matches LayerRow styling but without the dotted line.
  */
-const TapdanceRow: React.FC<TapdanceRowProps> = React.memo(({ index, keyboard, onAssignKeycode, onEdit }) => {
+const TapdanceRow: React.FC<TapdanceRowProps> = React.memo(({ index, keyboard, onAssignKeycode, onEdit, hoverBorderColor, hoverBackgroundColor }) => {
     // Derived properties
     const keycode = `TD(${index})`;
 
@@ -74,6 +78,8 @@ const TapdanceRow: React.FC<TapdanceRowProps> = React.memo(({ index, keyboard, o
                     headerClassName="bg-kb-sidebar-dark"
                     isRelative
                     className="h-[60px] w-[60px]"
+                    hoverBorderColor={hoverBorderColor}
+                    hoverBackgroundColor={hoverBackgroundColor}
                     onClick={() => onAssignKeycode(keycode)}
                 />
 
@@ -95,6 +101,7 @@ const TapdanceRow: React.FC<TapdanceRowProps> = React.memo(({ index, keyboard, o
 const TapdancePanel: React.FC = () => {
     const { keyboard } = useVial();
     const { assignKeycode } = useKeyBinding();
+    const { selectedLayer } = useLayer();
     const {
         setItemToEdit,
         setBindingTypeToEdit,
@@ -104,6 +111,10 @@ const TapdancePanel: React.FC = () => {
     } = usePanels();
 
     if (!keyboard) return null;
+
+    const layerColorName = keyboard?.cosmetic?.layer_colors?.[selectedLayer] || "primary";
+    const hoverBorderColor = hoverBorderClasses[layerColorName] || hoverBorderClasses["primary"];
+    const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
 
     const tapdances = (keyboard as any)?.tapdances || [];
 
@@ -125,6 +136,8 @@ const TapdancePanel: React.FC = () => {
                         keyboard={keyboard}
                         onAssignKeycode={assignKeycode}
                         onEdit={handleEdit}
+                        hoverBorderColor={hoverBorderColor}
+                        hoverBackgroundColor={hoverBackgroundColor}
                     />
                 ))}
                 {tapdances.length === 0 && (

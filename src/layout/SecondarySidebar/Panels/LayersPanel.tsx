@@ -6,12 +6,13 @@ import EditLayer from "@/components/EditLayer";
 import { Key } from "@/components/Key";
 import { Button } from "@/components/ui/button";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
+import { useLayer } from "@/contexts/LayerContext";
 import { useVial } from "@/contexts/VialContext";
 import { cn } from "@/lib/utils";
 import { svalService } from "@/services/sval.service";
-import { colorClasses } from "@/utils/colors";
-import { getKeyContents } from "@/utils/keys";
 import { KeyboardInfo } from "@/types/vial.types";
+import { colorClasses, hoverBackgroundClasses, hoverBorderClasses } from "@/utils/colors";
+import { getKeyContents } from "@/utils/keys";
 
 /**
  * Valid layer modifiers supported by the UI
@@ -33,13 +34,15 @@ interface LayerRowProps {
     keyboard: KeyboardInfo;
     activeModifier: LayerModifier;
     onAssignKeycode: (keycode: string) => void;
+    hoverBorderColor?: string;
+    hoverBackgroundColor?: string;
 }
 
 /**
  * Renders a single row in the Layers panel, representing one layer level.
  * Handles drag handles, cosmetic naming, and layer-related keycode assignment.
  */
-const LayerRow: React.FC<LayerRowProps> = React.memo(({ index, keyboard, activeModifier, onAssignKeycode }) => {
+const LayerRow: React.FC<LayerRowProps> = React.memo(({ index, keyboard, activeModifier, onAssignKeycode, hoverBorderColor, hoverBackgroundColor }) => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     // Derived properties for the layer level
@@ -103,9 +106,11 @@ const LayerRow: React.FC<LayerRowProps> = React.memo(({ index, keyboard, activeM
                     label={index.toString()}
                     keyContents={keyContents}
                     layerColor="sidebar"
-                    headerClassName="bg-kb-sidebar-dark"
+                    headerClassName="bg-kb-sidebar-dark group-hover:bg-black/30"
                     isRelative
                     className="h-[60px] w-[60px]"
+                    hoverBorderColor={hoverBorderColor}
+                    hoverBackgroundColor={hoverBackgroundColor}
                     onClick={() => onAssignKeycode(keycode)}
                 />
 
@@ -135,8 +140,13 @@ const LayersPanel = () => {
     const [activeModifier, setActiveModifier] = useState<LayerModifier>("MO");
     const { keyboard } = useVial();
     const { assignKeycode } = useKeyBinding();
+    const { selectedLayer } = useLayer();
 
     if (!keyboard) return null;
+
+    const layerColorName = keyboard?.cosmetic?.layer_colors?.[selectedLayer] || "primary";
+    const hoverBorderColor = hoverBorderClasses[layerColorName] || hoverBorderClasses["primary"];
+    const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
 
     return (
         <section className="space-y-3 h-full max-h-full flex flex-col">
@@ -180,6 +190,8 @@ const LayersPanel = () => {
                         keyboard={keyboard}
                         activeModifier={activeModifier}
                         onAssignKeycode={assignKeycode}
+                        hoverBorderColor={hoverBorderColor}
+                        hoverBackgroundColor={hoverBackgroundColor}
                     />
                 ))}
             </div>

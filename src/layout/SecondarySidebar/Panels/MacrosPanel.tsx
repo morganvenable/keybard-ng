@@ -4,23 +4,27 @@ import React, { useMemo } from "react";
 import { Key } from "@/components/Key";
 import { Button } from "@/components/ui/button";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
+import { useLayer } from "@/contexts/LayerContext";
 import { usePanels } from "@/contexts/PanelsContext";
 import { useVial } from "@/contexts/VialContext";
-import { getKeyContents } from "@/utils/keys";
 import { KeyboardInfo } from "@/types/vial.types";
+import { hoverBackgroundClasses, hoverBorderClasses } from "@/utils/colors";
+import { getKeyContents } from "@/utils/keys";
 
 interface MacroRowProps {
     index: number;
     keyboard: KeyboardInfo;
     onAssignKeycode: (keycode: string) => void;
     onEdit: (index: number) => void;
+    hoverBorderColor?: string;
+    hoverBackgroundColor?: string;
 }
 
 /**
  * Renders a single row in the Macros panel.
  * Matches TapdanceRow styling: dotted line, no dot, custom key.
  */
-const MacroRow: React.FC<MacroRowProps> = React.memo(({ index, keyboard, onAssignKeycode, onEdit }) => {
+const MacroRow: React.FC<MacroRowProps> = React.memo(({ index, keyboard, onAssignKeycode, onEdit, hoverBorderColor, hoverBackgroundColor }) => {
     // Derived properties
     // Matching the keycode format used in BindingsList: M0, M1, etc.
     const keycode = `M${index}`;
@@ -75,6 +79,8 @@ const MacroRow: React.FC<MacroRowProps> = React.memo(({ index, keyboard, onAssig
                     headerClassName="bg-kb-sidebar-dark"
                     isRelative
                     className="h-[60px] w-[60px]"
+                    hoverBorderColor={hoverBorderColor}
+                    hoverBackgroundColor={hoverBackgroundColor}
                     onClick={() => onAssignKeycode(keycode)}
                 />
 
@@ -96,6 +102,7 @@ const MacroRow: React.FC<MacroRowProps> = React.memo(({ index, keyboard, onAssig
 const MacrosPanel: React.FC = () => {
     const { keyboard } = useVial();
     const { assignKeycode } = useKeyBinding();
+    const { selectedLayer } = useLayer();
     const {
         setItemToEdit,
         setBindingTypeToEdit,
@@ -105,6 +112,10 @@ const MacrosPanel: React.FC = () => {
     } = usePanels();
 
     if (!keyboard) return null;
+
+    const layerColorName = keyboard?.cosmetic?.layer_colors?.[selectedLayer] || "primary";
+    const hoverBorderColor = hoverBorderClasses[layerColorName] || hoverBorderClasses["primary"];
+    const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
 
     const macros = (keyboard as any)?.macros || [];
 
@@ -126,6 +137,8 @@ const MacrosPanel: React.FC = () => {
                         keyboard={keyboard}
                         onAssignKeycode={assignKeycode}
                         onEdit={handleEdit}
+                        hoverBorderColor={hoverBorderColor}
+                        hoverBackgroundColor={hoverBackgroundColor}
                     />
                 ))}
                 {macros.length === 0 && (

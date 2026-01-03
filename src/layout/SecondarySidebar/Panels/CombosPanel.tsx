@@ -3,21 +3,25 @@ import React from "react";
 
 import { Key } from "@/components/Key";
 import { Button } from "@/components/ui/button";
+import { useLayer } from "@/contexts/LayerContext";
 import { usePanels } from "@/contexts/PanelsContext";
 import { useVial } from "@/contexts/VialContext";
 import { KeyboardInfo } from "@/types/vial.types";
+import { hoverBackgroundClasses, hoverBorderClasses } from "@/utils/colors";
 
 interface ComboRowProps {
     index: number;
     keyboard: KeyboardInfo; // Kept for consistency, even if unused for key content
     onEdit: (index: number) => void;
+    hoverBorderColor?: string;
+    hoverBackgroundColor?: string;
 }
 
 /**
  * Renders a single row in the Combos panel.
  * Matches TapdanceRow/MacroRow styling: dotted line, no dot, custom key.
  */
-const ComboRow: React.FC<ComboRowProps> = React.memo(({ index, onEdit }) => {
+const ComboRow: React.FC<ComboRowProps> = React.memo(({ index, onEdit, hoverBorderColor, hoverBackgroundColor }) => {
     // For combos, we don't have a standard keycode resolution like TD() or M().
     // We'll just display the index on the key.
 
@@ -69,6 +73,8 @@ const ComboRow: React.FC<ComboRowProps> = React.memo(({ index, onEdit }) => {
                     headerClassName="bg-kb-sidebar-dark"
                     isRelative
                     className="h-[60px] w-[60px] cursor-default"
+                    hoverBorderColor={hoverBorderColor}
+                    hoverBackgroundColor={hoverBackgroundColor}
                 />
 
                 <div className="w-8 flex justify-center items-center h-[60px]">
@@ -88,6 +94,7 @@ const ComboRow: React.FC<ComboRowProps> = React.memo(({ index, onEdit }) => {
 
 const CombosPanel: React.FC = () => {
     const { keyboard } = useVial();
+    const { selectedLayer } = useLayer();
     const {
         setItemToEdit,
         setBindingTypeToEdit,
@@ -97,6 +104,10 @@ const CombosPanel: React.FC = () => {
     } = usePanels();
 
     if (!keyboard) return null;
+
+    const layerColorName = keyboard?.cosmetic?.layer_colors?.[selectedLayer] || "primary";
+    const hoverBorderColor = hoverBorderClasses[layerColorName] || hoverBorderClasses["primary"];
+    const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
 
     const combos = (keyboard as any)?.combos || [];
 
@@ -117,6 +128,8 @@ const CombosPanel: React.FC = () => {
                         index={i}
                         keyboard={keyboard}
                         onEdit={handleEdit}
+                        hoverBorderColor={hoverBorderColor}
+                        hoverBackgroundColor={hoverBackgroundColor}
                     />
                 ))}
                 {combos.length === 0 && (

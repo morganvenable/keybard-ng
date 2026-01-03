@@ -29,6 +29,8 @@ interface KeyProps {
     className?: string;
     headerClassName?: string;
     variant?: "default" | "small";
+    hoverBorderColor?: string;
+    hoverBackgroundColor?: string;
 }
 
 export const Key: React.FC<KeyProps> = ({
@@ -48,6 +50,8 @@ export const Key: React.FC<KeyProps> = ({
     className = "",
     headerClassName = "bg-black/30",
     variant = "default",
+    hoverBorderColor,
+    hoverBackgroundColor,
 }) => {
     let bottomStr = "";
     let topStr = "";
@@ -93,10 +97,11 @@ export const Key: React.FC<KeyProps> = ({
             <div
                 className={cn(
                     colorClasses[layerColor],
-                    "flex flex-col items-center justify-center cursor-pointer transition-all duration-200 ease-in-out uppercase flex flex-col items-center justify-between",
+                    "flex flex-col items-center justify-center cursor-pointer transition-all duration-200 ease-in-out uppercase flex flex-col items-center justify-between group",
                     variant === "small" ? "rounded-[5px] border" : "rounded-md border-2",
                     !isRelative && "absolute",
-                    selected ? "border-kb-gray bg-red-500 text-white" : "border-kb-gray hover:border-red-500",
+                    selected ? "border-kb-gray bg-red-500 text-white" : `border-kb-gray ${hoverBorderColor ? hoverBorderColor : "hover:border-red-500"}`,
+                    hoverBackgroundColor && hoverBackgroundColor,
                     className
                 )}
                 style={!isRelative ? style : {}}
@@ -134,7 +139,8 @@ export const Key: React.FC<KeyProps> = ({
                 colorClasses[layerColor],
                 "flex items-center overflow-hidden justify-center cursor-pointer transition-all duration-200 ease-in-out rounded-md uppercase flex flex-col items-center justify-between",
                 !isRelative && "absolute",
-                selected ? "border-2 border-kb-gray bg-red-500 text-white" : "border-2 border-kb-gray hover:border-red-500",
+                selected ? "border-2 border-kb-gray bg-red-500 text-white" : `border-2 border-kb-gray ${hoverBorderColor ? hoverBorderColor : "hover:border-red-500"}`,
+                hoverBackgroundColor && hoverBackgroundColor,
                 className
             )}
             style={!isRelative ? style : {}}

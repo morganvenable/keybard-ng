@@ -1,9 +1,19 @@
 import { Key } from "@/components/Key";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
+import { useLayer } from "@/contexts/LayerContext";
+import { useVial } from "@/contexts/VialContext";
 import { keyService } from "@/services/key.service";
+
+import { hoverBackgroundClasses, hoverBorderClasses } from "@/utils/colors";
 
 const FunctionKeys = () => {
     const { assignKeycode } = useKeyBinding();
+    const { keyboard } = useVial();
+    const { selectedLayer } = useLayer();
+
+    const layerColorName = keyboard?.cosmetic?.layer_colors?.[selectedLayer] || "primary";
+    const hoverBorderColor = hoverBorderClasses[layerColorName] || hoverBorderClasses["primary"];
+    const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
 
     const keys = Array.from({ length: 24 }, (_, i) => {
         const num = i + 1;
@@ -15,7 +25,7 @@ const FunctionKeys = () => {
 
     return (
         <div className="flex flex-col gap-2">
-            <span className="font-semibold text-lg text-slate-700">All Function Keys</span>
+            <span className="font-semibold text-lg text-slate-700">Function Keys</span>
             <div className="flex flex-wrap gap-2">
                 {keys.map((k) => (
                     <Key
@@ -32,6 +42,8 @@ const FunctionKeys = () => {
                         headerClassName="bg-kb-sidebar-dark"
                         isRelative
                         className="h-[60px] w-[60px]"
+                        hoverBorderColor={hoverBorderColor}
+                        hoverBackgroundColor={hoverBackgroundColor}
                         onClick={() => assignKeycode(k.keycode)}
                     />
                 ))}

@@ -3,21 +3,25 @@ import React from "react";
 
 import { Key } from "@/components/Key";
 import { Button } from "@/components/ui/button";
+import { useLayer } from "@/contexts/LayerContext";
 import { usePanels } from "@/contexts/PanelsContext";
 import { useVial } from "@/contexts/VialContext";
 import { KeyboardInfo } from "@/types/vial.types";
+import { hoverBackgroundClasses, hoverBorderClasses } from "@/utils/colors";
 
 interface OverrideRowProps {
     index: number;
     keyboard: KeyboardInfo;
     onEdit: (index: number) => void;
+    hoverBorderColor?: string;
+    hoverBackgroundColor?: string;
 }
 
 /**
  * Renders a single row in the Overrides panel.
  * Matches styling of other panels: dotted line, no dot, custom key.
  */
-const OverrideRow: React.FC<OverrideRowProps> = React.memo(({ index, onEdit }) => {
+const OverrideRow: React.FC<OverrideRowProps> = React.memo(({ index, onEdit, hoverBorderColor, hoverBackgroundColor }) => {
     return (
         <div className="flex flex-row items-end py-0 panel-layer-item group/item relative pl-6 pr-2">
             {/* Drag Handle - centered vertically in the 60px row */}
@@ -66,6 +70,8 @@ const OverrideRow: React.FC<OverrideRowProps> = React.memo(({ index, onEdit }) =
                     headerClassName="bg-kb-sidebar-dark"
                     isRelative
                     className="h-[60px] w-[60px] cursor-default"
+                    hoverBorderColor={hoverBorderColor}
+                    hoverBackgroundColor={hoverBackgroundColor}
                 />
 
                 <div className="w-8 flex justify-center items-center h-[60px]">
@@ -85,6 +91,7 @@ const OverrideRow: React.FC<OverrideRowProps> = React.memo(({ index, onEdit }) =
 
 const OverridesPanel: React.FC = () => {
     const { keyboard } = useVial();
+    const { selectedLayer } = useLayer();
     const {
         setItemToEdit,
         setBindingTypeToEdit,
@@ -94,6 +101,10 @@ const OverridesPanel: React.FC = () => {
     } = usePanels();
 
     if (!keyboard) return null;
+
+    const layerColorName = keyboard?.cosmetic?.layer_colors?.[selectedLayer] || "primary";
+    const hoverBorderColor = hoverBorderClasses[layerColorName] || hoverBorderClasses["primary"];
+    const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
 
     const overrides = (keyboard as any)?.key_overrides || [];
 
@@ -114,6 +125,8 @@ const OverridesPanel: React.FC = () => {
                         index={i}
                         keyboard={keyboard}
                         onEdit={handleEdit}
+                        hoverBorderColor={hoverBorderColor}
+                        hoverBackgroundColor={hoverBackgroundColor}
                     />
                 ))}
                 {overrides.length === 0 && (
