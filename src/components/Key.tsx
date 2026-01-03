@@ -60,7 +60,8 @@ export const Key: React.FC<KeyProps> = ({
     let topStr = "";
 
     const hasModifiers = keyContents && ["modmask"].includes(keyContents.type);
-    const handleClick = () => {
+    const handleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
         if (onClick) {
             onClick(row, col);
         }
@@ -79,7 +80,10 @@ export const Key: React.FC<KeyProps> = ({
     if (hasModifiers && keyContents) {
         const show = showModMask(keyContents.modids);
         const keys = keyContents.str.split("\n");
-        l = keys[0];
+        // If a custom label was provided (not just the raw keycode), prefer it!
+        if (!label || label === keycode) {
+            l = keys[0];
+        }
         bottomStr = show;
     }
     if (keyContents?.type === "tapdance") {
@@ -172,7 +176,12 @@ export const Key: React.FC<KeyProps> = ({
             >
                 <span className={cn(variant === "small" ? "text-[10px] rounded-t-[4px]" : "text-sm rounded-t-sm", "whitespace-nowrap w-full text-center text-white font-semibold py-0", headerClassName)}>{keyContents?.layertext}</span>
                 <div className={cn("flex flex-row h-full w-full items-center justify-center", variant === "small" ? "gap-1" : "gap-2")}>
-                    <div className={cn(variant === "small" ? "text-[13px]" : "text-md", "text-center justify-center items-center flex font-semibold")}>{keyContents?.top?.split("(")[1]?.replace(")", "")}</div>
+                    <div className={cn(
+                        variant === "small" ? "text-[13px]" : (keyContents?.top?.split("(")[1]?.replace(")", "").length === 1 ? "text-[16px]" : "text-[15px]"),
+                        "text-center justify-center items-center flex font-semibold"
+                    )}>
+                        {keyContents?.top?.split("(")[1]?.replace(")", "")}
+                    </div>
                     <LayersIcon className={variant === "small" ? "w-3 h-3" : ""} />
                 </div>
             </div>
@@ -235,7 +244,7 @@ export const Key: React.FC<KeyProps> = ({
             <div
                 className={cn(
                     "text-center w-full h-full justify-center items-center flex font-semibold",
-                    variant === "small" ? "text-[10px] px-0.5" : "text-md"
+                    variant === "small" ? "text-[10px] px-0.5" : (typeof centerLabel === 'string' && centerLabel.length === 1 ? "text-[16px]" : "text-[15px]")
                 )}
                 style={textStyle}
             >

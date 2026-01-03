@@ -303,6 +303,10 @@ export const BUTTON_TO_KEYCODE_MAP: Record<string, string> = {
     "ئ": "KC_Z", "ء": "KC_X", "ؤ": "KC_C", "ر": "KC_V", "لا": "KC_B", "ى": "KC_N", "ة": "KC_M", "و": "KC_COMMA", "ز": "KC_DOT", "ظ": "KC_SLASH",
 
     // Functional
+    "{escape}": "KC_ESCAPE", "{tab}": "KC_TAB", "{backspace}": "KC_BSPACE", "{enter}": "KC_ENTER",
+    "{capslock}": "KC_CAPSLOCK", "{shiftleft}": "KC_LSHIFT", "{shiftright}": "KC_RSHIFT",
+    "{controlleft}": "KC_LCTRL", "{controlright}": "KC_RCTRL", "{altleft}": "KC_LALT", "{altright}": "KC_RALT",
+    "{metaleft}": "KC_LGUI", "{metaright}": "KC_RGUI", "{space}": "KC_SPACE",
     "{f1}": "KC_F1", "{f2}": "KC_F2", "{f3}": "KC_F3", "{f4}": "KC_F4", "{f5}": "KC_F5", "{f6}": "KC_F6",
     "{f7}": "KC_F7", "{f8}": "KC_F8", "{f9}": "KC_F9", "{f10}": "KC_F10", "{f11}": "KC_F11", "{f12}": "KC_F12",
 };
@@ -336,7 +340,15 @@ export const LAYOUT_KEY_MAPS: Record<string, Record<string, string>> = {
         "y": "KC_Z", "Y": "KC_Z",
         "&": "KC_6", "(": "KC_8", ")": "KC_9", "=": "KC_0",
         '"': "KC_2", "/": "KC_7", "!": "KC_1", "?": "KC_MINUS",
-        "<": "KC_NONUS_BSLASH", ">": "KC_NONUS_BSLASH"
+        "<": "KC_NONUS_BSLASH", ">": "KC_NONUS_BSLASH",
+        "^": "KC_GRAVE",
+        "ß": "KC_MINUS",
+        "´": "KC_EQUAL",
+        "ü": "KC_LBRACKET", "Ü": "KC_LBRACKET",
+        "+": "KC_RBRACKET", "*": "KC_RBRACKET",
+        "ö": "KC_SCOLON", "Ö": "KC_SCOLON",
+        "ä": "KC_QUOTE", "Ä": "KC_QUOTE",
+        "#": "KC_NUHS"
     },
     french: {
         "a": "KC_Q", "A": "KC_Q", "q": "KC_A", "Q": "KC_A",
@@ -347,7 +359,8 @@ export const LAYOUT_KEY_MAPS: Record<string, Record<string, string>> = {
         "<": "KC_NONUS_BSLASH", ">": "KC_NONUS_BSLASH"
     },
     uk: {
-        "\"": "KC_2", "@": "KC_QUOTE", "£": "KC_3", "~": "KC_HASH", "\\": "KC_NONUS_BSLASH", "|": "KC_NONUS_BSLASH"
+        "\"": "KC_2", "@": "KC_QUOTE", "£": "KC_3", "~": "KC_HASH", "\\": "KC_NONUS_BSLASH", "|": "KC_NONUS_BSLASH",
+        "#": "KC_NUHS" // UK usually puts # near enter
     },
     spanish: {
         "'": "KC_MINUS", "?": "KC_MINUS", "¿": "KC_EQUAL", "¡": "KC_EQUAL",
@@ -364,7 +377,10 @@ export const LAYOUT_KEY_MAPS: Record<string, Record<string, string>> = {
         "¨": "KC_RBRACKET", "'": "KC_BSLASH",
         "<": "KC_NONUS_BSLASH", ">": "KC_NONUS_BSLASH",
         "-": "KC_SLASH",
-        "½": "KC_GRAVE"
+        "½": "KC_GRAVE",
+        "å": "KC_LBRACKET", "Å": "KC_LBRACKET",
+        "æ": "KC_SCOLON", "Æ": "KC_SCOLON",
+        "ø": "KC_QUOTE", "Ø": "KC_QUOTE"
     },
     russian: {
         ".": "KC_SLASH", ",": "KC_SLASH"
@@ -414,31 +430,68 @@ export const getLabelForKeycode = (keycode: string, layoutId: string): string | 
     if (!layout) return null;
 
     // 2. Normalize target keycode (ensure uppercase KC_ format)
-    const targetKeycode = keycode.toUpperCase();
+    let targetKeycode = keycode.toUpperCase();
+    let isShifted = false;
 
-    // 3. Search in default and shift layers
-    const allRows = [...layout.default, ...layout.shift];
-    // Get layout specific map if it exists
-    const layoutMap = LAYOUT_KEY_MAPS[layoutId] || {};
-
-    for (const row of allRows) {
-        const keys = row.split(" ");
-        for (const key of keys) {
-            // 4. Resolve keycode for this visual key
-            // Check specific layout map first, then global map
-            let mappedKeycode = layoutMap[key] || layoutMap[key.toLowerCase()];
-
-            if (!mappedKeycode) {
-                mappedKeycode = BUTTON_TO_KEYCODE_MAP[key] || BUTTON_TO_KEYCODE_MAP[key.toLowerCase()];
-            }
-
-            // 5. Compare
-            if (mappedKeycode === targetKeycode) {
-                // Found it! Return visual label (checking overrides first)
-                return KEY_DISPLAY_OVERRIDES[key] || key.replace("{", "").replace("}", "");
-            }
-        }
+    // Check for LSFT wrapper
+    if (targetKeycode.startsWith("LSFT(") && targetKeycode.endsWith(")")) {
+        targetKeycode = targetKeycode.slice(5, -1);
+        isShifted = true;
+    } else if (targetKeycode.startsWith("S(") && targetKeycode.endsWith(")")) {
+        targetKeycode = targetKeycode.slice(2, -1);
+        isShifted = true;
     }
 
-    return null;
+    // 3. Search in appropriate layer first
+    // If shifted, look in shift layer first. If not found, look in default layer (edge case?)
+    // If not shifted, look in default layer first.
+    // Actually, we should prioritize the layer that matches the shift state.
+
+    // We construct the search order based on isShifted
+    const primaryRows = isShifted ? layout.shift : layout.default;
+    const secondaryRows = isShifted ? layout.default : layout.shift;
+
+    const searchInRows = (rows: string[]) => {
+        const layoutMap = LAYOUT_KEY_MAPS[layoutId] || {};
+        for (const row of rows) {
+            const keys = row.split(" ");
+            for (const key of keys) {
+                // 4. Resolve keycode for this visual key
+                let mappedKeycode = layoutMap[key] || layoutMap[key.toLowerCase()];
+                if (!mappedKeycode) {
+                    mappedKeycode = BUTTON_TO_KEYCODE_MAP[key] || BUTTON_TO_KEYCODE_MAP[key.toLowerCase()];
+                }
+
+                // 5. Compare
+                if (mappedKeycode === targetKeycode) {
+                    return KEY_DISPLAY_OVERRIDES[key] || key.replace("{", "").replace("}", "");
+                }
+            }
+        }
+        return null;
+    };
+
+    // Try primary rows matching shift state
+    let label = searchInRows(primaryRows);
+    if (label) return label;
+
+    // Fallback to secondary rows (e.g. if user manually assigned a shifted keycode to a base key?)
+    // But conceptually, `LSFT(KC_3)` maps to `£` (Shift layer). `KC_3` maps to `3` (Default layer).
+    // If we search secondary, we might find `3` for `LSFT(KC_3)`? No.
+    // Because `3` maps to `KC_3`.
+    // If baseKeycode is `KC_3`.
+    // If isShifted (LSFT), we look in Shift rows. Find `£`. Map `£` -> `KC_3`. Match. Return `£`. Correct.
+    // If !isShifted, we look in Default rows. Find `3`. Map `3` -> `KC_3`. Match. Return `3`. Correct.
+
+    // What if we assign `LSFT(KC_A)`?
+    // Shift row `A`. Map `A` -> `KC_A`. Match. Return `A`.
+    // What if we assign `KC_A`?
+    // Default row `a`. Map `a` -> `KC_A`. Match. Return `a`.
+
+    // So strictly sticking to the corresponding layer seems correct for "Dynamic Shift" logic.
+    // However, if a key only exists in one layer?
+    // In our layouts, default/shift arrays mirror each other.
+
+    // Let's safe fallback just in case.
+    return searchInRows(secondaryRows);
 };

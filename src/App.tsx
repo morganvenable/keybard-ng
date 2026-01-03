@@ -4,7 +4,7 @@ import { KeyBindingProvider } from "./contexts/KeyBindingContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import { VialProvider } from "./contexts/VialContext";
 
-import { LayoutSettingsProvider } from "./contexts/LayoutSettingsContext";
+
 
 function App() {
     return (
@@ -12,9 +12,7 @@ function App() {
             <SettingsProvider>
                 <ChangesProvider>
                     <KeyBindingProvider>
-                        <LayoutSettingsProvider>
-                            <MainScreen />
-                        </LayoutSettingsProvider>
+                        <MainScreen />
                     </KeyBindingProvider>
                 </ChangesProvider>
             </SettingsProvider>

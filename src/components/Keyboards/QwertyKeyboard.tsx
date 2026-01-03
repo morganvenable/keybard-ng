@@ -13,9 +13,10 @@ interface IProps {
     onChange: (input: string) => void;
     onKeyPress?: (button: string) => void;
     keyboardRef: any;
+    activeModifiers?: string[];
 }
 
-const QwertyKeyboard: FunctionComponent<IProps> = ({ onKeyPress: onKeyPressCallback }) => {
+const QwertyKeyboard: FunctionComponent<IProps> = ({ onKeyPress: onKeyPressCallback, activeModifiers = [] }) => {
     const [layoutName, setLayoutName] = useState<"default" | "shift">("default");
     const { internationalLayout, setInternationalLayout } = useLayoutSettings();
     const { keyboard } = useVial();
@@ -27,8 +28,9 @@ const QwertyKeyboard: FunctionComponent<IProps> = ({ onKeyPress: onKeyPressCallb
     const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
 
     const currentLayout = LAYOUTS[internationalLayout] || LAYOUTS["us"];
-    const layoutRows = layoutName === "shift" ? currentLayout.shift : currentLayout.default;
     const layoutKeyMap = LAYOUT_KEY_MAPS[internationalLayout] || {};
+
+    const isShiftActive = activeModifiers.includes("Shift") || layoutName === "shift";
 
     const onKeyPress = (button: string) => {
         if (!isBinding || !keyboard) return;
@@ -65,28 +67,40 @@ const QwertyKeyboard: FunctionComponent<IProps> = ({ onKeyPress: onKeyPressCallb
         }
     };
 
-    const renderRow = (row: string) => {
-        const keys = row.split(" ");
+    const renderRow = (defaultRowStr: string, shiftRowStr: string) => {
+        const defaultKeys = defaultRowStr.split(" ");
+        const shiftKeys = shiftRowStr.split(" ");
+
         return (
             <div className="flex gap-1 justify-center">
-                {keys.map((key, i) => {
-                    // key is "ç" or "a" or "{shift}"
-                    // 1. Try layout specific map first
-                    // 2. Fallback to global map
-                    // 3. Fallback to key itself
-                    const keycode = layoutKeyMap[key] ||
-                        layoutKeyMap[key.toLowerCase()] ||
-                        BUTTON_TO_KEYCODE_MAP[key] ||
-                        BUTTON_TO_KEYCODE_MAP[key.toLowerCase()] ||
-                        key;
+                {defaultKeys.map((defaultKey, i) => {
+                    const shiftKey = shiftKeys[i] || defaultKey;
 
-                    const displayLabel = KEY_DISPLAY_OVERRIDES[key] || key.replace("{", "").replace("}", "");
-                    const width = getKeyWidth(key);
+                    // Visual key is determined by shift state
+                    const visualKey = isShiftActive ? shiftKey : defaultKey;
+
+                    // Output key is ALWAYS the default key (base), so parent can apply modifiers
+                    // Exception: If the key is specific to the shift layer (rare but possible), defaultKey might be weird?
+                    // But in our layouts, default is strict base.
+                    const outputKey = defaultKey;
+
+                    // To get correct QMK keycode for display/icon lookup, we resolve the visual key
+                    // key is "ç" or "a" or "{shift}"
+                    const labelKey = visualKey;
+
+                    const keycode = layoutKeyMap[labelKey] ||
+                        layoutKeyMap[labelKey.toLowerCase()] ||
+                        BUTTON_TO_KEYCODE_MAP[labelKey] ||
+                        BUTTON_TO_KEYCODE_MAP[labelKey.toLowerCase()] ||
+                        labelKey;
+
+                    const displayLabel = KEY_DISPLAY_OVERRIDES[visualKey] || visualKey.replace("{", "").replace("}", "");
+                    const width = getKeyWidth(defaultKey); // Use default key for width lookup to be consistent
                     const keyContents = keyboard ? getKeyContents(keyboard, keycode) : undefined;
 
                     return (
                         <Key
-                            key={`${key}-${i}`}
+                            key={`${defaultKey}-${i}`}
                             x={0} y={0} w={width} h={1} row={0} col={0}
                             keycode={keycode}
                             label={displayLabel}
@@ -97,7 +111,7 @@ const QwertyKeyboard: FunctionComponent<IProps> = ({ onKeyPress: onKeyPressCallb
                             variant="small"
                             hoverBorderColor={hoverBorderColor}
                             hoverBackgroundColor={hoverBackgroundColor}
-                            onClick={() => onKeyPress(key)}
+                            onClick={() => onKeyPress(outputKey)}
                         />
                     );
                 })}
@@ -122,8 +136,8 @@ const QwertyKeyboard: FunctionComponent<IProps> = ({ onKeyPress: onKeyPressCallb
             </div>
 
             <div className="flex flex-col gap-1">
-                {layoutRows.map((row, i) => (
-                    <div key={i}>{renderRow(row)}</div>
+                {currentLayout.default.map((row, i) => (
+                    <div key={i}>{renderRow(row, currentLayout.shift[i])}</div>
                 ))}
             </div>
         </div>

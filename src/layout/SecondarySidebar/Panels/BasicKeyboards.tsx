@@ -22,8 +22,8 @@ const getKeyCodeForButton = (keyboard: KeyboardInfo, button: string): string | u
     return `USER${customKeycode?.toString().padStart(2, "0")}`;
 };
 
-const modifierOptions = ["Shift", "Ctrl", "Alt", "Gui"] as const;
-type Modifier = typeof modifierOptions[number];
+export const modifierOptions = ["Shift", "Ctrl", "Alt", "Gui"] as const;
+export type Modifier = typeof modifierOptions[number];
 
 // Helper to apply modifiers to a keycode
 const applyModifiers = (keycode: string, activeModifiers: Modifier[]) => {
@@ -114,16 +114,13 @@ const BasicKeyboards = () => {
         { keycode: "KC_KP_0", label: "0" }, { keycode: "KC_KP_DOT", label: "." },
     ];
 
-    const internationalKeys = [
-        "KC_NONUS_HASH", "KC_NONUS_BSLASH", "KC_RO", "KC_KP_COMMA", "KC_TILD",
-        "KC_AT", "KC_CIRC", "KC_AMPR", "KC_ASTR", "KC_LPRN", "KC_RPRN", "KC_UNDS",
-        "KC_PLUS", "KC_LCBR", "KC_RCBR", "KC_LT", "KC_GT", "KC_COLN", "KC_QUES",
-        "KC_DQUO", "KC_PIPE", "KC_DLR", "KC_EXLM", "KC_HASH", "KC_PERC"
-    ].map(k => ({ keycode: k, label: k }));
 
-    const specialKeys = [
+    const blankKeys = [
         { keycode: "KC_NO", label: "" },
         { keycode: "KC_TRNS", label: "▽" },
+    ];
+
+    const otherKeys = [
         { keycode: "QK_REPEAT_KEY", label: "Repeat" },
         { keycode: "QK_LAYER_LOCK", label: "Lyr Lock" },
     ];
@@ -194,20 +191,20 @@ const BasicKeyboards = () => {
                 </div>
             </section>
 
-            <QwertyKeyboard keyboardRef={keyboardRef} onChange={() => { }} onKeyPress={handleKeyboardInput} />
+            <QwertyKeyboard keyboardRef={keyboardRef} onChange={() => { }} onKeyPress={handleKeyboardInput} activeModifiers={activeModifiers} />
 
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
                     <span className="font-semibold text-lg text-slate-700">Blank and Transparent</span>
-                    {renderKeyGrid(specialKeys)}
+                    {renderKeyGrid(blankKeys)}
                 </div>
                 <div className="flex flex-col gap-2">
                     <span className="font-semibold text-lg text-slate-700">Numpad</span>
                     {renderKeyGrid(numpadKeys, "grid-cols-7")}
                 </div>
                 <div className="flex flex-col gap-2">
-                    <span className="font-semibold text-lg text-slate-700">Punctuation</span>
-                    {renderKeyGrid(internationalKeys)}
+                    <span className="font-semibold text-lg text-slate-700">Others</span>
+                    {renderKeyGrid(otherKeys)}
                 </div>
             </div>
         </div>

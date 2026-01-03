@@ -95,7 +95,10 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
             </div>
 
             {selectedTarget ? (
-                <div className="bg-white text-black p-4 mt-4 rounded shadow-md absolute bottom-5 right-5 rounded-2xl transition-all">
+                <div
+                    className="bg-white text-black p-4 mt-4 rounded shadow-md absolute bottom-5 right-5 rounded-2xl transition-all"
+                    onClick={(e) => e.stopPropagation()}
+                >
                     <h4>Selected Key</h4>
                     <p>
                         <b>Position</b>: Row {selectedTarget.row}, Col {selectedTarget.col}
@@ -104,7 +107,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
                         <b>Matrix</b>: {(selectedTarget.row || 0) * MATRIX_COLS + (selectedTarget.col || 0)}
                     </p>
                     <p>
-                        <b>Keycode</b>: {getKeycodeName(layerKeymap[(selectedTarget.row || 0) * MATRIX_COLS + (selectedTarget?.col || 0)] || 0)}
+                        <b>Keycode</b>: {getKeycodeName(layerKeymap[(selectedTarget.row || 0) * MATRIX_COLS + (selectedTarget.col || 0)] || 0)}
                     </p>
                 </div>
             ) : undefined}
