@@ -115,13 +115,13 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
                         <button
                             onClick={toggleShowLayers}
                             className="hover:bg-gray-200 p-1.5 rounded-md transition-colors mr-2 text-black flex items-center justify-center"
-                            aria-label={showAllLayers ? "Show Active Only" : "Show All Layers"}
+                            aria-label={showAllLayers ? "Hide Blank Layers" : "Show All Layers"}
                         >
                             {showAllLayers ? <LayersDefaultIcon className="h-5 w-5" /> : <LayersActiveIcon className="h-5 w-5" />}
                         </button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                        {showAllLayers ? "Show Active Layers Only" : "Show All Layers"}
+                        {showAllLayers ? "Hide Blank Layers" : "Show All Layers"}
                     </TooltipContent>
                 </Tooltip>
 
