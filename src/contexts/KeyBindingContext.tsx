@@ -17,7 +17,11 @@ interface BindingTarget {
     tapdanceId?: number;
     tapdanceSlot?: "tap" | "hold" | "doubletap" | "taphold";
     // Add more as needed for other binding types
+    isHover?: boolean;
+    keycode?: string | number;
+    label?: string;
 }
+
 
 interface KeyBindingContextType {
     selectedTarget: BindingTarget | null;
@@ -27,7 +31,10 @@ interface KeyBindingContextType {
     assignKeycode: (keycode: number | string) => void;
     clearSelection: () => void;
     isBinding: boolean;
+    hoveredKey: BindingTarget | null;
+    setHoveredKey: (target: BindingTarget | null) => void;
 }
+
 
 const KeyBindingContext = createContext<KeyBindingContextType | undefined>(undefined);
 
@@ -35,7 +42,9 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const { keyboard, setKeyboard, updateKey } = useVial();
     const { queue } = useChanges();
     const [selectedTarget, setSelectedTarget] = useState<BindingTarget | null>(null);
+    const [hoveredKey, setHoveredKey] = useState<BindingTarget | null>(null);
     const [isBinding, setIsBinding] = useState(false);
+
 
 
 
@@ -231,7 +240,7 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             const typingBindsKey = getSetting("typing-binds-key");
-            
+
             if (!typingBindsKey || !selectedTargetRef.current) return;
 
             // Ignore if user is typing in an input or textarea
@@ -261,7 +270,10 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         assignKeycode,
         clearSelection,
         isBinding,
+        hoveredKey,
+        setHoveredKey,
     };
+
 
     return <KeyBindingContext.Provider value={value}>{children}</KeyBindingContext.Provider>;
 };

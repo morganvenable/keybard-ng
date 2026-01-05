@@ -1,6 +1,6 @@
-import "./Key.css";
 import React from "react";
 import { cn } from "@/lib/utils";
+import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { showModMask } from "@/utils/keys";
 import { colorClasses, hoverContainerTextClasses } from "@/utils/colors";
 import { UNIT_SIZE } from "../constants/svalboard-layout";
@@ -56,6 +56,8 @@ export const Key: React.FC<KeyProps> = ({
 }) => {
     const isSmall = variant === "small";
     const currentUnitSize = isSmall ? 30 : UNIT_SIZE;
+    const { setHoveredKey } = useKeyBinding();
+
 
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -63,6 +65,21 @@ export const Key: React.FC<KeyProps> = ({
             onClick(row, col);
         }
     };
+
+    const handleMouseEnter = () => {
+        setHoveredKey({
+            type: "keyboard",
+            row,
+            col,
+            keycode,
+            label,
+        });
+    };
+
+    const handleMouseLeave = () => {
+        setHoveredKey(null);
+    };
+
 
     // Style for positioning and dimensions
     const boxStyle: React.CSSProperties = {
@@ -155,6 +172,8 @@ export const Key: React.FC<KeyProps> = ({
                 className={containerClasses}
                 style={boxStyle}
                 onClick={handleClick}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
                 title={keycode}
             >
                 <span className={cn(
@@ -185,6 +204,8 @@ export const Key: React.FC<KeyProps> = ({
             className={containerClasses}
             style={boxStyle}
             onClick={handleClick}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
             title={keycode}
         >
             {topLabel && (
