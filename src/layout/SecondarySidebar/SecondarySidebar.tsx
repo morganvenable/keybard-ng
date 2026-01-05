@@ -157,8 +157,8 @@ const SecondarySidebar = () => {
                 <div key={activePanel ?? "panel-placeholder"} className="panel-fade-bounce">
                     {renderContent()}
                 </div>
-                {itemToEdit !== null ? <BindingEditorContainer /> : null}
             </SidebarContent>
+            {itemToEdit !== null ? <BindingEditorContainer /> : null}
         </Sidebar>
     );
 };

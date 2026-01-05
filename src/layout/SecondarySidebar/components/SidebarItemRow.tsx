@@ -1,4 +1,5 @@
 import React from "react";
+import { Pencil } from "lucide-react";
 
 import { Key } from "@/components/Key";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ interface SidebarItemRowProps {
     hoverLayerColor?: string;
     hoverHeaderClass?: string;
     showDottedLine?: boolean;
+    showIndex?: boolean;
 }
 
 
@@ -49,6 +51,7 @@ const SidebarItemRow: React.FC<SidebarItemRowProps> = React.memo(
         hoverLayerColor,
         hoverHeaderClass,
         showDottedLine = true,
+        showIndex = true,
     }) => {
         const [isColorPickerOpen, setIsColorPickerOpen] = React.useState(false);
         const [isEditing, setIsEditing] = React.useState(false);
@@ -148,9 +151,11 @@ const SidebarItemRow: React.FC<SidebarItemRowProps> = React.memo(
                             )}
                         </div>
                     )}
-                    <span className="text-md font-semibold w-5 text-center flex-shrink-0 text-black">
-                        {index}
-                    </span>
+                    {showIndex && (
+                        <span className="text-md font-semibold w-5 text-center flex-shrink-0 text-black">
+                            {index}
+                        </span>
+                    )}
                 </div>
 
                 {/* Label Area and Dotted Leader */}
@@ -213,6 +218,18 @@ const SidebarItemRow: React.FC<SidebarItemRowProps> = React.memo(
                         hoverLayerColor={hoverLayerColor}
                         onClick={onAssignKeycode ? () => onAssignKeycode(keycode) : undefined}
                     />
+                    {onEdit && (
+                        <div
+                            className="flex items-center justify-center w-[30px] h-[30px] rounded-md bg-gray-100 hover:bg-gray-200 cursor-pointer transition-all opacity-0 group-hover/item:opacity-100 ml-1"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit(index);
+                            }}
+                            title="Edit"
+                        >
+                            <Pencil className="w-4 h-4 text-gray-700" />
+                        </div>
+                    )}
                 </div>
             </div>
         );

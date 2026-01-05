@@ -116,6 +116,7 @@ const MousePanel: React.FC = () => {
                             hoverBackgroundColor={hoverStyles.hoverBackgroundColor}
                             hoverLayerColor={hoverStyles.layerColorName}
                             hoverHeaderClass={hoverStyles.hoverHeaderClass}
+                            showIndex={false}
                         />
                     );
                 })}

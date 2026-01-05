@@ -31,6 +31,7 @@ const EditorSidePanel: FC<Props> = ({ parentPanel: _parentPanel }) => {
             <div className="bg-white rounded-r-3xl text-gray-400 flex items-center flex-col justify-around py-3 px-2 gap-1">
                 {iconsToShow.map((i) => (
                     <div
+                        key={i.panel}
                         className={cn(
                             "cursor-pointer hover:bg-muted/40 px-2 py-3 h-10 w-10 rounded-xl items-center justify-center flex",
                             activePanel === i.panel && "bg-muted/60 text-black"

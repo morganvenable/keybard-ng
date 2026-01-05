@@ -13,29 +13,49 @@ const MacroEditor: FC = () => {
     const { keyboard, setKeyboard } = useVial();
     const { itemToEdit } = usePanels();
     const { selectComboKey: _selectComboKey } = useKeyBinding();
-    const currMacro = (keyboard as any).macros?.[itemToEdit!];
-    const handleAddItem = (type: string) => {
-        setActions((items) => [...items, [type, ""]]);
-    };
+
+    // Load macros on init or when switching items, but NOT when keyboard updates generally
     useEffect(() => {
+        if (!keyboard || itemToEdit === null) return;
+        const currMacro = (keyboard as any).macros?.[itemToEdit];
         if (currMacro) {
             setActions(currMacro.actions || []);
+        } else {
+            setActions([]);
         }
-    }, [currMacro]);
+    }, [itemToEdit]); // Only reload if the item ID changes
 
+    // Save changes when 'actions' state changes
     useEffect(() => {
-        if (!keyboard) return;
+        if (!keyboard || itemToEdit === null) return;
+
+        // Compare current keyboard state with new actions to avoid redundant updates
+        const currentActions = (keyboard as any).macros?.[itemToEdit]?.actions || [];
+        if (JSON.stringify(currentActions) === JSON.stringify(actions)) {
+            return;
+        }
+
         const updatedKeyboard = { ...keyboard };
+
+        // Properly shallow copy the macros array
         if (!updatedKeyboard.macros) {
             updatedKeyboard.macros = [];
+        } else {
+            updatedKeyboard.macros = [...updatedKeyboard.macros];
         }
-        updatedKeyboard.macros[itemToEdit!] = {
-            ...updatedKeyboard.macros[itemToEdit!],
-            mid: itemToEdit!,
+
+        updatedKeyboard.macros[itemToEdit] = {
+            ...(updatedKeyboard.macros[itemToEdit] || {}), // Handle case where macro entry doesn't exist yet
+            mid: itemToEdit,
             actions: actions as any,
         };
         setKeyboard(updatedKeyboard);
-    }, [actions]);
+    }, [actions, itemToEdit]); // Remove 'keyboard' from deps to avoid loop, though ideally we should use functional update or check equality
+
+    const handleAddItem = (type: string) => {
+        setActions((items) => [...items, [type, ""]]);
+    };
+
     const AddButton = ({ type, label }: { type: string; label: string }) => {
         return (
             <button
