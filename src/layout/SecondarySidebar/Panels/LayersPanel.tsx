@@ -1,7 +1,5 @@
-import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { useState } from "react";
 
-import EditLayer from "@/components/EditLayer";
 import SidebarItemRow from "@/layout/SecondarySidebar/components/SidebarItemRow";
 import { Button } from "@/components/ui/button";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
@@ -10,9 +8,8 @@ import { useVial } from "@/contexts/VialContext";
 import { cn } from "@/lib/utils";
 import { svalService } from "@/services/sval.service";
 import { KeyContent } from "@/types/vial.types";
-import { hoverBackgroundClasses, hoverBorderClasses } from "@/utils/colors";
+import { hoverBackgroundClasses, hoverBorderClasses, hoverHeaderClasses } from "@/utils/colors";
 import { getKeyContents } from "@/utils/keys";
-import { PencilIcon } from "lucide-react";
 
 /**
  * Valid layer modifiers supported by the UI
@@ -34,7 +31,7 @@ const MODIFIER_NAMES: Record<LayerModifier, string> = {
  */
 const LayersPanel = () => {
     const [activeModifier, setActiveModifier] = useState<LayerModifier>("MO");
-    const { keyboard } = useVial();
+    const { keyboard, setKeyboard } = useVial();
     const { assignKeycode } = useKeyBinding();
     const { selectedLayer } = useLayer();
 
@@ -43,6 +40,32 @@ const LayersPanel = () => {
     const layerColorName = keyboard?.cosmetic?.layer_colors?.[selectedLayer] || "primary";
     const hoverBorderColor = hoverBorderClasses[layerColorName] || hoverBorderClasses["primary"];
     const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
+    const hoverHeaderClass = hoverHeaderClasses[layerColorName] || hoverHeaderClasses["primary"];
+
+    const handleColorChange = (index: number, colorName: string) => {
+        if (keyboard) {
+            const cosmetic = JSON.parse(JSON.stringify(keyboard.cosmetic || { layer: {}, layer_colors: {} }));
+            if (!cosmetic.layer_colors) cosmetic.layer_colors = {};
+            cosmetic.layer_colors[index.toString()] = colorName;
+            setKeyboard({ ...keyboard, cosmetic });
+        }
+    };
+
+    const handleNameChange = (index: number, newName: string) => {
+        if (keyboard) {
+            const cosmetic = JSON.parse(JSON.stringify(keyboard.cosmetic || { layer: {}, layer_colors: {} }));
+            if (!cosmetic.layer) cosmetic.layer = {};
+
+            // If the input is empty, remove the custom name to revert to default
+            if (newName.trim() === "") {
+                delete cosmetic.layer[index.toString()];
+            } else {
+                cosmetic.layer[index.toString()] = newName;
+            }
+
+            setKeyboard({ ...keyboard, cosmetic });
+        }
+    };
 
     return (
         <section className="space-y-3 h-full max-h-full flex flex-col">
@@ -87,33 +110,24 @@ const LayersPanel = () => {
                     const keyContents = getKeyContents(keyboard, keycode) as KeyContent;
 
                     return (
-                        <Dialog key={i}>
-                            <SidebarItemRow
-                                index={i}
-                                keyboard={keyboard}
-                                keycode={keycode}
-                                label={i.toString()}
-                                keyContents={keyContents}
-                                color={layerColor}
-                                hasCustomName={hasCustomName}
-                                customName={layerName}
-                                onAssignKeycode={assignKeycode}
-                                hoverBorderColor={hoverBorderColor}
-                                hoverBackgroundColor={hoverBackgroundColor}
-                                editAction={
-                                    <DialogTrigger asChild>
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-8 w-8 p-0 group-hover/item:opacity-100 opacity-0 transition-opacity hover:bg-slate-100"
-                                        >
-                                            <PencilIcon className="h-4 w-4" />
-                                        </Button>
-                                    </DialogTrigger>
-                                }
-                            />
-                            <EditLayer layer={i} />
-                        </Dialog>
+                        <SidebarItemRow
+                            key={i}
+                            index={i}
+                            keyboard={keyboard}
+                            keycode={keycode}
+                            label={i.toString()}
+                            keyContents={keyContents}
+                            color={layerColor}
+                            hasCustomName={hasCustomName}
+                            customName={layerName}
+                            onAssignKeycode={assignKeycode}
+                            onColorChange={handleColorChange}
+                            onNameChange={handleNameChange}
+                            hoverBorderColor={hoverBorderColor}
+                            hoverBackgroundColor={hoverBackgroundColor}
+                            hoverLayerColor={layerColorName}
+                            hoverHeaderClass={hoverHeaderClass}
+                        />
                     );
                 })}
             </div>

@@ -2,7 +2,7 @@ import "./Key.css";
 import React from "react";
 import { cn } from "@/lib/utils";
 import { showModMask } from "@/utils/keys";
-import { colorClasses } from "@/utils/colors";
+import { colorClasses, hoverContainerTextClasses } from "@/utils/colors";
 import { UNIT_SIZE } from "../constants/svalboard-layout";
 import { KeyContent } from "@/types/vial.types";
 import { getHeaderIcons, getCenterContent, getTypeIcon } from "@/utils/key-icons";
@@ -26,6 +26,7 @@ interface KeyProps {
     variant?: "default" | "small";
     hoverBorderColor?: string;
     hoverBackgroundColor?: string;
+    hoverLayerColor?: string;
 }
 
 /**
@@ -51,6 +52,7 @@ export const Key: React.FC<KeyProps> = ({
     variant = "default",
     hoverBorderColor,
     hoverBackgroundColor,
+    hoverLayerColor,
 }) => {
     const isSmall = variant === "small";
     const currentUnitSize = isSmall ? 30 : UNIT_SIZE;
@@ -121,18 +123,26 @@ export const Key: React.FC<KeyProps> = ({
     const bottomTextStyle: React.CSSProperties =
         bottomStr.length > 4 ? { whiteSpace: "pre-line", fontSize: "0.6rem", wordWrap: "break-word" } : {};
 
+    // Get the base color classes
+    const colorClass = colorClasses[layerColor] || colorClasses["primary"];
+
+    // Determine hover color - use hoverLayerColor if provided, otherwise default to current layer
+    const effectiveHoverColorName = hoverLayerColor || layerColor;
+    const hoverContainerTextClass = hoverContainerTextClasses[effectiveHoverColorName] || hoverContainerTextClasses["primary"];
+
     // Common container classes
     const containerClasses = cn(
-        colorClasses[layerColor],
         "flex flex-col items-center justify-between cursor-pointer transition-all duration-200 ease-in-out uppercase group overflow-hidden",
         !isRelative && "absolute",
         isSmall ? "rounded-[5px] border" : "rounded-md border-2",
         selected
             ? "bg-red-500 text-white border-kb-gray"
             : cn(
+                colorClass,
                 "border-kb-gray",
                 hoverBorderColor || "hover:border-red-500",
-                hoverBackgroundColor
+                hoverBackgroundColor,
+                hoverContainerTextClass
             ),
         className
     );
@@ -148,8 +158,9 @@ export const Key: React.FC<KeyProps> = ({
                 title={keycode}
             >
                 <span className={cn(
-                    "whitespace-nowrap w-full text-center text-white font-semibold py-0",
+                    "whitespace-nowrap w-full text-center font-semibold py-0 transition-colors duration-200",
                     isSmall ? "text-[10px] rounded-t-[4px]" : "text-sm rounded-t-sm",
+                    "text-white",
                     headerClassName
                 )}>
                     {keyContents?.layertext}
@@ -178,8 +189,9 @@ export const Key: React.FC<KeyProps> = ({
         >
             {topLabel && (
                 <span className={cn(
-                    "whitespace-nowrap w-full text-center text-white font-semibold py-0 flex items-center justify-center",
+                    "whitespace-nowrap w-full text-center font-semibold py-0 flex items-center justify-center transition-colors duration-200",
                     isSmall ? "text-[8px] min-h-[10px] rounded-t-[4px]" : "text-sm min-h-[1.2rem] rounded-t-sm",
+                    "text-white",
                     headerClassName
                 )}>
                     {topLabel}
@@ -201,8 +213,9 @@ export const Key: React.FC<KeyProps> = ({
             {bottomStr !== "" && (
                 <span
                     className={cn(
-                        "font-semibold items-center flex justify-center whitespace-nowrap text-white w-full text-center py-0",
+                        "font-semibold items-center flex justify-center whitespace-nowrap w-full text-center py-0 transition-colors duration-200",
                         isSmall ? "text-[8px] min-h-[10px] rounded-b-[4px]" : "text-sm min-h-5 rounded-b-sm",
+                        "text-white",
                         headerClassName
                     )}
                     style={bottomTextStyle}

@@ -29,12 +29,12 @@ const getPanelTitle = (panel: string | null | undefined): string => {
 
     const titles: Record<string, string> = {
         keyboard: "Keys",
-        layers: "Layers",
+        layers: "Layer Keys",
         tapdances: "Tap Dances",
         macros: "Macros",
         qmk: "QMK Keys",
         special: "Special Keys",
-        mouse: "Mouse",
+        mouse: "Mouse Keys",
         combos: "Combos",
         overrides: "Overrides",
         settings: "Settings",

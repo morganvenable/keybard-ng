@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { useLayer } from "@/contexts/LayerContext";
 import { useVial } from "@/contexts/VialContext";
-import { hoverBackgroundClasses, hoverBorderClasses } from "@/utils/colors";
+import { hoverBackgroundClasses, hoverBorderClasses, hoverHeaderClasses } from "@/utils/colors";
 import { cn } from "@/lib/utils";
 import { KeyboardInfo, KeyContent } from "@/types/vial.types";
 import { Key } from "@/components/Key";
@@ -73,6 +73,7 @@ const BasicKeyboards = () => {
     const layerColorName = keyboard?.cosmetic?.layer_colors?.[selectedLayer] || "primary";
     const hoverBorderColor = hoverBorderClasses[layerColorName] || hoverBorderClasses["primary"];
     const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
+    const hoverHeaderClass = hoverHeaderClasses[layerColorName] || hoverHeaderClasses["primary"];
 
     const handleModifierToggle = (modifier: Modifier) => {
         setActiveModifiers((prev) => {
@@ -141,11 +142,12 @@ const BasicKeyboards = () => {
                         label={displayLabel}
                         keyContents={keyContents as KeyContent | undefined}
                         layerColor="sidebar"
-                        headerClassName="bg-kb-sidebar-dark group-hover:bg-black/30"
+                        headerClassName={`bg-kb-sidebar-dark ${hoverHeaderClass}`}
                         isRelative
                         className="h-[60px] w-[60px]"
                         hoverBorderColor={hoverBorderColor}
                         hoverBackgroundColor={hoverBackgroundColor}
+                        hoverLayerColor={layerColorName}
                         onClick={() => handleKeyClick(k.keycode)}
                     />
                 );

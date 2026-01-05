@@ -9,6 +9,7 @@ import type { KeyboardInfo } from "../types/vial.types";
 import { Key } from "./Key";
 import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { getLabelForKeycode } from "./Keyboards/layouts";
+import { headerClasses, hoverHeaderClasses } from "@/utils/colors";
 
 interface KeyboardProps {
     keyboard: KeyboardInfo;
@@ -22,6 +23,8 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
     const { selectKeyboardKey, selectedTarget, clearSelection } = useKeyBinding();
     const { internationalLayout } = useLayoutSettings();
     const layerColor = keyboard.cosmetic?.layer_colors?.[selectedLayer] || "primary";
+    const headerClass = headerClasses[layerColor] || headerClasses["primary"];
+    const hoverHeaderClass = hoverHeaderClasses[layerColor] || hoverHeaderClasses["primary"];
     // Get the keymap for the selected layer
     const layerKeymap = keyboard.keymap?.[selectedLayer] || [];
 
@@ -89,6 +92,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
                             onClick={handleKeyClick}
                             keyContents={keyContents}
                             layerColor={layerColor}
+                            headerClassName={`${headerClass} ${hoverHeaderClass}`}
                         />
                     );
                 })}
