@@ -2,16 +2,17 @@ import React from "react";
 import { ArrowRight, Plus } from "lucide-react";
 
 import SidebarItemRow from "@/layout/SecondarySidebar/components/SidebarItemRow";
+import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { useLayer } from "@/contexts/LayerContext";
 import { usePanels } from "@/contexts/PanelsContext";
 import { useVial } from "@/contexts/VialContext";
 import { hoverBackgroundClasses, hoverBorderClasses, hoverHeaderClasses } from "@/utils/colors";
 import { getKeyContents } from "@/utils/keys";
 import { Key } from "@/components/Key";
-import { KeyContent } from "@/types/vial.types";
 
 const CombosPanel: React.FC = () => {
     const { keyboard } = useVial();
+    const { assignKeycode } = useKeyBinding();
     const { selectedLayer } = useLayer();
     const {
         setItemToEdit,
@@ -46,11 +47,13 @@ const CombosPanel: React.FC = () => {
                     };
 
                     const inputs = [0, 1, 2, 3].map(idx => ({
-                        content: getKeyContents(keyboard, (combo as any)[idx.toString()]),
+                        content: getKeyContents(keyboard, (combo as any)[idx.toString()] || "KC_NO"),
                         id: idx
                     })).filter(k => isKeyAssigned(k.content));
 
-                    const result = getKeyContents(keyboard, (combo as any)["4"]);
+                    const resultKeycode = (combo as any)["4"];
+                    // Use resultKeycode directly if available, otherwise KC_NO, to prevent crash
+                    const result = getKeyContents(keyboard, resultKeycode || "KC_NO");
                     const hasAssignment = inputs.length > 0 || isKeyAssigned(result);
 
                     const renderSmallKey = (content: any, idx: number) => {
@@ -87,8 +90,8 @@ const CombosPanel: React.FC = () => {
                         </div>
                     ) : undefined;
 
-                    // Dummy key content for sidebar row functionality
-                    const keyContents = { type: "combo" } as KeyContent;
+                    // Restore visual style: use "combo" type for icon and index for label
+                    const keyContents = { type: "combo" } as any;
 
                     return (
                         <SidebarItemRow
@@ -96,17 +99,21 @@ const CombosPanel: React.FC = () => {
                             index={i}
                             keyboard={keyboard}
                             label={i.toString()}
+                            keycode={resultKeycode || "KC_NO"}
                             keyContents={keyContents}
                             onEdit={handleEdit}
+                            onAssignKeycode={assignKeycode}
                             hoverBorderColor={hoverBorderColor}
                             hoverBackgroundColor={hoverBackgroundColor}
                             hoverLayerColor={layerColorName}
                             hoverHeaderClass={hoverHeaderClass}
+                            showPreviewKey={false}
                         >
                             {rowChildren}
                         </SidebarItemRow>
                     );
                 })}
+
                 {combos.length === 0 && (
                     <div className="text-center text-gray-500 mt-10">
                         No combos found.

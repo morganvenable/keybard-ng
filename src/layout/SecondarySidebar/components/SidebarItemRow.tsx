@@ -26,6 +26,7 @@ interface SidebarItemRowProps {
     hoverHeaderClass?: string;
     showDottedLine?: boolean;
     showIndex?: boolean;
+    showPreviewKey?: boolean;
     children?: React.ReactNode;
 }
 
@@ -53,6 +54,7 @@ const SidebarItemRow: React.FC<SidebarItemRowProps> = React.memo(
         hoverHeaderClass,
         showDottedLine = true,
         showIndex = true,
+        showPreviewKey = true,
         children,
     }) => {
         const [isColorPickerOpen, setIsColorPickerOpen] = React.useState(false);
@@ -208,26 +210,28 @@ const SidebarItemRow: React.FC<SidebarItemRowProps> = React.memo(
                 </div>
 
                 {/* Action Area (Preview Key) */}
-                <div className="flex flex-row flex-shrink-0 items-center gap-1 mb-1.5">
-                    <Key
-                        x={0}
-                        y={0}
-                        w={1}
-                        h={1}
-                        row={0}
-                        col={0}
-                        keycode={keycode}
-                        label={displayLabel}
-                        keyContents={keyContents}
-                        layerColor="sidebar"
-                        headerClassName={hoverHeaderClass ? `bg-kb-sidebar-dark ${hoverHeaderClass}` : "bg-kb-sidebar-dark group-hover:bg-black/30"}
-                        isRelative
-                        className={cn("h-[60px] w-[60px]", !onAssignKeycode && "cursor-default")}
-                        hoverBorderColor={hoverBorderColor}
-                        hoverBackgroundColor={hoverBackgroundColor}
-                        hoverLayerColor={hoverLayerColor}
-                        onClick={onAssignKeycode ? () => onAssignKeycode(keycode) : undefined}
-                    />
+                <div className="flex flex-row flex-shrink-0 items-center gap-1 mb-1.5 ml-auto">
+                    {showPreviewKey && (
+                        <Key
+                            x={0}
+                            y={0}
+                            w={1}
+                            h={1}
+                            row={0}
+                            col={0}
+                            keycode={keycode}
+                            label={displayLabel}
+                            keyContents={keyContents}
+                            layerColor="sidebar"
+                            headerClassName={hoverHeaderClass ? `bg-kb-sidebar-dark ${hoverHeaderClass}` : "bg-kb-sidebar-dark group-hover:bg-black/30"}
+                            isRelative
+                            className={cn("h-[60px] w-[60px]", !onAssignKeycode && "cursor-default")}
+                            hoverBorderColor={hoverBorderColor}
+                            hoverBackgroundColor={hoverBackgroundColor}
+                            hoverLayerColor={hoverLayerColor}
+                            onClick={onAssignKeycode ? () => onAssignKeycode(keycode) : undefined}
+                        />
+                    )}
                     {onEdit && (
                         <div
                             className="flex items-center justify-center w-[30px] h-[30px] rounded-md bg-gray-100 hover:bg-gray-200 cursor-pointer transition-all opacity-0 group-hover/item:opacity-100 ml-1"

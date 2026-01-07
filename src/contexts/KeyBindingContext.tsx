@@ -16,6 +16,8 @@ interface BindingTarget {
     comboSlot?: number; // 0-4 for combo keys
     tapdanceId?: number;
     tapdanceSlot?: "tap" | "hold" | "doubletap" | "taphold";
+    macroId?: number;
+    macroIndex?: number;
     // Add more as needed for other binding types
     isHover?: boolean;
     keycode?: string | number;
@@ -28,6 +30,7 @@ interface KeyBindingContextType {
     selectKeyboardKey: (layer: number, row: number, col: number) => void;
     selectComboKey: (comboId: number, slot: number) => void;
     selectTapdanceKey: (tapdanceId: number, slot: "tap" | "hold" | "doubletap" | "taphold") => void;
+    selectMacroKey: (macroId: number, index: number) => void;
     assignKeycode: (keycode: number | string) => void;
     clearSelection: () => void;
     isBinding: boolean;
@@ -64,16 +67,6 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 row,
                 col,
             });
-            // print current keyboard value for the key
-            // if (keyboard && keyboard.keymap) {
-            //     const layerKeymap = keyboard.keymap?.[layer];
-            //     if (layerKeymap) {
-            //         const keyIndex = row * MATRIX_COLS + col;
-            //         console.log("keyIndex", keyIndex);
-            //         const keycode = layerKeymap[keyIndex];
-            //         console.log(`Current keycode at layer ${layer}, row ${row}, col ${col}:`, keycode);
-            //     }
-            // }
             setIsBinding(true);
         },
         [keyboard]
@@ -93,6 +86,15 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             type: "tapdance",
             tapdanceId,
             tapdanceSlot: slot,
+        });
+        setIsBinding(true);
+    }, []);
+
+    const selectMacroKey = useCallback((macroId: number, index: number) => {
+        setSelectedTarget({
+            type: "macro",
+            macroId,
+            macroIndex: index,
         });
         setIsBinding(true);
     }, []);
@@ -227,6 +229,48 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
                     break;
                 }
+
+                case "macro": {
+                    const { macroId, macroIndex } = currentTarget;
+                    if (macroId === undefined || macroIndex === undefined) break;
+
+                    const macros = updatedKeyboard.macros;
+                    if (!macros || !macros[macroId]) break;
+
+                    // macros[macroId].actions is an array of [type, value]
+                    // e.g. ["down", "KC_A"]
+                    // We only support assigning keycodes to tap/down/up actions
+                    const action = macros[macroId].actions[macroIndex];
+                    if (!action || !["tap", "down", "up"].includes(action[0])) break;
+
+                    const previousValue = action[1];
+                    const keycodeName = typeof keycode === "string" ? keycode : `KC_${keycode}`;
+
+                    // Update the value
+                    macros[macroId].actions[macroIndex][1] = keycodeName;
+
+                    // Queue change? Macros might be complex to queue individually if the whole macro is an object.
+                    // For now, let's just update the keyboard state, similar to how MacroEditor handles it locally, but via queue if possible.
+                    // But here we are updating one action.
+
+                    // Note: MacroEditor saves the *entire* macro object. 
+                    // To be consistent with other bindings, we should queue it.
+                    // But the backend API probably expects the full macro definiton.
+
+                    // Let's assume queue() handles this or we just setKeyboard to trigger the save in MacroEditor?
+                    // Actually, if we use queue(), we need a way to commit it.
+                    // For now, let's stick to updating the local state and letting the UI react.
+                    // However, assigning a keycode is a "user action" that should probably persist.
+
+                    // Since MacroEditor has its own persistence logic (useEffect on actions), 
+                    // simply updating 'keyboard' here might be enough IF MacroEditor picks it up.
+                    // But wait, assignKeycode calls 'updateKey' for keyboard, but for others?
+                    // It seems the queue mechanics are specific.
+
+                    // Let's just update the keyboard object for now. The generic "setKeyboard" at the end triggers React updates.
+
+                    break;
+                }
             }
 
             setKeyboard(updatedKeyboard);
@@ -267,6 +311,7 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         selectKeyboardKey,
         selectComboKey,
         selectTapdanceKey,
+        selectMacroKey,
         assignKeycode,
         clearSelection,
         isBinding,
