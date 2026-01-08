@@ -98,7 +98,7 @@ const BindingEditorContainer: FC<Props> = ({ shouldClose }) => {
         }
     };
 
-    const containerClasses = cn("absolute top-1/2 -translate-y-1/2", bindingTypeToEdit === "overrides" ? "w-[500px] right-[-500px]" : "w-[400px] right-[-400px]");
+    const containerClasses = cn("absolute top-1/2 -translate-y-1/2", bindingTypeToEdit === "overrides" ? "w-[500px] right-[-500px]" : "w-[450px] right-[-450px]");
     const panelClasses = cn("binding-editor bg-kb-gray-medium rounded-r-2xl p-5 flex flex-col w-full min-h-[500px] shadow-[4px_0_16px_rgba(0,0,0,0.1)]", isClosing ? "binding-editor--exit" : "binding-editor--enter");
 
     const renderHeaderIcon = () => {
@@ -165,6 +165,12 @@ const BindingEditorContainer: FC<Props> = ({ shouldClose }) => {
                                         {keyboard?.cosmetic?.macros?.[itemToEdit!.toString()] || `Macro Key ${itemToEdit}`}
                                     </div>
                                 )
+                            ) : bindingTypeToEdit === "combos" ? (
+                                `Combo Key ${itemToEdit}`
+                            ) : bindingTypeToEdit === "tapdances" ? (
+                                `Tap Dance Key ${itemToEdit}`
+                            ) : bindingTypeToEdit === "overrides" ? (
+                                `Override ${itemToEdit}`
                             ) : (
                                 (labels as any)[bindingTypeToEdit!]
                             )}

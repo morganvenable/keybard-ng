@@ -154,12 +154,18 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     const { comboId, comboSlot } = currentTarget;
                     if (comboId === undefined || comboSlot === undefined) break;
 
-                    const combos = (updatedKeyboard as any).combos as import("@/types/vial.types").ComboEntry[];
-                    if (!combos) break;
+                    // CRITICAL: Ensure combos array exists and is properly copied
+                    if (!(updatedKeyboard as any).combos) {
+                        (updatedKeyboard as any).combos = [];
+                    }
 
-                    // Note: ComboService ensures combos are populated correctly on load.
-                    // If creating a new combo dynamically is needed, we'd need more logic here.
-                    // For now assume existing combo.
+                    // Create a defensive copy of the entire combos array to preserve all combos
+                    const originalCombos = (keyboard as any)?.combos || [];
+                    const combos = Array.isArray(originalCombos) ? [...originalCombos] : [];
+                    (updatedKeyboard as any).combos = combos;
+
+                    // Get the ORIGINAL combo from the source keyboard to preserve existing values
+                    const originalCombo = originalCombos[comboId];
                     const combo = combos[comboId];
                     if (!combo) break;
 
@@ -168,17 +174,36 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     let previousValue: string;
 
                     if (comboSlot === 4) {
-                        // Output
+                        // Output - but we must also preserve the input keys!
+                        // CRITICAL: Preserve the keys array from the original combo
+                        const originalKeys = Array.isArray(originalCombo?.keys) ? originalCombo.keys : [];
+                        combo.keys = [...originalKeys];
+                        while (combo.keys.length < 4) combo.keys.push("KC_NO");
+
                         previousValue = combo.output;
                         combo.output = keycodeName;
-                    } else {
-                        // Input keys
-                        // Ensure keys array is big enough just in case, though ComboService should guarantee it.
-                        if (!combo.keys) combo.keys = [];
-                        while (combo.keys.length <= comboSlot) combo.keys.push("KC_NO");
 
-                        previousValue = combo.keys[comboSlot];
-                        combo.keys[comboSlot] = keycodeName;
+                        console.log("combo update debug (output): preserved keys", combo.keys);
+                    } else {
+                        // Input keys - preserve all existing values from the ORIGINAL keyboard state
+                        // CRITICAL: Check if keys is actually an array, not the prototype's keys() function
+                        const originalKeys = Array.isArray(originalCombo?.keys) ? originalCombo.keys : [];
+
+                        console.log("combo update debug: originalKeys", originalKeys, "comboId", comboId, "slot", comboSlot);
+
+                        // Build a fresh 4-element array from the original state
+                        const newKeys: string[] = [];
+                        for (let i = 0; i < 4; i++) {
+                            const val = originalKeys[i];
+                            newKeys.push(typeof val === "string" && val ? val : "KC_NO");
+                        }
+
+                        // Now update just the target slot
+                        previousValue = newKeys[comboSlot];
+                        newKeys[comboSlot] = keycodeName;
+                        combo.keys = newKeys;
+
+                        console.log("combo update debug: newKeys after", combo.keys);
                     }
 
                     // Queue the change with callback

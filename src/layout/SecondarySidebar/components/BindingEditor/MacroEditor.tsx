@@ -118,7 +118,7 @@ const MacroEditor: FC = () => {
         >
             <div className="flex flex-col gap-1 w-full">
                 {actions.map((item, index) => (
-                    <>
+                    <div className="flex flex-col gap-1 w-full" key={index}>
                         {item[0] === "text" && (
                             <MacroEditorText
                                 type="text"
@@ -129,7 +129,6 @@ const MacroEditor: FC = () => {
                                     setActions(newActions);
                                 }}
                                 onDelete={() => handleDeleteItem(index)}
-                                key={index}
                             />
                         )}
                         {item[0] === "delay" && (
@@ -142,7 +141,6 @@ const MacroEditor: FC = () => {
                                     setActions(newActions);
                                 }}
                                 onDelete={() => handleDeleteItem(index)}
-                                key={index}
                             />
                         )}
                         {["down", "up", "tap"].includes(item[0]) && (
@@ -154,7 +152,7 @@ const MacroEditor: FC = () => {
                             />
                         )}
                         {index < actions.length - 1 && <ArrowDown className="w-4 ml-[22px]" />}
-                    </>
+                    </div>
                 ))}
             </div>
             <div className="flex flex-col gap-1">

@@ -28,6 +28,7 @@ interface SidebarItemRowProps {
     showIndex?: boolean;
     showPreviewKey?: boolean;
     children?: React.ReactNode;
+    className?: string;
 }
 
 
@@ -56,6 +57,7 @@ const SidebarItemRow: React.FC<SidebarItemRowProps> = React.memo(
         showIndex = true,
         showPreviewKey = true,
         children,
+        className,
     }) => {
         const [isColorPickerOpen, setIsColorPickerOpen] = React.useState(false);
         const [isEditing, setIsEditing] = React.useState(false);
@@ -112,8 +114,24 @@ const SidebarItemRow: React.FC<SidebarItemRowProps> = React.memo(
             setIsColorPickerOpen(false);
         };
 
+        const isClickable = !!(onEdit || onNameChange);
+
         return (
-            <div className="flex flex-row items-end py-0 panel-layer-item group/item relative pl-6 pr-2">
+            <div
+                className={cn(
+                    "flex flex-row items-end py-0 panel-layer-item group/item relative pl-6 pr-2 transition-colors",
+                    (onEdit || onNameChange || onColorChange) && "hover:bg-black/5 hover:rounded-lg pt-2",
+                    isClickable && "cursor-pointer",
+                    className
+                )}
+                onClick={() => {
+                    if (onNameChange) {
+                        handleStartEditing();
+                    } else if (onEdit) {
+                        handleEdit();
+                    }
+                }}
+            >
                 {/* Index and Optional Color Indicator */}
                 <div
                     className="flex flex-row items-center flex-shrink-0 mb-2 gap-2"
@@ -164,8 +182,7 @@ const SidebarItemRow: React.FC<SidebarItemRowProps> = React.memo(
 
                 {/* Label Area / Children / Dotted Leader */}
                 <div
-                    className="flex-grow flex flex-row items-end mb-2 min-w-0 relative h-6 mr-3 ml-1 cursor-pointer"
-                    onClick={onNameChange ? handleStartEditing : onEdit ? handleEdit : undefined}
+                    className="flex-grow flex flex-row items-end mb-2 min-w-0 relative h-6 mr-3 ml-1"
                 >
                     {children ? (
                         <div className="relative z-10 w-full h-full flex items-center">

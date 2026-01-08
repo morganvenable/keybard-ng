@@ -57,7 +57,7 @@ const EditorSidePanel: FC<Props> = ({ className, activeTab, onTabChange, showMac
     return (
         <div className={cn("h-full items-center justify-start flex", className)}>
             <div
-                className="bg-white rounded-r-3xl text-gray-400 flex items-center flex-col justify-around py-3 px-2 gap-1 shadow-[4px_0_16px_rgba(0,0,0,0.1)]"
+                className="bg-white rounded-r-[18px] text-gray-400 flex items-center flex-col justify-around py-3 px-2 gap-1 shadow-[4px_0_16px_rgba(0,0,0,0.1)] border-l-0"
                 style={{ clipPath: "inset(-50px -50px -50px 0px)" }}
             >
                 {visibleIcons.map((i) => (

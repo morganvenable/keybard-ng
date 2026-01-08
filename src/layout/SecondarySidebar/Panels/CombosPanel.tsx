@@ -37,8 +37,9 @@ const CombosPanel: React.FC = () => {
     };
 
     return (
-        <div className="space-y-3 pt-3 pb-8 relative">
-            <div className="flex flex-col">
+        <section className="space-y-3 h-full max-h-full flex flex-col pt-3">
+            {/* Scrollable Combos List */}
+            <div className="flex flex-col overflow-auto flex-grow scrollbar-thin">
                 {combos.map((comboEntry, i) => {
                     // Cast to unknown first if there are type mismatches, but ideally use ComboEntry
                     const combo = comboEntry as any as import("@/types/vial.types").ComboEntry;
@@ -112,6 +113,7 @@ const CombosPanel: React.FC = () => {
                             hoverLayerColor={layerColorName}
                             hoverHeaderClass={hoverHeaderClass}
                             showPreviewKey={false}
+                            className="pt-8 pb-0"
                         >
                             {rowChildren}
                         </SidebarItemRow>
@@ -124,7 +126,7 @@ const CombosPanel: React.FC = () => {
                     </div>
                 )}
             </div>
-        </div>
+        </section>
     );
 };
 

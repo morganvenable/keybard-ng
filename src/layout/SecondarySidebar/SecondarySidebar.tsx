@@ -209,9 +209,9 @@ const SecondarySidebar = () => {
                     {pickerMode === "keyboard" && <BasicKeyboards isPicker />}
                     {pickerMode === "layers" && <LayersPanel isPicker />}
                     {pickerMode === "macros" && <MacrosPanel isPicker />}
-                    {pickerMode === "qmk" && <QmkKeyPanel />}
-                    {pickerMode === "special" && <SpecialKeysPanel />}
-                    {pickerMode === "mouse" && <MousePanel />}
+                    {pickerMode === "qmk" && <QmkKeyPanel isPicker />}
+                    {pickerMode === "special" && <SpecialKeysPanel isPicker />}
+                    {pickerMode === "mouse" && <MousePanel isPicker />}
                 </div>
             </div>
             {itemToEdit !== null ? <div className="z-[-1] absolute inset-y-0 right-0 h-full w-0"><BindingEditorContainer shouldClose={isClosingEditor} /></div> : null}

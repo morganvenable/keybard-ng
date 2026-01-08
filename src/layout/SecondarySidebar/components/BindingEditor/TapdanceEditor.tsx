@@ -26,7 +26,7 @@ const TapdanceEditor: FC<Props> = () => {
         if (currTapDance) {
             setTapMs(currTapDance.tapms);
         }
-    }, [currTapDance]); // Added dependency to update when selecting different item
+    }, [itemToEdit]); // Use itemToEdit instead of currTapDance to avoid infinite loop
     const keys = {
         tap: getKeyContents(keyboard!, currTapDance?.tap || "KC_NO"),
         doubletap: getKeyContents(keyboard!, currTapDance?.doubletap || "KC_NO"),
