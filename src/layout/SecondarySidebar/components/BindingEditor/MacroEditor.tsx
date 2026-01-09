@@ -10,6 +10,7 @@ import MacroEditorText from "./MacroEditorText";
 
 const MacroEditor: FC = () => {
     const [actions, setActions] = useState<any[]>([]);
+    const [focusIndex, setFocusIndex] = useState<number | null>(null);
     const { keyboard, setKeyboard } = useVial();
     const { itemToEdit } = usePanels();
     const { selectComboKey: _selectComboKey, selectMacroKey, selectedTarget, clearSelection } = useKeyBinding();
@@ -38,27 +39,23 @@ const MacroEditor: FC = () => {
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [selectedTarget, actions, itemToEdit, clearSelection]);
 
-    // Load macros on init or when switching items, or when keyboard updates (e.g. from key assignment)
+    // Load macros
     useEffect(() => {
         if (!keyboard || itemToEdit === null) return;
         const currMacro = (keyboard as any).macros?.[itemToEdit];
         const newActions = currMacro?.actions || [];
 
-        // Only update local state if different from keyboard state to avoid cursor jumps or loops
+        // Only update local state if different from keyboard state
         if (JSON.stringify(newActions) !== JSON.stringify(actions)) {
             setActions(newActions);
         }
     }, [itemToEdit, keyboard]);
 
-    // Save changes when 'actions' state changes
-    useEffect(() => {
-        if (!keyboard || itemToEdit === null) return;
+    // Manual helper to update both local state and keyboard context
+    const updateActions = (newActions: any[]) => {
+        setActions(newActions);
 
-        // Compare current keyboard state with new actions to avoid redundant updates
-        const currentActions = (keyboard as any).macros?.[itemToEdit]?.actions || [];
-        if (JSON.stringify(currentActions) === JSON.stringify(actions)) {
-            return;
-        }
+        if (!keyboard || itemToEdit === null) return;
 
         const updatedKeyboard = { ...keyboard };
 
@@ -70,30 +67,38 @@ const MacroEditor: FC = () => {
         }
 
         updatedKeyboard.macros[itemToEdit] = {
-            ...(updatedKeyboard.macros[itemToEdit] || {}), // Handle case where macro entry doesn't exist yet
+            ...(updatedKeyboard.macros[itemToEdit] || {}),
             mid: itemToEdit,
-            actions: actions as any,
+            actions: newActions,
         };
         setKeyboard(updatedKeyboard);
-    }, [actions, itemToEdit]); // Remove 'keyboard' from deps to avoid loop, though ideally we should use functional update or check equality
+    };
 
     const handleAddItem = (type: string) => {
-        const newIndex = actions.length;
-        setActions((items) => [...items, [type, ""]]);
+        const newActions = [...actions, [type, ""]];
+        updateActions(newActions);
 
         if (["down", "up", "tap"].includes(type)) {
-            // Use setTimeout to ensure the state update has processed and potential re-renders initiated/queued
-            // although context updates usually are independent. 
-            // However, strictly speaking, we just need to update the selection context.
-            selectMacroKey(itemToEdit!, newIndex);
+            // Need to update local selection context after state update
+            setTimeout(() => {
+                selectMacroKey(itemToEdit!, newActions.length - 1);
+            }, 0);
+        } else if (["text", "delay"].includes(type)) {
+            setFocusIndex(newActions.length - 1);
         }
     };
 
     const handleDeleteItem = (index: number) => {
         const newActions = [...actions];
         newActions.splice(index, 1);
-        setActions(newActions);
+        updateActions(newActions);
         clearSelection();
+    };
+
+    const handleTextChange = (index: number, value: any) => {
+        const newActions = [...actions];
+        newActions[index][1] = value;
+        updateActions(newActions);
     };
 
     const AddButton = ({ type, label }: { type: string; label: string }) => {
@@ -108,7 +113,7 @@ const MacroEditor: FC = () => {
     };
     return (
         <div
-            className="flex flex-col items-start pl-[84px] pr-5 gap-4 pt-5 w-full max-h-[600px] overflow-y-auto"
+            className="flex flex-col items-start pl-[84px] pr-5 gap-1 pt-5 w-full max-h-[600px] overflow-y-auto"
             onClick={(e) => {
                 // Should only clear if clicking the background, not a child element
                 if (e.target === e.currentTarget) {
@@ -123,24 +128,18 @@ const MacroEditor: FC = () => {
                             <MacroEditorText
                                 type="text"
                                 value={item[1]}
-                                onChange={(value) => {
-                                    const newActions = [...actions];
-                                    newActions[index][1] = value;
-                                    setActions(newActions);
-                                }}
+                                onChange={(value) => handleTextChange(index, value)}
                                 onDelete={() => handleDeleteItem(index)}
+                                autoFocus={index === focusIndex}
                             />
                         )}
                         {item[0] === "delay" && (
                             <MacroEditorText
                                 type="delay"
                                 value={item[1]}
-                                onChange={(value) => {
-                                    const newActions = [...actions];
-                                    newActions[index][1] = value;
-                                    setActions(newActions);
-                                }}
+                                onChange={(value) => handleTextChange(index, value)}
                                 onDelete={() => handleDeleteItem(index)}
+                                autoFocus={index === focusIndex}
                             />
                         )}
                         {["down", "up", "tap"].includes(item[0]) && (
@@ -151,11 +150,12 @@ const MacroEditor: FC = () => {
                                 onDelete={() => handleDeleteItem(index)}
                             />
                         )}
-                        {index < actions.length - 1 && <ArrowDown className="w-4 ml-[22px]" />}
+                        {index < actions.length - 1 && <ArrowDown className="w-6 h-6 text-black ml-[18px]" />}
                     </div>
                 ))}
             </div>
             <div className="flex flex-col gap-1">
+                {actions.length > 0 && <ArrowDown className="w-6 h-6 text-black ml-[18px]" />}
                 <AddButton type="tap" label="Key Tap" />
                 <AddButton type="down" label="Key Down" />
                 <AddButton type="up" label="Key Up" />

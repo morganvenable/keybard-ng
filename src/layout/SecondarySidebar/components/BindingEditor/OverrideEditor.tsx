@@ -1,5 +1,5 @@
-import { FC, useMemo, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { FC, useState, useEffect } from "react";
+import { ArrowRight, Trash2 } from "lucide-react";
 
 import { Key } from "@/components/Key";
 import { Button } from "@/components/ui/button";
@@ -11,26 +11,9 @@ import { useVial } from "@/contexts/VialContext";
 import { cn } from "@/lib/utils";
 import { getKeyContents } from "@/utils/keys";
 
+import OverrideModifierSelector from "./OverrideModifierSelector";
+
 interface Props { }
-
-const MOD_MASKS = {
-    // Left
-    LCTRL: 1,
-    LSHIFT: 2,
-    LALT: 4,
-    LGUI: 8,
-    // Right
-    RCTRL: 16,
-    RSHIFT: 32,
-    RALT: 64,
-    RGUI: 128,
-};
-
-const MOD_TYPES = ["Shift", "Ctrl", "Alt", "Gui"] as const;
-type ModType = typeof MOD_TYPES[number];
-
-const SIDES = ["Either", "Left", "Right"] as const;
-type SideType = typeof SIDES[number];
 
 const TABS = ["Trigger", "Negative", "Suspended"] as const;
 type TabType = typeof TABS[number];
@@ -54,6 +37,10 @@ const OverrideEditor: FC<Props> = () => {
 
     const overrideIndex = itemToEdit!;
     const override = keyboard?.key_overrides?.[overrideIndex];
+
+    useEffect(() => {
+        selectOverrideKey(overrideIndex, "trigger");
+    }, []);
 
     const isSlotSelected = (slot: "trigger" | "replacement") => {
         return (
@@ -104,109 +91,16 @@ const OverrideEditor: FC<Props> = () => {
         setKeyboard(updatedKeyboard);
     };
 
+    const clearKey = (slot: "trigger" | "replacement") => {
+        if (!keyboard || !override) return;
+        const updatedKeyboard = JSON.parse(JSON.stringify(keyboard));
+        const ovr = updatedKeyboard.key_overrides[overrideIndex];
+        if (slot === "trigger") ovr.trigger = "KC_NO";
+        else ovr.replacement = "KC_NO";
+        setKeyboard(updatedKeyboard);
+    };
+
     const currentMask = getActiveMask();
-
-    // Derived UI State from currentMask
-    const activeMods = useMemo(() => {
-        const mods = new Set<ModType>();
-        if (currentMask & (MOD_MASKS.LSHIFT | MOD_MASKS.RSHIFT)) mods.add("Shift");
-        if (currentMask & (MOD_MASKS.LCTRL | MOD_MASKS.RCTRL)) mods.add("Ctrl");
-        if (currentMask & (MOD_MASKS.LALT | MOD_MASKS.RALT)) mods.add("Alt");
-        if (currentMask & (MOD_MASKS.LGUI | MOD_MASKS.RGUI)) mods.add("Gui");
-        return Array.from(mods);
-    }, [currentMask]);
-
-    const activeSides = useMemo(() => {
-        const sides = { left: false, right: false };
-        if (currentMask & (MOD_MASKS.LSHIFT | MOD_MASKS.LCTRL | MOD_MASKS.LALT | MOD_MASKS.LGUI)) {
-            sides.left = true;
-        }
-        if (currentMask & (MOD_MASKS.RSHIFT | MOD_MASKS.RCTRL | MOD_MASKS.RALT | MOD_MASKS.RGUI)) {
-            sides.right = true;
-        }
-        return sides;
-    }, [currentMask]);
-
-    const isEither = activeSides.left && activeSides.right;
-
-    const handleModClick = (mod: ModType) => {
-        const isActive = activeMods.includes(mod);
-        let currentSides = { ...activeSides };
-
-        // Default to Either (Both) if no sides are active when a modifier is toggled
-        if (!currentSides.left && !currentSides.right) {
-            currentSides.left = true;
-            currentSides.right = true;
-        }
-
-        let newMask = currentMask;
-
-        const getBits = (m: ModType) => {
-            switch (m) {
-                case "Shift": return [MOD_MASKS.LSHIFT, MOD_MASKS.RSHIFT];
-                case "Ctrl": return [MOD_MASKS.LCTRL, MOD_MASKS.RCTRL];
-                case "Alt": return [MOD_MASKS.LALT, MOD_MASKS.RALT];
-                case "Gui": return [MOD_MASKS.LGUI, MOD_MASKS.RGUI];
-            }
-        };
-
-        const [lBit, rBit] = getBits(mod);
-
-        if (isActive) {
-            newMask &= ~lBit;
-            newMask &= ~rBit;
-        } else {
-            if (currentSides.left) newMask |= lBit;
-            if (currentSides.right) newMask |= rBit;
-        }
-
-        updateMask(newMask);
-    };
-
-    const handleSideClick = (side: SideType) => {
-        let newLeft = activeSides.left;
-        let newRight = activeSides.right;
-
-        if (side === "Either") {
-            // Activate both
-            newLeft = true;
-            newRight = true;
-        } else if (side === "Left") {
-            newLeft = !newLeft;
-        } else if (side === "Right") {
-            newRight = !newRight;
-        }
-
-        // Reconstruct mask completely to avoid stale bits
-        let newMask = 0;
-        activeMods.forEach(mod => {
-            if (mod === "Shift") {
-                if (newLeft) newMask |= MOD_MASKS.LSHIFT;
-                if (newRight) newMask |= MOD_MASKS.RSHIFT;
-            } else if (mod === "Ctrl") {
-                if (newLeft) newMask |= MOD_MASKS.LCTRL;
-                if (newRight) newMask |= MOD_MASKS.RCTRL;
-            } else if (mod === "Alt") {
-                if (newLeft) newMask |= MOD_MASKS.LALT;
-                if (newRight) newMask |= MOD_MASKS.RALT;
-            } else if (mod === "Gui") {
-                if (newLeft) newMask |= MOD_MASKS.LGUI;
-                if (newRight) newMask |= MOD_MASKS.RGUI;
-            }
-        });
-
-        // Corner case: if no mods are selected, clicking sides does nothing to the mask 
-        // because we don't know WHICH mod to set bit for.
-        // But the user might expect just sides to be "active" waiting for a mod.
-        // Since we don't store "active sides" in state (we derive from mask), 
-        // we can't persist this selection without a mod.
-        // We could default to "Shift" if no mod selected? No, that's intrusive.
-        // For now, key override semantics require both Mod AND Side (e.g. MOD_LSFT).
-        // So clicking "Left" with no Mod selected effectively does nothing.
-        // This is chemically consistent with how we derive activeSides.
-
-        updateMask(newMask);
-    };
 
     const renderKey = (label: string, slot: "trigger" | "replacement") => {
         if (!override) return null;
@@ -234,9 +128,9 @@ const OverrideEditor: FC<Props> = () => {
         }
 
         return (
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-2 relative">
                 <span className="text-sm font-bold text-slate-600">{label}</span>
-                <div className="relative w-[60px] h-[60px]">
+                <div className="relative w-[60px] h-[60px] group/override-key">
                     <Key
                         isRelative
                         x={0}
@@ -254,6 +148,20 @@ const OverrideEditor: FC<Props> = () => {
                         className={keyClassName}
                         headerClassName={headerClass}
                     />
+                    {hasContent && (
+                        <div className="absolute -left-10 top-0 h-full flex items-center justify-center opacity-0 group-hover/override-key:opacity-100 group-hover/override-key:pointer-events-auto pointer-events-none transition-opacity">
+                            <button
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    clearKey(slot);
+                                }}
+                                title="Clear key"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -266,18 +174,33 @@ const OverrideEditor: FC<Props> = () => {
     return (
         <div className="flex flex-col gap-4 py-8 pl-[44px] pr-5 pb-4">
             {/* Active Switch */}
-            <div className="flex items-center space-x-3">
-                <Switch
-                    id="override-active"
-                    checked={isEnabled}
-                    onCheckedChange={(checked) => updateOption(ENABLED_BIT, checked)}
-                />
-                <Label htmlFor="override-active" className="font-normal text-slate-700 cursor-pointer">
-                    Active
-                </Label>
+            {/* Active Toggle */}
+            <div className="flex flex-row items-center gap-0.5 bg-gray-200/50 p-0.5 rounded-md border border-gray-300/50 w-fit">
+                <button
+                    onClick={() => updateOption(ENABLED_BIT, true)}
+                    className={cn(
+                        "px-3 py-1 text-xs uppercase tracking-wide rounded-[4px] transition-all font-bold",
+                        isEnabled
+                            ? "bg-black text-white shadow-sm border border-black"
+                            : "text-gray-500 hover:text-black hover:bg-white hover:shadow-sm"
+                    )}
+                >
+                    ON
+                </button>
+                <button
+                    onClick={() => updateOption(ENABLED_BIT, false)}
+                    className={cn(
+                        "px-3 py-1 text-xs uppercase tracking-wide rounded-[4px] transition-all font-bold",
+                        !isEnabled
+                            ? "bg-black text-white shadow-sm border border-black"
+                            : "text-gray-500 hover:text-black hover:bg-white hover:shadow-sm"
+                    )}
+                >
+                    OFF
+                </button>
             </div>
 
-            <div className="flex flex-row gap-2 justify-start items-center">
+            <div className="flex flex-row gap-8 justify-start items-center">
                 {renderKey("Trigger", "trigger")}
                 <div className="pt-6 text-black -mr-1">
                     <ArrowRight className="w-6 h-6" />
@@ -286,7 +209,7 @@ const OverrideEditor: FC<Props> = () => {
             </div>
 
             {/* Tabs */}
-            <div className="flex flex-row gap-0.5 p-1 w-fit">
+            <div className="flex flex-row gap-2 p-1 w-fit">
                 {TABS.map((tab) => (
                     <Button
                         key={tab}
@@ -296,7 +219,7 @@ const OverrideEditor: FC<Props> = () => {
                             "px-5 py-1 rounded-full transition-all text-sm font-medium cursor-pointer border-none outline-none whitespace-nowrap",
                             activeTab === tab
                                 ? "bg-gray-800 text-white shadow-md scale-105 hover:bg-gray-900 hover:text-white"
-                                : "bg-transparent text-gray-600 hover:bg-gray-200"
+                                : "bg-transparent text-gray-600 hover:bg-white"
                         )}
                         onClick={() => setActiveTab(tab)}
                     >
@@ -306,70 +229,7 @@ const OverrideEditor: FC<Props> = () => {
             </div>
 
             {/* Modifiers Section */}
-            <div className="flex flex-col gap-1.5">
-                <span className="font-semibold text-lg text-slate-700">Modifiers</span>
-                <div className="flex flex-row gap-2">
-                    <Button
-                        type="button"
-                        variant={activeMods.length === 0 ? "default" : "secondary"}
-                        size="sm"
-                        className={cn(
-                            "rounded-md px-4 transition-all text-sm font-medium border-none",
-                            activeMods.length === 0 ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-slate-200"
-                        )}
-                        onClick={() => updateMask(0)}
-                    >
-                        NONE
-                    </Button>
-                    {MOD_TYPES.map((mod) => {
-                        const isActive = activeMods.includes(mod);
-                        return (
-                            <Button
-                                key={mod}
-                                type="button"
-                                variant={isActive ? "default" : "secondary"}
-                                size="sm"
-                                className={cn(
-                                    "rounded-md px-4 transition-all text-sm font-medium border-none",
-                                    isActive ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-slate-200"
-                                )}
-                                onClick={() => handleModClick(mod)}
-                            >
-                                {mod.toUpperCase()}
-                            </Button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Side Section */}
-            <div className="flex flex-col gap-1.5">
-                <span className="font-semibold text-lg text-slate-700">Side</span>
-                <div className="flex flex-row gap-2">
-                    {SIDES.map(side => {
-                        let isActive = false;
-                        if (side === "Either") isActive = isEither;
-                        else if (side === "Left") isActive = activeSides.left;
-                        else if (side === "Right") isActive = activeSides.right;
-
-                        return (
-                            <Button
-                                key={side}
-                                type="button"
-                                variant={isActive ? "default" : "secondary"}
-                                size="sm"
-                                className={cn(
-                                    "rounded-md px-4 transition-all text-sm font-medium border-none",
-                                    isActive ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-slate-200"
-                                )}
-                                onClick={() => handleSideClick(side)}
-                            >
-                                {side.toUpperCase()}
-                            </Button>
-                        );
-                    })}
-                </div>
-            </div>
+            <OverrideModifierSelector value={currentMask} onChange={updateMask} />
 
             {/* Layers Section */}
             <div className="flex flex-col gap-1.5">
@@ -382,7 +242,9 @@ const OverrideEditor: FC<Props> = () => {
                                 key={i}
                                 className={cn(
                                     "w-10 h-10 flex items-center justify-center rounded-md cursor-pointer transition-colors text-sm font-medium",
-                                    isActive ? "bg-kb-sidebar-dark text-white" : "bg-kb-gray-medium text-slate-700 hover:bg-slate-200"
+                                    isActive
+                                        ? "bg-kb-sidebar-dark text-white hover:bg-white hover:text-black"
+                                        : "bg-kb-gray-medium text-slate-700 hover:bg-white hover:text-black"
                                 )}
                                 onClick={() => updateLayer(i, !isActive)}
                             >

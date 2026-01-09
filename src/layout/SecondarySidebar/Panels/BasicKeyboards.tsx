@@ -180,7 +180,7 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                         size="sm"
                         className={cn(
                             "rounded-md px-5 transition-all text-sm font-medium border-none",
-                            activeModifiers.length === 0 ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-slate-200"
+                            activeModifiers.length === 0 ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white"
                         )}
                         onClick={() => setActiveModifiers([])}
                     >
@@ -196,7 +196,7 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                                 size="sm"
                                 className={cn(
                                     "rounded-md px-5 transition-all text-sm font-medium border-none",
-                                    isActive ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-slate-200"
+                                    isActive ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white"
                                 )}
                                 onClick={() => handleModifierToggle(modifier)}
                             >
