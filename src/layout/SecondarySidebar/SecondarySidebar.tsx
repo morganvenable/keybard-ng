@@ -170,7 +170,7 @@ const SecondarySidebar = () => {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="shrink-0"
+                            className="shrink-0 rounded-full"
                             onClick={handleClose}
                             aria-label="Close details panel"
                         >

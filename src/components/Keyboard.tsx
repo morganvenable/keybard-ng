@@ -57,7 +57,10 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
     //         setShowInfoPanel(true);
     //     }
     // }, [selectedTarget]);
-    const { internationalLayout } = useLayoutSettings();
+    // }, [selectedTarget]);
+    const { internationalLayout, keyVariant } = useLayoutSettings();
+    const currentUnitSize = keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : UNIT_SIZE;
+
     const layerColor = keyboard.cosmetic?.layer_colors?.[selectedLayer] || "primary";
     const headerClass = headerClasses[layerColor] || headerClasses["primary"];
     const hoverHeaderClass = hoverHeaderClasses[layerColor] || hoverHeaderClasses["primary"];
@@ -112,8 +115,8 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
         });
 
         return {
-            width: maxX * UNIT_SIZE,
-            height: maxY * UNIT_SIZE,
+            width: maxX * currentUnitSize,
+            height: maxY * currentUnitSize,
         };
     };
 
@@ -172,6 +175,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
                             hoverBackgroundColor={keyHoverBg}
                             hoverBorderColor={keyHoverBorder}
                             hoverLayerColor={keyHoverLayerColor}
+                            variant={keyVariant}
                         />
                     );
                 })}

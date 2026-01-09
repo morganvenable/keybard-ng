@@ -68,7 +68,7 @@ const BindingsList: FC<Props> = ({ editElement, icon, bindingType, notBindable, 
             const absoluteIndex = localIndex + activeGroup.startIndex;
             const editButton = (
                 <Button
-                    size="sm"
+                    size="icon"
                     variant="ghost"
                     onClick={() => {
                         setItemToEdit(absoluteIndex);
@@ -77,7 +77,7 @@ const BindingsList: FC<Props> = ({ editElement, icon, bindingType, notBindable, 
                         setPanelToGoBack(bindingType);
                         setActivePanel("keyboard");
                     }}
-                    className="px-4 py-1  group-hover/item:opacity-100 opacity-0"
+                    className="h-8 w-8 rounded-full group-hover/item:opacity-100 opacity-0"
                 >
                     <PencilIcon className="h-4 w-4" />
                 </Button>

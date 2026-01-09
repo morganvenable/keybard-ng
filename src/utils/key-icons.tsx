@@ -82,8 +82,10 @@ export const getCenterContent = (
     return clean;
 };
 
-export const getTypeIcon = (type: string, variant: "default" | "small") => {
-    const iconClass = variant === "small" ? "mt-1 h-4" : "mt-2 h-8";
+export const getTypeIcon = (type: string, variant: "default" | "medium" | "small" = "default") => {
+    const isMedium = variant === "medium";
+    const isSmall = variant === "small";
+    const iconClass = isSmall ? "mt-1 h-4" : isMedium ? "mt-1.5 h-6" : "mt-2 h-8";
     switch (type) {
         case "tapdance":
             return <TapdanceIcon className={iconClass} />;
@@ -94,7 +96,7 @@ export const getTypeIcon = (type: string, variant: "default" | "small") => {
         case "override":
             return <OverridesIcon className={iconClass} />;
         case "layer":
-            return <LayersIcon className={variant === "small" ? "w-3 h-3" : ""} />;
+            return <LayersIcon className={isSmall ? "w-3 h-3" : isMedium ? "w-5 h-5" : ""} />;
         default:
             return null;
     }

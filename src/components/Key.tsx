@@ -23,7 +23,7 @@ interface KeyProps {
     isRelative?: boolean;
     className?: string;
     headerClassName?: string;
-    variant?: "default" | "small";
+    variant?: "default" | "medium" | "small";
     hoverBorderColor?: string;
     hoverBackgroundColor?: string;
     hoverLayerColor?: string;
@@ -57,7 +57,8 @@ export const Key: React.FC<KeyProps> = ({
     disableHover = false,
 }) => {
     const isSmall = variant === "small";
-    const currentUnitSize = isSmall ? 30 : UNIT_SIZE;
+    const isMedium = variant === "medium";
+    const currentUnitSize = isSmall ? 30 : isMedium ? 45 : UNIT_SIZE;
     const { setHoveredKey } = useKeyBinding();
 
 
@@ -169,7 +170,7 @@ export const Key: React.FC<KeyProps> = ({
     const containerClasses = cn(
         "flex flex-col items-center justify-between cursor-pointer transition-all duration-200 ease-in-out uppercase group overflow-hidden",
         !isRelative && "absolute",
-        isSmall ? "rounded-[5px] border" : "rounded-md border-2",
+        isSmall ? "rounded-[5px] border" : isMedium ? "rounded-[5px] border-2" : "rounded-md border-2",
         selected
             ? "bg-red-500 text-white border-kb-gray"
             : cn(
@@ -196,17 +197,17 @@ export const Key: React.FC<KeyProps> = ({
             >
                 <span className={cn(
                     "whitespace-nowrap w-full text-center font-semibold py-0 transition-colors duration-200",
-                    isSmall ? "text-[10px] rounded-t-[4px]" : "text-sm rounded-t-sm",
+                    isSmall ? "text-[10px] rounded-t-[4px]" : isMedium ? "text-[11px] rounded-t-[4px]" : "text-sm rounded-t-sm",
                     "text-white",
                     headerClassName
                 )}>
                     {keyContents?.layertext}
                 </span>
 
-                <div className={cn("flex flex-row h-full w-full items-center justify-center", isSmall ? "gap-1" : "gap-2")}>
+                <div className={cn("flex flex-row h-full w-full items-center justify-center", isSmall ? "gap-1" : isMedium ? "gap-1.5" : "gap-2")}>
                     <div className={cn(
                         "text-center justify-center items-center flex font-semibold",
-                        isSmall ? "text-[13px]" : (layerIndex.length === 1 ? "text-[16px]" : "text-[15px]")
+                        isSmall ? "text-[13px]" : isMedium ? "text-[14px]" : (layerIndex.length === 1 ? "text-[16px]" : "text-[15px]")
                     )}>
                         {layerIndex}
                     </div>
@@ -229,7 +230,7 @@ export const Key: React.FC<KeyProps> = ({
             {topLabel && (
                 <span className={cn(
                     "whitespace-nowrap w-full text-center font-semibold py-0 flex items-center justify-center transition-colors duration-200",
-                    isSmall ? "text-[8px] min-h-[10px] rounded-t-[4px]" : "text-sm min-h-[1.2rem] rounded-t-sm",
+                    isSmall ? "text-[8px] min-h-[10px] rounded-t-[4px]" : isMedium ? "text-[10px] min-h-[14px] rounded-t-[4px]" : "text-sm min-h-[1.2rem] rounded-t-sm",
                     "text-white",
                     headerClassName
                 )}>
@@ -242,7 +243,7 @@ export const Key: React.FC<KeyProps> = ({
             <div
                 className={cn(
                     "text-center w-full h-full justify-center items-center flex font-semibold",
-                    isSmall ? "text-[10px] px-0.5" : (typeof centerContent === 'string' && centerContent.length === 1 ? "text-[16px]" : "text-[15px]")
+                    isSmall ? "text-[10px] px-0.5" : isMedium ? "text-[12px] px-1" : (typeof centerContent === 'string' && centerContent.length === 1 ? "text-[16px]" : "text-[15px]")
                 )}
                 style={textStyle}
             >
@@ -253,7 +254,7 @@ export const Key: React.FC<KeyProps> = ({
                 <span
                     className={cn(
                         "font-semibold items-center flex justify-center whitespace-nowrap w-full text-center py-0 transition-colors duration-200",
-                        isSmall ? "text-[8px] min-h-[10px] rounded-b-[4px]" : "text-sm min-h-5 rounded-b-sm",
+                        isSmall ? "text-[8px] min-h-[10px] rounded-b-[4px]" : isMedium ? "text-[10px] min-h-[14px] rounded-b-[4px]" : "text-sm min-h-5 rounded-b-sm",
                         "text-white",
                         headerClassName
                     )}

@@ -251,7 +251,7 @@ const SidebarItemRow: React.FC<SidebarItemRowProps> = React.memo(
                     )}
                     {onEdit && (
                         <div
-                            className="flex items-center justify-center w-[30px] h-[30px] rounded-md bg-gray-100 hover:bg-gray-200 cursor-pointer transition-all opacity-0 group-hover/item:opacity-100 ml-1"
+                            className="flex items-center justify-center w-[30px] h-[30px] rounded-full bg-gray-100 hover:bg-gray-200 cursor-pointer transition-all opacity-0 group-hover/item:opacity-100 ml-1"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onEdit(index);

@@ -22,6 +22,8 @@ interface BindingTarget {
     isHover?: boolean;
     keycode?: string | number;
     label?: string;
+    overrideId?: number;
+    overrideSlot?: "trigger" | "replacement";
 }
 
 
@@ -31,6 +33,7 @@ interface KeyBindingContextType {
     selectComboKey: (comboId: number, slot: number) => void;
     selectTapdanceKey: (tapdanceId: number, slot: "tap" | "hold" | "doubletap" | "taphold") => void;
     selectMacroKey: (macroId: number, index: number) => void;
+    selectOverrideKey: (overrideId: number, slot: "trigger" | "replacement") => void;
     assignKeycode: (keycode: number | string) => void;
     clearSelection: () => void;
     isBinding: boolean;
@@ -95,6 +98,15 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             type: "macro",
             macroId,
             macroIndex: index,
+        });
+        setIsBinding(true);
+    }, []);
+
+    const selectOverrideKey = useCallback((overrideId: number, slot: "trigger" | "replacement") => {
+        setSelectedTarget({
+            type: "override",
+            overrideId,
+            overrideSlot: slot,
         });
         setIsBinding(true);
     }, []);
@@ -342,8 +354,37 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
                     break;
                 }
-            }
 
+                case "override": {
+                    const { overrideId, overrideSlot } = currentTarget;
+                    if (overrideId === undefined || overrideSlot === undefined) break;
+
+                    const overrides = updatedKeyboard.key_overrides;
+                    if (!overrides || !overrides[overrideId]) break;
+
+                    const previousValue = overrides[overrideId][overrideSlot];
+                    const keycodeName = typeof keycode === "string" ? keycode : `KC_${keycode}`;
+                    overrides[overrideId][overrideSlot] = keycodeName;
+
+                    // Queue the change with callback
+                    const changeDesc = `override_${overrideId}_${overrideSlot}`;
+                    queue(
+                        changeDesc,
+                        async () => {
+                            console.log(`Committing override change: Override ${overrideId}, ${overrideSlot} → ${keycodeName}`);
+                        },
+                        {
+                            type: "override",
+                            overrideId,
+                            overrideSlot,
+                            keycode: keycodeValue,
+                            previousValue,
+                        } as any
+                    );
+
+                    break;
+                }
+            }
             setKeyboard(updatedKeyboard);
             clearSelection();
         },
@@ -383,6 +424,7 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         selectComboKey,
         selectTapdanceKey,
         selectMacroKey,
+        selectOverrideKey,
         assignKeycode,
         clearSelection,
         isBinding,

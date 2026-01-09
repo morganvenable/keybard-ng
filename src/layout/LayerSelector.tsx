@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { KEYMAP } from "@/constants/keygen";
 
+
 interface LayerSelectorProps {
     selectedLayer: number;
     setSelectedLayer: (layer: number) => void;
@@ -31,6 +32,7 @@ interface LayerSelectorProps {
 const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer }) => {
     const { keyboard, setKeyboard } = useVial();
     const { clearSelection } = useKeyBinding();
+
 
     // UI state
     const [showAllLayers, setShowAllLayers] = useState(true);
@@ -307,29 +309,33 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
                     )}
                 </div>
 
-                {isEditing ? (
-                    <div className="flex items-center gap-2 bg-white rounded-md px-1 py-0.5 border border-black shadow-sm">
-                        <Input
-                            ref={inputRef}
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={handleSave}
-                            onKeyDown={handleKeyDown}
-                            className="h-auto py-1 px-2 text-lg font-bold border-none focus-visible:ring-0 w-auto min-w-[200px]"
-                            autoFocus
-                        />
-                    </div>
-                ) : (
-                    <div
-                        className="text-lg flex justify-start items-center cursor-pointer group hover:bg-black/5 rounded-md px-2 py-1 transition-colors"
-                        onClick={handleStartEditing}
-                        title="Click to rename"
-                    >
-                        <span className="font-bold text-black">
-                            {svalService.getLayerName(keyboard, selectedLayer)}
-                        </span>
-                    </div>
-                )}
+                <div className="flex flex-col gap-1 ml-2">
+                    {isEditing ? (
+                        <div className="flex items-center gap-2 bg-white rounded-md px-1 py-0.5 border border-black shadow-sm">
+                            <Input
+                                ref={inputRef}
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={handleSave}
+                                onKeyDown={handleKeyDown}
+                                className="h-auto py-1 px-2 text-lg font-bold border-none focus-visible:ring-0 w-auto min-w-[200px]"
+                                autoFocus
+                            />
+                        </div>
+                    ) : (
+                        <div
+                            className="text-lg flex justify-start items-center cursor-pointer group hover:bg-black/5 rounded-md px-2 py-1 transition-colors"
+                            onClick={handleStartEditing}
+                            title="Click to rename"
+                        >
+                            <span className="font-bold text-black">
+                                {svalService.getLayerName(keyboard, selectedLayer)}
+                            </span>
+                        </div>
+                    )}
+
+
+                </div>
 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
