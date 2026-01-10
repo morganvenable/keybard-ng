@@ -3,6 +3,8 @@ import { useVial } from "@/contexts/VialContext";
 import { SVALBOARD_LAYOUT, MATRIX_COLS, UNIT_SIZE } from "@/constants/svalboard-layout";
 import { Key } from "./Key";
 import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
+import { BrushCleaningIcon } from "./icons/BrushCleaning";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export const MatrixTester: React.FC = () => {
     const { pollMatrix, keyboard, isConnected } = useVial();
@@ -126,11 +128,22 @@ export const MatrixTester: React.FC = () => {
                     );
                 })}
             </div>
-            {isConnected && keyboard && (
-                <div className="absolute bottom-2 left-2 text-xs text-gray-400">
-                    Matrix: {keyboard.rows}x{keyboard.cols} | Pressed: {pressedKeys.size}
-                </div>
-            )}
+
+            <div className="absolute bottom-5 right-5 z-50">
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <button
+                            onClick={() => setDetectedKeys(new Set())}
+                            className="w-12 h-12 rounded-2xl cursor-pointer hover:bg-gray-50 bg-white shadow-lg flex items-center justify-center text-black focus:outline-none transition-colors border border-gray-200"
+                        >
+                            <BrushCleaningIcon className="h-5 w-5" />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                        <p>Clear Matrix</p>
+                    </TooltipContent>
+                </Tooltip>
+            </div>
         </div>
     );
 };
