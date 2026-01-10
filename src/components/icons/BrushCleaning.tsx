@@ -1,5 +1,17 @@
+import type { FC, SVGProps } from "react";
 
-export const BrushCleaningIcon = ({ className = "h-4 w-4" }: { className?: string }) => (
+interface BrushCleaningIconProps extends SVGProps<SVGSVGElement> {
+    className?: string;
+}
+
+/**
+ * BrushCleaning icon from Lucide
+ * Used for clearing/resetting matrix test data
+ */
+export const BrushCleaningIcon: FC<BrushCleaningIconProps> = ({
+    className = "h-4 w-4",
+    ...props
+}) => (
     <svg
         xmlns="http://www.w3.org/2000/svg"
         width="24"
@@ -11,6 +23,8 @@ export const BrushCleaningIcon = ({ className = "h-4 w-4" }: { className?: strin
         strokeLinecap="round"
         strokeLinejoin="round"
         className={`lucide lucide-brush-cleaning ${className}`}
+        aria-hidden="true"
+        {...props}
     >
         <path d="m16 22-1-4" />
         <path d="M19 14a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2h-3a1 1 0 0 1-1-1V4a2 2 0 0 0-4 0v5a1 1 0 0 1-1 1H6a2 2 0 0 0-2 2v1a1 1 0 0 0 1 1" />

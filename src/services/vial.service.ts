@@ -242,7 +242,7 @@ export class VialService {
 
     async getFeatures(kbinfo: KeyboardInfo): Promise<void> {
         // Get feature counts
-        const counts = await this.usb.sendVial(VialUSB.CMD_VIAL_DYNAMIC_ENTRY_OP, []);
+        const counts = await this.usb.sendVial(VialUSB.CMD_VIAL_DYNAMIC_ENTRY_OP, [], {});
 
         const macro_count = await this.usb.send(VialUSB.CMD_VIA_MACRO_GET_COUNT, [], { uint8: true, index: 1 });
 
@@ -296,7 +296,7 @@ export class VialService {
     }
 
     async pollMatrix(kbinfo: KeyboardInfo): Promise<boolean[][]> {
-        const data = await this.usb.send(VialUSB.CMD_VIA_GET_KEYBOARD_VALUE, [VialUSB.VIA_SWITCH_MATRIX_STATE]);
+        const data = await this.usb.send(VialUSB.CMD_VIA_GET_KEYBOARD_VALUE, [VialUSB.VIA_SWITCH_MATRIX_STATE], {}) as Uint8Array;
         const rowbytes = Math.ceil(kbinfo.cols / 8);
 
         // Debug polling
@@ -338,7 +338,7 @@ export class VialService {
     // API methods for updating keyboard settings
     async updateKey(layer: number, row: number, col: number, keymask: number): Promise<void> {
         const BE16 = (num: number) => [(num >> 8) & 0xff, num & 0xff];
-        await this.usb.send(VialUSB.CMD_VIA_SET_KEYCODE, [layer, row, col, ...BE16(keymask)]);
+        await this.usb.send(VialUSB.CMD_VIA_SET_KEYCODE, [layer, row, col, ...BE16(keymask)], {});
     }
     async updateMacros(kbinfo: KeyboardInfo) {
         await this.macro.push(kbinfo);

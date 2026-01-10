@@ -118,16 +118,9 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
     ];
 
     // Layer Actions
-    const { isConnected, connect, lastHeartbeat } = useVial();
+    const { isConnected, connect } = useVial();
 
-    const [isReceiving, setIsReceiving] = useState(false);
-    useEffect(() => {
-        if (lastHeartbeat) {
-            setIsReceiving(true);
-            const timer = setTimeout(() => setIsReceiving(false), 150);
-            return () => clearTimeout(timer);
-        }
-    }, [lastHeartbeat]);
+
 
     const handleCopyLayer = () => {
         if (!keyboard?.keymap) return;

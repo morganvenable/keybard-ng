@@ -139,6 +139,7 @@ export class VialUSB {
   async send(cmd: number, args: number[], options: USBSendOptions & { uint16: true; index?: undefined }): Promise<Uint16Array>;
   async send(cmd: number, args: number[], options: USBSendOptions & { uint32: true; index: number }): Promise<number>;
   async send(cmd: number, args: number[], options: USBSendOptions & { uint32: true; index?: undefined }): Promise<Uint32Array>;
+  async send(cmd: number, args: number[], options?: USBSendOptions): Promise<Uint8Array>;
 
   // Implementation
 
@@ -150,7 +151,7 @@ export class VialUSB {
   ): Promise<Uint8Array | Uint16Array | Uint32Array | number | bigint | (number | bigint)[]> {
     if (!this.device) throw new Error("USB device not connected");
 
-    const message = new Uint8Array(32); // Using 32 constant here instead of MSG_LEN
+    const message = new Uint8Array(MSG_LEN);
     message[0] = cmd;
     for (let i = 0; i < args.length; i++) {
       message[i + 1] = args[i];
@@ -158,7 +159,7 @@ export class VialUSB {
 
     // Queue the operations to prevent listener collision using a simple mutex pattern
     const operation = this.queue.then(async () => {
-      return new Promise<any>((resolve, reject) => {
+      return new Promise<Uint8Array | Uint16Array | Uint32Array | number | bigint | (number | bigint)[]>((resolve, reject) => {
         const timeoutId = setTimeout(() => {
           console.warn("USB Command Timed out waiting for valid response:", cmd);
           reject(new Error("USB Command Timeout"));
@@ -189,8 +190,8 @@ export class VialUSB {
       });
     });
 
-    // Advance queue, handling errors so queue doesn't stick
-    this.queue = operation.then(() => { }).catch(() => { });
+    // Advance queue, handling errors so queue doesn't get stuck
+    this.queue = operation.then(() => undefined).catch(() => undefined);
 
     return operation;
   }
@@ -386,7 +387,7 @@ export class VialUSB {
         chunk[i] = buffer[offset++];
       }
 
-      await this.send(cmd, [...LE16(chunkOffset), ...chunk]);
+      await this.send(cmd, [...LE16(chunkOffset), ...chunk], {});
       chunkOffset += chunk.length;
     }
   }
