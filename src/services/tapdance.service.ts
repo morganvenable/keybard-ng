@@ -19,15 +19,18 @@ export class TapdanceService {
                 { uint8: true }
             ) as Uint8Array;
 
-            // Response: [index][tap:2][hold:2][doubletap:2][taphold:2][tapping_term]
+            // Response: [cmd_echo][index][tap:2][hold:2][doubletap:2][taphold:2][tapping_term:2]
+            // tapping_term is 2 bytes: bit 15 = enabled flag (ignored), bits 0-14 = timing in ms
+            // Keybard always treats tap dances as enabled
             const dv = new DataView(data.buffer);
+            const termRaw = dv.getUint16(10, true);
             kbinfo.tapdances.push({
                 idx: i,
-                tap: keyService.stringify(dv.getUint16(1, true)),
-                hold: keyService.stringify(dv.getUint16(3, true)),
-                doubletap: keyService.stringify(dv.getUint16(5, true)),
-                taphold: keyService.stringify(dv.getUint16(7, true)),
-                tapping_term: data[9],
+                tap: keyService.stringify(dv.getUint16(2, true)),
+                hold: keyService.stringify(dv.getUint16(4, true)),
+                doubletap: keyService.stringify(dv.getUint16(6, true)),
+                taphold: keyService.stringify(dv.getUint16(8, true)),
+                tapping_term: termRaw & 0x7FFF,
             });
         }
     }
@@ -41,13 +44,16 @@ export class TapdanceService {
 
         for (const td of toPush) {
             // Use Viable protocol: direct tap dance set command
+            // tapping_term is 2 bytes: bit 15 = enabled flag, bits 0-14 = timing in ms
+            // Keybard always enables tap dances (the disabled feature is pointless)
+            const termWithEnabled = ((td.tapping_term || 200) & 0x7FFF) | 0x8000;
             await this.usb.sendViable(ViableUSB.CMD_VIABLE_TAP_DANCE_SET, [
                 td.idx,
                 ...this.LE16(keyService.parse(td.tap)),
                 ...this.LE16(keyService.parse(td.hold)),
                 ...this.LE16(keyService.parse(td.doubletap)),
                 ...this.LE16(keyService.parse(td.taphold)),
-                td.tapping_term,
+                ...this.LE16(termWithEnabled),
             ], {});
         }
     }

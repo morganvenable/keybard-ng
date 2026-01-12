@@ -109,6 +109,7 @@ export interface TapdanceEntry {
     doubletap: string;
     taphold: string;
     tapping_term: number;
+    enabled?: boolean; // Stored in bit 15 of tapping_term in protocol
 }
 
 export interface KeyOverrideEntry {

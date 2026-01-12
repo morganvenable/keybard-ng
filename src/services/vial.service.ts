@@ -187,8 +187,9 @@ export class ViableService {
         kbinfo.feature_flags = viableInfo[13]; // Skip cmd_echo
 
         // Extract UID as hex string for kbid
-        const uidBytes = (viableInfo as Uint8Array).slice(5, 13); // Skip cmd_echo
-        kbinfo.kbid = Array.from(uidBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+        // UID is stored as little-endian 64-bit integer, so reverse bytes for hex string
+        const uidBytes = (viableInfo as Uint8Array).slice(5, 13); // Skip cmd_echo + protocol_version
+        kbinfo.kbid = Array.from(uidBytes).reverse().map(b => b.toString(16).padStart(2, '0')).join('');
 
         // Get compressed JSON payload size via Viable protocol
         // Response format after wrapper stripped: [cmd_echo][size0][size1][size2][size3]

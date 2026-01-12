@@ -120,7 +120,7 @@ const KeyboardConnector: React.FC = () => {
                         <Button onClick={() => fileInputRef.current?.click()} disabled={loading}>
                             {loading ? "Loading..." : "Load File"}
                         </Button>
-                        <input ref={fileInputRef} type="file" accept=".kbi,application/json" style={{ display: "none" }} onChange={handleLoadFile} />
+                        <input ref={fileInputRef} type="file" accept=".viable,.vil,.kbi,.json" style={{ display: "none" }} onChange={handleLoadFile} />
                     </div>
                 </>
             )}

@@ -13,13 +13,24 @@ export class ImportService {
 
         console.log("Syncing imported keyboard...", newKb);
 
+        // Copy hardware properties from connected keyboard (these are not in save files)
+        // macros_size is required for the macro buffer allocation
+        newKb.macros_size = currentKb.macros_size;
+
         // 1. Sync Keymap
+        // Use hardware dimensions from currentKb for iteration
         if (newKb.keymap && currentKb.keymap) {
-            for (let l = 0; l < (newKb?.layers || 0); l++) {
+            const layers = Math.min(newKb.layers || 0, currentKb.layers || 0);
+            const rows = currentKb.rows;
+            const cols = currentKb.cols;
+
+            for (let l = 0; l < layers; l++) {
                 if (!newKb.keymap[l]) continue;
-                for (let r = 0; r < newKb.rows; r++) {
-                    for (let c = 0; c < newKb.cols; c++) {
-                        const keyIndex = (r * newKb.cols) + c;
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        // Map using file's cols for reading, hardware cols for writing
+                        const newCols = newKb.cols || cols;
+                        const keyIndex = (r * newCols) + c;
                         const newVal = newKb.keymap[l][keyIndex];
                         const oldVal = currentKb.keymap?.[l]?.[keyIndex];
 

@@ -76,6 +76,7 @@ export const SETTINGS: SettingDefinition[] = [
         action: "export-settings",
     },
     {
+        // TODO: Print functionality is not yet implemented
         name: "print",
         label: "Print...",
         type: "action",

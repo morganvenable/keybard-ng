@@ -144,7 +144,7 @@ const ConnectKeyboard = () => {
                                     <Button onClick={() => fileInputRef.current?.click()} disabled={loading} variant={"outline"}>
                                         {loading ? "Loading..." : "Load File"}
                                     </Button>
-                                    <input ref={fileInputRef} type="file" accept=".kbi,application/json" style={{ display: "none" }} onChange={handleLoadFile} />
+                                    <input ref={fileInputRef} type="file" accept=".viable,.vil,.kbi,.json" style={{ display: "none" }} onChange={handleLoadFile} />
                                 </>
                             )}
                         </div>
