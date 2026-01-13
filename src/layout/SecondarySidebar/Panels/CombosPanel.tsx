@@ -1,18 +1,22 @@
-import React from "react";
+import React, { useState } from "react";
 import { ArrowRight, Plus } from "lucide-react";
 
 import SidebarItemRow from "@/layout/SecondarySidebar/components/SidebarItemRow";
+import { Input } from "@/components/ui/input";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { useLayer } from "@/contexts/LayerContext";
 import { usePanels } from "@/contexts/PanelsContext";
 import { useVial } from "@/contexts/VialContext";
+import { qmkService } from "@/services/qmk.service";
+import { vialService } from "@/services/vial.service";
 import { hoverBackgroundClasses, hoverBorderClasses, hoverHeaderClasses } from "@/utils/colors";
 import { getKeyContents } from "@/utils/keys";
 import { Key } from "@/components/Key";
 import { KeyContent } from "@/types/vial.types";
+import { cn } from "@/lib/utils";
 
 const CombosPanel: React.FC = () => {
-    const { keyboard } = useVial();
+    const { keyboard, setKeyboard, isConnected } = useVial();
     const { assignKeycode } = useKeyBinding();
     const { selectedLayer } = useLayer();
     const {
@@ -20,8 +24,33 @@ const CombosPanel: React.FC = () => {
         setBindingTypeToEdit,
         setAlternativeHeader,
     } = usePanels();
+    const [saving, setSaving] = useState(false);
 
     if (!keyboard) return null;
+
+    // QSID 2 = Combo timeout
+    const COMBO_TIMEOUT_QSID = 2;
+    const isTimeoutSupported = keyboard.settings?.[COMBO_TIMEOUT_QSID] !== undefined;
+    const comboTimeout = keyboard.settings?.[COMBO_TIMEOUT_QSID] ?? 50;
+
+    const handleTimeoutChange = async (value: number) => {
+        if (!isConnected) return;
+        setSaving(true);
+        try {
+            const clamped = Math.max(0, Math.min(10000, value));
+            const updated = {
+                ...keyboard,
+                settings: { ...keyboard.settings, [COMBO_TIMEOUT_QSID]: clamped }
+            };
+            setKeyboard(updated);
+            await qmkService.push(updated, COMBO_TIMEOUT_QSID);
+            await vialService.saveViable();
+        } catch (err) {
+            console.error("Failed to update combo timeout:", err);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     const layerColorName = keyboard?.cosmetic?.layer_colors?.[selectedLayer] || "primary";
     const hoverBorderColor = hoverBorderClasses[layerColorName] || hoverBorderClasses["primary"];
@@ -38,6 +67,30 @@ const CombosPanel: React.FC = () => {
 
     return (
         <section className="space-y-3 h-full max-h-full flex flex-col pt-3">
+            {/* Combo Timeout Setting */}
+            {isTimeoutSupported && isConnected && (
+                <div className="px-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex flex-col">
+                            <span className="text-sm font-medium">Combo Timeout</span>
+                            <span className="text-xs text-muted-foreground">0-10000 ms</span>
+                        </div>
+                        <Input
+                            type="number"
+                            value={comboTimeout}
+                            min={0}
+                            max={10000}
+                            onChange={(e) => {
+                                const newVal = parseInt(e.target.value) || 0;
+                                handleTimeoutChange(newVal);
+                            }}
+                            disabled={saving}
+                            className={cn("w-24 text-right", saving && "opacity-50")}
+                        />
+                    </div>
+                </div>
+            )}
+
             {/* Scrollable Combos List */}
             <div className="flex flex-col overflow-auto flex-grow scrollbar-thin">
                 {combos.map((comboEntry, i) => {

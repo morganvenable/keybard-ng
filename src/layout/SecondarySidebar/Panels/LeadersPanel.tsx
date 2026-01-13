@@ -1,9 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import { ArrowRight } from "lucide-react";
 
 import SidebarItemRow from "@/layout/SecondarySidebar/components/SidebarItemRow";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { keyService } from "@/services/key.service";
+import { qmkService } from "@/services/qmk.service";
 import { useVial } from "@/contexts/VialContext";
 import { useLayer } from "@/contexts/LayerContext";
 import { usePanels } from "@/contexts/PanelsContext";
@@ -15,7 +18,7 @@ import { vialService } from "@/services/vial.service";
 import { cn } from "@/lib/utils";
 
 const LeadersPanel: React.FC = () => {
-    const { keyboard, setKeyboard } = useVial();
+    const { keyboard, setKeyboard, isConnected } = useVial();
     const { selectLeaderKey, assignKeycode, isBinding } = useKeyBinding();
     const { selectedLayer } = useLayer();
     const {
@@ -24,8 +27,55 @@ const LeadersPanel: React.FC = () => {
         setAlternativeHeader,
         itemToEdit,
     } = usePanels();
+    const [savingTimeout, setSavingTimeout] = useState(false);
+    const [savingPerKey, setSavingPerKey] = useState(false);
 
     if (!keyboard) return null;
+
+    // QMK Settings for Leader Key
+    const LEADER_TIMEOUT_QSID = 28;
+    const LEADER_PER_KEY_QSID = 29;
+    const isTimeoutSupported = keyboard.settings?.[LEADER_TIMEOUT_QSID] !== undefined;
+    const isPerKeySupported = keyboard.settings?.[LEADER_PER_KEY_QSID] !== undefined;
+    const leaderTimeout = keyboard.settings?.[LEADER_TIMEOUT_QSID] ?? 300;
+    const perKeyTiming = (keyboard.settings?.[LEADER_PER_KEY_QSID] ?? 0) !== 0;
+
+    const handleTimeoutChange = async (value: number) => {
+        if (!isConnected) return;
+        setSavingTimeout(true);
+        try {
+            const clamped = Math.max(50, Math.min(5000, value));
+            const updated = {
+                ...keyboard,
+                settings: { ...keyboard.settings, [LEADER_TIMEOUT_QSID]: clamped }
+            };
+            setKeyboard(updated);
+            await qmkService.push(updated, LEADER_TIMEOUT_QSID);
+            await vialService.saveViable();
+        } catch (err) {
+            console.error("Failed to update leader timeout:", err);
+        } finally {
+            setSavingTimeout(false);
+        }
+    };
+
+    const handlePerKeyToggle = async (checked: boolean) => {
+        if (!isConnected) return;
+        setSavingPerKey(true);
+        try {
+            const updated = {
+                ...keyboard,
+                settings: { ...keyboard.settings, [LEADER_PER_KEY_QSID]: checked ? 1 : 0 }
+            };
+            setKeyboard(updated);
+            await qmkService.push(updated, LEADER_PER_KEY_QSID);
+            await vialService.saveViable();
+        } catch (err) {
+            console.error("Failed to update per-key timing:", err);
+        } finally {
+            setSavingPerKey(false);
+        }
+    };
 
     const layerColorName = keyboard?.cosmetic?.layer_colors?.[selectedLayer] || "primary";
     const hoverBorderColor = hoverBorderClasses[layerColorName] || hoverBorderClasses["primary"];
@@ -135,6 +185,46 @@ const LeadersPanel: React.FC = () => {
                 Leader sequences trigger an output when you press a specific sequence of keys after the Leader key.
                 Click on a key slot to assign a keycode.
             </div>
+
+            {/* Leader Timing Settings */}
+            {isConnected && (isTimeoutSupported || isPerKeySupported) && (
+                <div className="px-3 pb-3 border-b border-gray-200 dark:border-gray-700 space-y-3">
+                    {isTimeoutSupported && (
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-medium">Leader Timeout</span>
+                                <span className="text-xs text-muted-foreground">50-5000 ms</span>
+                            </div>
+                            <Input
+                                type="number"
+                                value={leaderTimeout}
+                                min={50}
+                                max={5000}
+                                onChange={(e) => {
+                                    const newVal = parseInt(e.target.value) || 50;
+                                    handleTimeoutChange(newVal);
+                                }}
+                                disabled={savingTimeout}
+                                className={cn("w-24 text-right", savingTimeout && "opacity-50")}
+                            />
+                        </div>
+                    )}
+                    {isPerKeySupported && (
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-medium">Per-key timing</span>
+                                <span className="text-xs text-muted-foreground">Reset timeout on each key</span>
+                            </div>
+                            <Switch
+                                checked={perKeyTiming}
+                                onCheckedChange={handlePerKeyToggle}
+                                disabled={savingPerKey}
+                                className={cn(savingPerKey && "opacity-50")}
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
 
             <div className="flex flex-col overflow-auto flex-grow scrollbar-thin">
                 {leaders.map((entry, i) => {

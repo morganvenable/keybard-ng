@@ -10,6 +10,10 @@ import { vialService } from "@/services/vial.service";
 import { cn } from "@/lib/utils";
 import type { QMKSettingsField } from "@/types/qmk";
 
+// TODO: Remove "Combo" and "Leader Key" sections from this panel after the timing
+// settings are fully tested in their respective feature panels (CombosPanel, LeadersPanel).
+// These duplicates exist temporarily to allow side-by-side comparison during testing.
+
 const QMKSettingsPanel: React.FC = () => {
     const { keyboard, setKeyboard } = useVial();
     const [expanded, setExpanded] = useState<Record<string, boolean>>({
