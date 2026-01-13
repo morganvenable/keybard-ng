@@ -9,6 +9,7 @@ import AltRepeatPanel from "./Panels/AltRepeatPanel";
 import BasicKeyboards from "./Panels/BasicKeyboards";
 import CombosPanel from "./Panels/CombosPanel";
 import FragmentsPanel from "./Panels/FragmentsPanel";
+import LeadersPanel from "./Panels/LeadersPanel";
 import LayersPanel from "./Panels/LayersPanel";
 import MacrosPanel from "./Panels/MacrosPanel";
 import SpecialKeysPanel from "./Panels/SpecialKeysPanel/SpecialKeysPanel";
@@ -42,6 +43,7 @@ const getPanelTitle = (panel: string | null | undefined): string => {
         combos: "Combos",
         overrides: "Overrides",
         altrepeat: "Alt-Repeat Keys",
+        leaders: "Leader Sequences",
         fragments: "Fragment Selections",
         settings: "Settings",
         about: "About",
@@ -101,7 +103,7 @@ const SecondarySidebar = () => {
 
     // Check if we should show the key picker overlay
     // We show it if we are editing an item and we are in a panel that supports key picking
-    const showPicker = itemToEdit !== null && ["tapdances", "combos", "macros", "overrides", "altrepeat"].includes(activePanel || "");
+    const showPicker = itemToEdit !== null && ["tapdances", "combos", "macros", "overrides", "altrepeat", "leaders"].includes(activePanel || "");
 
     const [pickerMode, setPickerMode] = React.useState<PickerMode>("keyboard");
     const [isClosingEditor, setIsClosingEditor] = React.useState(false);
@@ -135,6 +137,7 @@ const SecondarySidebar = () => {
             case "combos": return <CombosPanel />;
             case "overrides": return <OverridesPanel />;
             case "altrepeat": return <AltRepeatPanel />;
+            case "leaders": return <LeadersPanel />;
             case "fragments": return <FragmentsPanel />;
             case "qmk": return <QmkKeyPanel />;
             case "special": return <SpecialKeysPanel />;

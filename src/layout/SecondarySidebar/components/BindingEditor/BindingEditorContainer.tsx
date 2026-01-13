@@ -7,9 +7,10 @@ import MacrosIcon from "@/components/icons/MacrosIcon";
 import OverridesIcon from "@/components/icons/Overrides";
 import { usePanels } from "@/contexts/PanelsContext";
 import { cn } from "@/lib/utils";
-import { X, Repeat } from "lucide-react";
+import { X, Repeat, ListOrdered } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import AltRepeatEditor from "./AltRepeatEditor";
+import LeaderEditor from "./LeaderEditor";
 import ComboEditor from "./ComboEditor";
 import MacroEditor from "./MacroEditor";
 import OverrideEditor from "./OverrideEditor";
@@ -28,6 +29,7 @@ const icons = {
     combos: <ComboIcon />,
     overrides: <OverridesIcon />,
     altrepeat: <Repeat className="w-5 h-5" />,
+    leaders: <ListOrdered className="w-5 h-5" />,
 };
 
 const labels = {
@@ -36,6 +38,7 @@ const labels = {
     combos: "Combo Keys",
     overrides: "Override",
     altrepeat: "Alt-Repeat Key",
+    leaders: "Leader Sequence",
 };
 
 const BindingEditorContainer: FC<Props> = ({ shouldClose }) => {
@@ -176,6 +179,8 @@ const BindingEditorContainer: FC<Props> = ({ shouldClose }) => {
                                 `Override ${itemToEdit}`
                             ) : bindingTypeToEdit === "altrepeat" ? (
                                 `Alt-Repeat Key ${itemToEdit}`
+                            ) : bindingTypeToEdit === "leaders" ? (
+                                `Leader Sequence ${itemToEdit}`
                             ) : (
                                 (labels as any)[bindingTypeToEdit!]
                             )}
@@ -196,6 +201,7 @@ const BindingEditorContainer: FC<Props> = ({ shouldClose }) => {
                 {bindingTypeToEdit === "overrides" && <OverrideEditor />}
                 {bindingTypeToEdit === "macros" && <MacroEditor />}
                 {bindingTypeToEdit === "altrepeat" && <AltRepeatEditor />}
+                {bindingTypeToEdit === "leaders" && <LeaderEditor />}
             </div>
         </div>
     );

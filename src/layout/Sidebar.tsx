@@ -1,4 +1,4 @@
-import { ChevronsRight, HelpCircle, Keyboard, LayoutGrid, LucideIcon, Piano, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
+import { ChevronsRight, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Piano, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
 import { useCallback } from "react";
 
 import ComboIcon from "@/components/ComboIcon";
@@ -51,11 +51,14 @@ export const primarySidebarItems: SidebarItem[] = [
 
 // Alt-Repeat hidden until firmware hook is implemented (see viable-alt-repeat-bug.md)
 const SHOW_ALT_REPEAT = false;
+// Leaders - enable when ready to test
+const SHOW_LEADERS = true;
 
 const featureSidebarItems: SidebarItem[] = [
     { title: "Combos", url: "combos", icon: ComboIcon },
     { title: "Overrides", url: "overrides", icon: OverridesIcon },
     ...(SHOW_ALT_REPEAT ? [{ title: "Alt-Repeat", url: "altrepeat", icon: Repeat }] : []),
+    ...(SHOW_LEADERS ? [{ title: "Leaders", url: "leaders", icon: ListOrdered }] : []),
     { title: "Fragments", url: "fragments", icon: LayoutGrid },
 ];
 

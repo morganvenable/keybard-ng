@@ -9,7 +9,7 @@ import { KEYBOARD_EVENT_MAP } from "@/utils/keyboard-mapper";
 import { useVial } from "./VialContext";
 
 interface BindingTarget {
-    type: "keyboard" | "combo" | "tapdance" | "macro" | "override" | "altrepeat";
+    type: "keyboard" | "combo" | "tapdance" | "macro" | "override" | "altrepeat" | "leaders";
     layer?: number;
     row?: number;
     col?: number;
@@ -27,6 +27,9 @@ interface BindingTarget {
     overrideSlot?: "trigger" | "replacement";
     altRepeatId?: number;
     altRepeatSlot?: "keycode" | "alt_keycode";
+    leaderId?: number;
+    leaderSlot?: "sequence" | "output";
+    leaderSeqIndex?: number; // 0-4 for sequence keys
 }
 
 
@@ -38,6 +41,7 @@ interface KeyBindingContextType {
     selectMacroKey: (macroId: number, index: number) => void;
     selectOverrideKey: (overrideId: number, slot: "trigger" | "replacement") => void;
     selectAltRepeatKey: (altRepeatId: number, slot: "keycode" | "alt_keycode") => void;
+    selectLeaderKey: (leaderId: number, slot: "sequence" | "output", seqIndex?: number) => void;
     assignKeycode: (keycode: number | string) => void;
     clearSelection: () => void;
     isBinding: boolean;
@@ -120,6 +124,16 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             type: "altrepeat",
             altRepeatId,
             altRepeatSlot: slot,
+        });
+        setIsBinding(true);
+    }, []);
+
+    const selectLeaderKey = useCallback((leaderId: number, slot: "sequence" | "output", seqIndex?: number) => {
+        setSelectedTarget({
+            type: "leaders",
+            leaderId,
+            leaderSlot: slot,
+            leaderSeqIndex: seqIndex,
         });
         setIsBinding(true);
     }, []);
@@ -436,6 +450,56 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
                     break;
                 }
+
+                case "leaders": {
+                    const { leaderId, leaderSlot, leaderSeqIndex } = currentTarget;
+                    if (leaderId === undefined || leaderSlot === undefined) break;
+
+                    const leaders = updatedKeyboard.leaders;
+                    if (!leaders || !leaders[leaderId]) break;
+
+                    const keycodeName = typeof keycode === "string" ? keycode : keyService.stringify(keycode);
+
+                    if (leaderSlot === "sequence" && leaderSeqIndex !== undefined) {
+                        // Ensure sequence array exists and has 5 slots
+                        if (!leaders[leaderId].sequence) {
+                            leaders[leaderId].sequence = ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"];
+                        }
+                        while (leaders[leaderId].sequence.length < 5) {
+                            leaders[leaderId].sequence.push("KC_NO");
+                        }
+                        leaders[leaderId].sequence[leaderSeqIndex] = keycodeName;
+                    } else if (leaderSlot === "output") {
+                        leaders[leaderId].output = keycodeName;
+                    }
+
+                    // Capture values for closure
+                    const ldrId = leaderId;
+
+                    // Queue the change with callback
+                    const changeDesc = `leader_${leaderId}_${leaderSlot}${leaderSeqIndex !== undefined ? `_${leaderSeqIndex}` : ""}`;
+                    queue(
+                        changeDesc,
+                        async () => {
+                            console.log(`Committing leader change: Leader ${ldrId}, ${leaderSlot} → ${keycodeName}`);
+                            try {
+                                await vialService.updateLeader(updatedKeyboard, ldrId);
+                                await vialService.saveViable();
+                            } catch (err) {
+                                console.error("Failed to update leader:", err);
+                            }
+                        },
+                        {
+                            type: "leaders" as any,
+                            leaderId,
+                            leaderSlot,
+                            leaderSeqIndex,
+                            keycode: keycodeValue,
+                        } as any
+                    );
+
+                    break;
+                }
             }
             setKeyboard(updatedKeyboard);
             clearSelection();
@@ -478,6 +542,7 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         selectMacroKey,
         selectOverrideKey,
         selectAltRepeatKey,
+        selectLeaderKey,
         assignKeycode,
         clearSelection,
         isBinding,
