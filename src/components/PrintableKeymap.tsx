@@ -1,5 +1,5 @@
 import React from 'react';
-import { SVALBOARD_LAYOUT, MATRIX_COLS } from '@/constants/svalboard-layout';
+import { SVALBOARD_LAYOUT } from '@/constants/svalboard-layout';
 import { printService, type PrintableLayer } from '@/services/print.service';
 import { getKeyLabel } from '@/utils/layers';
 import type { KeyboardInfo } from '@/types/vial.types';

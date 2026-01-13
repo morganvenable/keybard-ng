@@ -34,7 +34,7 @@ export class PrintService {
       const layerKeymap = keyboard.keymap[i];
       if (this.isLayerNonEmpty(layerKeymap)) {
         // Get layer name from cosmetic data if available
-        const layerName = keyboard.cosmetic?.layer_names?.[i] || `Layer ${i}`;
+        const layerName = keyboard.cosmetic?.layer?.[i.toString()] || `Layer ${i}`;
         layers.push({
           index: i,
           name: layerName,

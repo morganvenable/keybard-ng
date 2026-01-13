@@ -44,16 +44,51 @@ const SettingsPanel = () => {
                 const newKbInfo = await fileService.uploadFile(file);
                     if (newKbInfo) {
                         // Start sync if connected
-                        if (keyboard && isConnected) { 
+                        if (keyboard && isConnected) {
                              const { importService } = await import('@/services/import.service');
                              const { vialService } = await import('@/services/vial.service');
-                             
+
                              await importService.syncWithKeyboard(
-                                 newKbInfo, 
-                                 keyboard, 
-                                 queue, 
+                                 newKbInfo,
+                                 keyboard,
+                                 queue,
                                  { vialService }
                              );
+
+                             // Merge fragment definitions and state from connected keyboard
+                             if (keyboard.fragments) {
+                                 newKbInfo.fragments = keyboard.fragments;
+                             }
+                             if (keyboard.composition) {
+                                 newKbInfo.composition = keyboard.composition;
+                             }
+                             // Merge hardware detection/EEPROM from connected keyboard with user selections from file
+                             // Ensure Maps are actual Maps (they may have been serialized to plain objects)
+                             const ensureMap = <K, V>(obj: Map<K, V> | Record<string, V> | undefined): Map<K, V> => {
+                                 if (!obj) return new Map();
+                                 if (obj instanceof Map) return obj;
+                                 // Convert plain object to Map
+                                 return new Map(Object.entries(obj)) as unknown as Map<K, V>;
+                             };
+
+                             if (keyboard.fragmentState) {
+                                 const importedUserSelections = ensureMap<string, string>(newKbInfo.fragmentState?.userSelections);
+                                 newKbInfo.fragmentState = {
+                                     hwDetection: ensureMap<number, number>(keyboard.fragmentState.hwDetection),
+                                     eepromSelections: ensureMap<number, number>(keyboard.fragmentState.eepromSelections),
+                                     userSelections: importedUserSelections,
+                                 };
+                             }
+
+                             // Recompose layout with fragment selections
+                             const fragmentComposer = vialService.getFragmentComposer();
+                             if (fragmentComposer.hasFragments(newKbInfo)) {
+                                 const composedLayout = fragmentComposer.composeLayout(newKbInfo);
+                                 if (Object.keys(composedLayout).length > 0) {
+                                     newKbInfo.keylayout = composedLayout;
+                                     console.log("Fragment layout recomposed after import:", Object.keys(composedLayout).length, "keys");
+                                 }
+                             }
                         }
 
                      setKeyboard(newKbInfo);
