@@ -49,10 +49,13 @@ export const primarySidebarItems: SidebarItem[] = [
     { title: "Macros", url: "macros", icon: MacrosIcon },
 ];
 
+// Alt-Repeat hidden until firmware hook is implemented (see viable-alt-repeat-bug.md)
+const SHOW_ALT_REPEAT = false;
+
 const featureSidebarItems: SidebarItem[] = [
     { title: "Combos", url: "combos", icon: ComboIcon },
     { title: "Overrides", url: "overrides", icon: OverridesIcon },
-    { title: "Alt-Repeat", url: "altrepeat", icon: Repeat },
+    ...(SHOW_ALT_REPEAT ? [{ title: "Alt-Repeat", url: "altrepeat", icon: Repeat }] : []),
     { title: "Fragments", url: "fragments", icon: LayoutGrid },
 ];
 
