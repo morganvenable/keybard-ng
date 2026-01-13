@@ -1,11 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
-import { MATRIX_COLS } from "@/constants/svalboard-layout";
+import { MATRIX_COLS, SVALBOARD_LAYOUT } from "@/constants/svalboard-layout";
 import { useChanges } from "@/contexts/ChangesContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { keyService } from "@/services/key.service";
 import { vialService } from "@/services/vial.service";
 import { KEYBOARD_EVENT_MAP } from "@/utils/keyboard-mapper";
+import { getOrderedKeyPositions, SerialMode } from "@/utils/serial-assignment";
 import { useVial } from "./VialContext";
 
 interface BindingTarget {
@@ -55,6 +56,7 @@ const KeyBindingContext = createContext<KeyBindingContextType | undefined>(undef
 export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { keyboard, setKeyboard, updateKey } = useVial();
     const { queue } = useChanges();
+    const { getSetting } = useSettings();
     const [selectedTarget, setSelectedTarget] = useState<BindingTarget | null>(null);
     const [hoveredKey, setHoveredKey] = useState<BindingTarget | null>(null);
     const [isBinding, setIsBinding] = useState(false);
@@ -142,6 +144,35 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setSelectedTarget(null);
         setIsBinding(false);
     }, []);
+
+    const selectNextKey = useCallback(() => {
+        const currentTarget = selectedTargetRef.current;
+        if (!currentTarget || currentTarget.type !== 'keyboard' || !keyboard) return;
+
+        const { row, col, layer } = currentTarget;
+        if (row === undefined || col === undefined || layer === undefined) return;
+
+        // Get keyboard layout (same logic as Keyboard.tsx lines 30-37)
+        const keylayout = (keyboard.keylayout && Object.keys(keyboard.keylayout).length > 0)
+            ? keyboard.keylayout as Record<number, { x: number; y: number; w: number; h: number; row?: number; col?: number }>
+            : SVALBOARD_LAYOUT;
+
+        const matrixCols = keyboard.cols || MATRIX_COLS;
+        const mode = getSetting('serial-assignment', 'col-row') as SerialMode;
+        const ordered = getOrderedKeyPositions(keylayout, mode, matrixCols);
+
+        if (ordered.length === 0) {
+            clearSelection();
+            return;
+        }
+
+        // Find current position in ordered list
+        const currentIdx = ordered.findIndex(pos => pos.row === row && pos.col === col);
+
+        // Select next (wrap to 0 if at end or not found)
+        const nextIdx = currentIdx === -1 ? 0 : (currentIdx + 1) % ordered.length;
+        selectKeyboardKey(layer, ordered[nextIdx].row, ordered[nextIdx].col);
+    }, [keyboard, getSetting, clearSelection, selectKeyboardKey]);
 
     const assignKeycode = useCallback(
         (keycode: number | string) => {
@@ -502,12 +533,14 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 }
             }
             setKeyboard(updatedKeyboard);
-            clearSelection();
+            if (currentTarget.type === 'keyboard') {
+                selectNextKey();
+            } else {
+                clearSelection();
+            }
         },
-        [keyboard, setKeyboard, clearSelection, queue]
+        [keyboard, setKeyboard, clearSelection, selectNextKey, queue]
     );
-
-    const { getSetting } = useSettings();
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
