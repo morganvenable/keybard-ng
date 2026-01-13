@@ -61,6 +61,7 @@ const AltRepeatPanel: React.FC = () => {
 
         try {
             await vialService.updateAltRepeatKey(updatedKeyboard, index);
+            await vialService.saveViable(); // Persist to EEPROM
         } catch (err) {
             console.error("Failed to update alt repeat key:", err);
         }
@@ -82,7 +83,7 @@ const AltRepeatPanel: React.FC = () => {
                     isRelative
                     x={0} y={0} w={1} h={1} row={-1} col={-1}
                     keycode={keycode}
-                    label=""
+                    label={content?.str || ""}
                     keyContents={content}
                     layerColor={hasContent ? "sidebar" : undefined}
                     className={cn(
@@ -100,7 +101,7 @@ const AltRepeatPanel: React.FC = () => {
     return (
         <section className="space-y-3 h-full max-h-full flex flex-col pt-3">
             <div className="px-2 pb-2 text-sm text-muted-foreground">
-                Alt-Repeat keys remap what happens when you press Repeat after a specific key.
+                Alt-Repeat keys remap what happens when you press Alt-Repeat after a specific key.
                 Click on a key slot to assign a keycode.
             </div>
 

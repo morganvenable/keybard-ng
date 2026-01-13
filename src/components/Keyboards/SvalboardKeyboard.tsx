@@ -70,6 +70,7 @@ const SvalboardKeyboard: FunctionComponent<IProps> = ({ onChange, onKeyPress: on
 
             // Special keys
             QK_REPEAT_KEY: "Repeat",
+            QK_ALT_REPEAT_KEY: "Alt Repeat",
             QK_LAYER_LOCK: "Layer Lock",
         },
     };

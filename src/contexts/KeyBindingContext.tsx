@@ -4,6 +4,7 @@ import { MATRIX_COLS } from "@/constants/svalboard-layout";
 import { useChanges } from "@/contexts/ChangesContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { keyService } from "@/services/key.service";
+import { vialService } from "@/services/vial.service";
 import { KEYBOARD_EVENT_MAP } from "@/utils/keyboard-mapper";
 import { useVial } from "./VialContext";
 
@@ -408,13 +409,21 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     const keycodeName = typeof keycode === "string" ? keycode : `KC_${keycode}`;
                     altRepeatKeys[altRepeatId][altRepeatSlot] = keycodeName;
 
+                    // Capture values for closure
+                    const arkId = altRepeatId;
+
                     // Queue the change with callback
                     const changeDesc = `altrepeat_${altRepeatId}_${altRepeatSlot}`;
                     queue(
                         changeDesc,
                         async () => {
-                            console.log(`Committing alt-repeat change: AltRepeat ${altRepeatId}, ${altRepeatSlot} → ${keycodeName}`);
-                            // TODO: Call vialService.updateAltRepeatKey when live updating is fixed
+                            console.log(`Committing alt-repeat change: AltRepeat ${arkId}, ${altRepeatSlot} → ${keycodeName}`);
+                            try {
+                                await vialService.updateAltRepeatKey(updatedKeyboard, arkId);
+                                await vialService.saveViable(); // Persist to EEPROM
+                            } catch (err) {
+                                console.error("Failed to update alt-repeat key:", err);
+                            }
                         },
                         {
                             type: "altrepeat" as any,

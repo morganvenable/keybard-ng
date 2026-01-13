@@ -38,13 +38,14 @@ const SpecialKeyboard: FunctionComponent<IProps> = ({ onChange, onKeyPress: onKe
             default: [
                 // Represent kb-spam as a single long row of QMK keycodes (space separated)
                 // Note: react-simple-keyboard will render them as separate keys
-                "QK_REPEAT_KEY QK_LAYER_LOCK",
+                "QK_REPEAT_KEY QK_ALT_REPEAT_KEY QK_LAYER_LOCK",
             ],
         },
 
         // Map display labels to make keys readable. QMK keycodes are preserved as key names.
         display: {
-            QK_REPEAT_KEY: "Repeat Key",
+            QK_REPEAT_KEY: "Repeat",
+            QK_ALT_REPEAT_KEY: "Alt Repeat",
             QK_LAYER_LOCK: "Layer Lock",
         },
     };

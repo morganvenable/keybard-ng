@@ -51,6 +51,7 @@ const AltRepeatEditor: FC = () => {
 
         try {
             await vialService.updateAltRepeatKey(updatedKeyboard, altRepeatIndex);
+            await vialService.saveViable(); // Persist to EEPROM
         } catch (err) {
             console.error("Failed to update alt-repeat key:", err);
         }
@@ -64,6 +65,7 @@ const AltRepeatEditor: FC = () => {
 
         try {
             await vialService.updateAltRepeatKey(updatedKeyboard, altRepeatIndex);
+            await vialService.saveViable(); // Persist to EEPROM
         } catch (err) {
             console.error("Failed to update alt-repeat key:", err);
         }

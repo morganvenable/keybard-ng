@@ -127,6 +127,7 @@ const BasicKeyboards = ({ isPicker }: Props) => {
 
     const otherKeys = [
         { keycode: "QK_REPEAT_KEY", label: "Repeat" },
+        { keycode: "QK_ALT_REPEAT_KEY", label: "Alt Repeat" },
         { keycode: "QK_LAYER_LOCK", label: "Lyr Lock" },
     ];
 
