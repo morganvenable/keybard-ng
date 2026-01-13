@@ -1,4 +1,4 @@
-import { ChevronsRight, HelpCircle, Keyboard, LucideIcon, Piano, Settings, SquareDot, Unplug, Zap } from "lucide-react";
+import { ChevronsRight, HelpCircle, Keyboard, LayoutGrid, LucideIcon, Piano, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
 import { useCallback } from "react";
 
 import ComboIcon from "@/components/ComboIcon";
@@ -52,6 +52,8 @@ export const primarySidebarItems: SidebarItem[] = [
 const featureSidebarItems: SidebarItem[] = [
     { title: "Combos", url: "combos", icon: ComboIcon },
     { title: "Overrides", url: "overrides", icon: OverridesIcon },
+    { title: "Alt-Repeat", url: "altrepeat", icon: Repeat },
+    { title: "Fragments", url: "fragments", icon: LayoutGrid },
 ];
 
 const footerItems: SidebarItem[] = [
