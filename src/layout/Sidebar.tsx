@@ -1,4 +1,4 @@
-import { HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Piano, Repeat, Settings, SquareDot, Unplug, Upload, Zap } from "lucide-react";
+import { ArrowUpDown, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Piano, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
 import ComboIcon from "@/components/ComboIcon";
@@ -385,7 +385,7 @@ const AppSidebar = () => {
                         <SidebarMenuButton asChild size="nav" className="text-slate-600 transition-colors">
                             <div className="flex w-full items-center justify-start">
                                 <div className={cn(ICON_GUTTER_WIDTH, "h-4 flex items-center justify-start shrink-0", BASE_ICON_PADDING)}>
-                                    <Upload className="h-4 w-4 shrink-0" />
+                                    <ArrowUpDown className="h-4 w-4 shrink-0" />
                                 </div>
                                 <button type="button" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }} className="text-sm font-medium hover:text-slate-900 group-data-[state=collapsed]:hidden">
                                     Import
