@@ -120,9 +120,9 @@ const FragmentsPanel: React.FC = () => {
                     return (
                         <div
                             key={instance.id}
-                            className="flex flex-row items-center justify-between p-3 gap-3 panel-layer-item group/item rounded-md"
+                            className="flex flex-row items-center p-3 gap-4 panel-layer-item group/item rounded-md"
                         >
-                            <div className="flex flex-col items-start gap-1 min-w-0">
+                            <div className="flex flex-col items-start gap-1 shrink-0 w-[100px]">
                                 <Label className="text-sm font-medium">
                                     {instanceDisplayName}
                                 </Label>
@@ -138,7 +138,7 @@ const FragmentsPanel: React.FC = () => {
                                 onValueChange={(value) => handleSelectionChange(idx, instance, value)}
                                 disabled={isLocked || isUpdating}
                             >
-                                <SelectTrigger className="w-[200px]">
+                                <SelectTrigger className="flex-1 min-w-0">
                                     <SelectValue placeholder="Select fragment" />
                                 </SelectTrigger>
                                 <SelectContent>
