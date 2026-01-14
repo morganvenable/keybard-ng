@@ -8,6 +8,7 @@ import EditorSidePanel, { PickerMode } from "./components/EditorSidePanel";
 import AltRepeatPanel from "./Panels/AltRepeatPanel";
 import BasicKeyboards from "./Panels/BasicKeyboards";
 import CombosPanel from "./Panels/CombosPanel";
+import ExploreLayoutsPanel from "./Panels/ExploreLayoutsPanel";
 import FragmentsPanel from "./Panels/FragmentsPanel";
 import LeadersPanel from "./Panels/LeadersPanel";
 import LayersPanel from "./Panels/LayersPanel";
@@ -46,6 +47,7 @@ const getPanelTitle = (panel: string | null | undefined): string => {
         altrepeat: "Alt-Repeat Keys",
         leaders: "Leader Sequences",
         fragments: "Fragment Selections",
+        explore: "Explore Layouts",
         qmksettings: "QMK Settings",
         settings: "Settings",
         about: "About",
@@ -141,6 +143,7 @@ const SecondarySidebar = () => {
             case "altrepeat": return <AltRepeatPanel />;
             case "leaders": return <LeadersPanel />;
             case "fragments": return <FragmentsPanel />;
+            case "explore": return <ExploreLayoutsPanel />;
             case "qmk": return <QmkKeyPanel />;
             case "special": return <SpecialKeysPanel />;
             case "mouse": return <MousePanel />;
