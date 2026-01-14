@@ -16,8 +16,8 @@ const FunctionKeys = () => {
     const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
     const hoverHeaderClass = hoverHeaderClasses[layerColorName] || hoverHeaderClasses["primary"];
 
-    const keys = Array.from({ length: 24 }, (_, i) => {
-        const num = i + 1;
+    const keys = Array.from({ length: 12 }, (_, i) => {
+        const num = i + 13;
         return {
             label: `F${num}`,
             keycode: `KC_F${num}`,
@@ -26,8 +26,8 @@ const FunctionKeys = () => {
 
     return (
         <div className="flex flex-col gap-2">
-            <span className="font-semibold text-lg text-slate-700">Function Keys</span>
-            <div className="flex flex-wrap gap-2">
+            <span className="font-semibold text-lg text-slate-700">Extra Function Keys</span>
+            <div className="flex flex-wrap gap-1">
                 {keys.map((k) => (
                     <Key
                         key={k.keycode}
@@ -42,7 +42,7 @@ const FunctionKeys = () => {
                         layerColor="sidebar"
                         headerClassName={`bg-kb-sidebar-dark ${hoverHeaderClass}`}
                         isRelative
-                        className="h-[60px] w-[60px]"
+                        variant="medium"
                         hoverBorderColor={hoverBorderColor}
                         hoverBackgroundColor={hoverBackgroundColor}
                         hoverLayerColor={layerColorName}

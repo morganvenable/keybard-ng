@@ -133,10 +133,10 @@ const BasicKeyboards = ({ isPicker }: Props) => {
     ];
 
     const renderKeyGrid = (keys: { keycode: string, label: string }[], gridCols?: string) => (
-        <div className={cn("gap-2", gridCols ? `grid ${gridCols}` : "flex flex-wrap")}>
+        <div className={cn("gap-1", gridCols ? `grid ${gridCols}` : "flex flex-wrap")}>
             {keys.map((k, i) => {
                 if (k.keycode === "BLANK") {
-                    return <div key={`blank-${i}`} className="w-[60px] h-[60px]" />;
+                    return <div key={`blank-${i}`} className="w-[45px] h-[45px]" />;
                 }
                 const keyContents = keyboard ? getKeyContents(keyboard, k.keycode) : undefined;
                 const displayLabel = keyService.define(k.keycode)?.str || k.label || k.keycode;
@@ -152,9 +152,9 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                         layerColor="sidebar"
                         headerClassName={`bg-kb-sidebar-dark ${hoverHeaderClass}`}
                         isRelative
+                        variant="medium"
                         className={cn(
-                            "w-[60px]",
-                            isDoubleHeight ? "h-[128px] row-span-2" : "h-[60px]"
+                            isDoubleHeight ? "row-span-2" : ""
                         )}
                         hoverBorderColor={hoverBorderColor}
                         hoverBackgroundColor={hoverBackgroundColor}
@@ -218,17 +218,17 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                 </div>
                 <div className="flex flex-col gap-2">
                     <span className="font-semibold text-lg text-slate-700">Numpad</span>
-                    {renderKeyGrid(numpadKeys, "grid-cols-[repeat(7,60px)]")}
+                    {renderKeyGrid(numpadKeys, "grid-cols-[repeat(7,45px)]")}
                 </div>
                 <div className="flex flex-col gap-2">
                     <span className="font-semibold text-lg text-slate-700">Others</span>
                     {renderKeyGrid(otherKeys)}
                 </div>
                 <div className="flex flex-col gap-2">
-                    <span className="font-semibold text-lg text-slate-700">Function Keys</span>
-                    {renderKeyGrid(Array.from({ length: 24 }, (_, i) => ({
-                        keycode: `KC_F${i + 1}`,
-                        label: `F${i + 1}`
+                    <span className="font-semibold text-lg text-slate-700">Extra Function Keys</span>
+                    {renderKeyGrid(Array.from({ length: 12 }, (_, i) => ({
+                        keycode: `KC_F${i + 13}`,
+                        label: `F${i + 13}`
                     })))}
                 </div>
             </div>
