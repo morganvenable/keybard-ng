@@ -19,13 +19,63 @@ KeyBard-NG is a React 19 + TypeScript web application for configuring Viable-com
 ## Development Commands
 
 ```bash
-npm run dev            # Start dev server at http://localhost:5173
+npm run dev            # Start dev server (port depends on branch, see below)
 npm run build          # Production build (TypeScript check + Vite build)
 npm test               # Run all tests
 npm run test:watch     # Watch mode for development
 npm run test:coverage  # Tests with coverage report (75-90% thresholds)
 npm run test:ui        # Interactive Vitest UI
 ```
+
+## Multi-Branch Parallel Development
+
+This project supports running multiple branches simultaneously on different ports. The `vite.config.ts` automatically detects the git branch and assigns a specific port.
+
+### Port Assignments
+
+| Branch | Port | URL |
+|--------|------|-----|
+| `main` | 5170 | http://localhost:5170/keybard-ng/ |
+| `viable-protocol-migration` | 5171 | http://localhost:5171/keybard-ng/ |
+| `feature/explore-layouts` | 5172 | http://localhost:5172/keybard-ng/ |
+| (other branches) | 5173 | http://localhost:5173/keybard-ng/ |
+
+### Branch Indicator
+
+In development mode, the current branch name is displayed in the sidebar footer (bottom left, small gray text). This helps identify which branch you're viewing when multiple servers are running.
+
+### Git Worktrees
+
+To run multiple branches simultaneously, use git worktrees:
+
+```bash
+# Create a worktree for another branch
+git worktree add ../keybard-ng-explore feature/explore-layouts
+
+# Install dependencies in the worktree
+cd ../keybard-ng-explore && npm install
+
+# Start dev server (will use the branch-specific port)
+npm run dev
+
+# When done, remove the worktree
+git worktree remove ../keybard-ng-explore
+```
+
+### Current Worktree Layout
+
+| Directory | Branch | Purpose |
+|-----------|--------|---------|
+| `keybard-ng/` | `viable-protocol-migration` | Main development - Viable protocol |
+| `keybard-ng-explore/` | `feature/explore-layouts` | Layout library feature development |
+
+### Configuration
+
+The port assignment and branch detection are configured in `vite.config.ts`:
+- `getGitBranch()` - Detects current branch via `git branch --show-current`
+- `getPortForBranch()` - Maps branch names to ports
+- `__GIT_BRANCH__` - Injected global for UI display
+- `strictPort: true` - Fails if port is in use (no auto-increment)
 
 ## Architecture
 
