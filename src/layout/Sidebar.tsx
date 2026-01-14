@@ -441,6 +441,12 @@ const AppSidebar = () => {
                         />
                     ))}
                 </SidebarMenu>
+                {/* Branch indicator for dev environment */}
+                {import.meta.env.DEV && (
+                    <div className="px-3 pt-2 pb-1 text-[10px] text-slate-400 font-mono truncate group-data-[state=collapsed]:hidden" title={__GIT_BRANCH__}>
+                        {__GIT_BRANCH__}
+                    </div>
+                )}
             </SidebarFooter>
         </Sidebar>
         </>
