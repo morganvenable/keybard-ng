@@ -1,4 +1,4 @@
-import { ArrowUpDown, BookOpen, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Mouse, Piano, Pointer, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
+import { ArrowUpDown, BookOpen, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Piano, Pointer, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
 import { useNavigation } from "@/App";
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -60,7 +60,7 @@ export const primarySidebarItems: SidebarItem[] = [
     { title: "Special", url: "special", icon: Piano },
     { title: "One-Shot", url: "qmk", icon: SquareDot },
     { title: "Layer Keys", url: "layers", icon: LayersDefaultIcon },
-    { title: "Mouse", url: "mouse", icon: MouseIcon },
+    { title: "Mouse Keys", url: "mouse", icon: MouseIcon },
     { title: "Tap Dances", url: "tapdances", icon: TapdanceIcon },
     { title: "Macros", url: "macros", icon: MacrosIcon },
 ];
@@ -76,7 +76,6 @@ const featureSidebarItems: SidebarItem[] = [
     ...(SHOW_ALT_REPEAT ? [{ title: "Alt-Repeat", url: "altrepeat", icon: Repeat }] : []),
     ...(SHOW_LEADERS ? [{ title: "Leaders", url: "leaders", icon: ListOrdered }] : []),
     { title: "Fragments", url: "fragments", icon: LayoutGrid },
-    { title: "Pointing", url: "pointing", icon: Pointer },
 ];
 
 const footerItems: SidebarItem[] = [
@@ -285,8 +284,8 @@ const AppSidebar = () => {
             .filter((menu) => !isExcludedMenu(menu.label))
             .map((menu, index) => {
                 const iconName = getIconForMenu(menu.label);
-                // Map icon name to component - for now use Mouse as default
-                const IconComponent = iconName === 'mouse' ? Mouse : Settings;
+                // Map icon name to component based on menu type
+                const IconComponent = iconName === 'pointer' ? Pointer : Settings;
 
                 return {
                     title: menu.label || `Menu ${index}`,
