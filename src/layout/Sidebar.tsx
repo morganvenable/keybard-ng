@@ -1,4 +1,4 @@
-import { ArrowUpDown, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Piano, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
+import { ArrowUpDown, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Piano, Pointer, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
 import ComboIcon from "@/components/ComboIcon";
@@ -74,6 +74,7 @@ const featureSidebarItems: SidebarItem[] = [
     ...(SHOW_ALT_REPEAT ? [{ title: "Alt-Repeat", url: "altrepeat", icon: Repeat }] : []),
     ...(SHOW_LEADERS ? [{ title: "Leaders", url: "leaders", icon: ListOrdered }] : []),
     { title: "Fragments", url: "fragments", icon: LayoutGrid },
+    { title: "Pointing", url: "pointing", icon: Pointer },
 ];
 
 const footerItems: SidebarItem[] = [
