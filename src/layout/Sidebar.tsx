@@ -1,4 +1,5 @@
-import { ArrowUpDown, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Piano, Pointer, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
+import { ArrowUpDown, BookOpen, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Piano, Pointer, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
+import { useNavigation } from "@/App";
 import { useCallback, useRef, useState } from "react";
 
 import ComboIcon from "@/components/ComboIcon";
@@ -153,6 +154,7 @@ const AppSidebar = () => {
 
     const { connect, isConnected, keyboard, setKeyboard } = useVial();
     const { queue } = useChanges();
+    const { navigateTo } = useNavigation();
 
     // Import/Export state
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -396,6 +398,22 @@ const AppSidebar = () => {
                                     Export
                                 </button>
                             </div>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild size="nav" className="text-slate-600 transition-colors">
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); navigateTo("explore"); }}
+                                className="flex w-full items-center justify-start"
+                            >
+                                <div className={cn(ICON_GUTTER_WIDTH, "h-4 flex items-center justify-start shrink-0", BASE_ICON_PADDING)}>
+                                    <BookOpen className="h-4 w-4 shrink-0" />
+                                </div>
+                                <span className="text-sm font-medium hover:text-slate-900 group-data-[state=collapsed]:hidden">
+                                    Layer Library
+                                </span>
+                            </button>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>

@@ -106,10 +106,12 @@ export class SvalService {
 
     /**
      * Get the display name for a layer
+     * Note: Custom layer names are disabled until Viable-QMK supports them.
+     * Layer 15 is always "Mouse".
      */
-    getLayerName(kbinfo: KeyboardInfo, layerIndex: number): string {
-        if (kbinfo.cosmetic?.layer?.[layerIndex.toString()]) {
-            return kbinfo.cosmetic.layer[layerIndex.toString()];
+    getLayerName(_kbinfo: KeyboardInfo, layerIndex: number): string {
+        if (layerIndex === 15) {
+            return "Mouse";
         }
         return `Layer ${layerIndex}`;
     }
@@ -118,9 +120,14 @@ export class SvalService {
         return kbinfo.cosmetic?.layer?.[layerIndex.toString()];
     }
 
-    getLayerNameNoLabel(kbinfo: KeyboardInfo, layerIndex: number): string {
-        if (kbinfo.cosmetic?.layer?.[layerIndex.toString()]) {
-            return kbinfo.cosmetic.layer[layerIndex.toString()];
+    /**
+     * Get the short display name for a layer (used in tabs)
+     * Note: Custom layer names are disabled until Viable-QMK supports them.
+     * Layer 15 is always "mouse".
+     */
+    getLayerNameNoLabel(_kbinfo: KeyboardInfo, layerIndex: number): string {
+        if (layerIndex === 15) {
+            return "mouse";
         }
         return `${layerIndex}`;
     }

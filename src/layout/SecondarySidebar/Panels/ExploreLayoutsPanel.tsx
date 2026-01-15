@@ -1,0 +1,181 @@
+/**
+ * ExploreLayoutsPanel - Browse and copy individual layers from the layer library
+ */
+
+import type { FC } from "react";
+import { RefreshCw, Search, X } from "lucide-react";
+
+import { useLayerLibrary } from "@/contexts/LayoutLibraryContext";
+import { LayerCard } from "@/components/LayoutCard";
+import { LayerPreviewModal } from "@/components/LayerPreviewModal";
+import { Input } from "@/components/ui/input";
+import type { LayerEntry } from "@/types/layer-library";
+import { cn } from "@/lib/utils";
+
+const ExploreLayoutsPanel: FC = () => {
+    const {
+        layers,
+        isLoading,
+        error,
+        searchQuery,
+        setSearchQuery,
+        selectedTags,
+        setSelectedTags,
+        availableTags,
+        refreshLayers,
+        copyLayer,
+        previewLayer,
+        isPreviewOpen,
+        openPreview,
+        closePreview,
+    } = useLayerLibrary();
+
+    // Handle tag toggle
+    const toggleTag = (tag: string) => {
+        if (selectedTags.includes(tag)) {
+            setSelectedTags(selectedTags.filter(t => t !== tag));
+        } else {
+            setSelectedTags([...selectedTags, tag]);
+        }
+    };
+
+    // Handle copy - copies layer keymap to system clipboard and context
+    const handleCopy = async (layer: LayerEntry) => {
+        // Copy keymap to system clipboard (for Ctrl+V paste in editor)
+        await navigator.clipboard.writeText(JSON.stringify(layer.keymap));
+
+        // Also copy to context for the paste dialog
+        copyLayer(layer);
+    };
+
+    return (
+        <section className="space-y-3 h-full max-h-full flex flex-col pt-3">
+            {/* Search Bar */}
+            <div className="px-3">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                        type="text"
+                        placeholder="Search layers..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 pr-8"
+                    />
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Tag Filters */}
+            {availableTags.length > 0 && (
+                <div className="px-3">
+                    <div className="flex flex-wrap gap-1">
+                        {availableTags.slice(0, 8).map(tag => (
+                            <button
+                                key={tag}
+                                onClick={() => toggleTag(tag)}
+                                className={cn(
+                                    "text-xs px-2 py-1 rounded-full transition-colors",
+                                    selectedTags.includes(tag)
+                                        ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+                                        : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+                                )}
+                            >
+                                {tag}
+                            </button>
+                        ))}
+                        {selectedTags.length > 0 && (
+                            <button
+                                onClick={() => setSelectedTags([])}
+                                className="text-xs px-2 py-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                            >
+                                Clear
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Refresh Button */}
+            <div className="px-3 flex justify-end">
+                <button
+                    onClick={refreshLayers}
+                    disabled={isLoading}
+                    className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1"
+                >
+                    <RefreshCw className={cn("w-3 h-3", isLoading && "animate-spin")} />
+                    Refresh
+                </button>
+            </div>
+
+            {/* Error State */}
+            {error && (
+                <div className="px-3">
+                    <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-md text-sm">
+                        {error}
+                    </div>
+                </div>
+            )}
+
+            {/* Layer List */}
+            <div className="flex-1 overflow-auto px-3 pb-3 space-y-3 scrollbar-thin">
+                {layers.map(layer => (
+                    <LayerCard
+                        key={layer.id}
+                        layer={layer}
+                        onCopy={handleCopy}
+                        onClick={openPreview}
+                    />
+                ))}
+
+                {/* Empty State */}
+                {!isLoading && layers.length === 0 && !error && (
+                    <div className="text-center text-gray-500 mt-10">
+                        <p className="mb-2">No layers found.</p>
+                        {searchQuery || selectedTags.length > 0 ? (
+                            <p className="text-sm">Try adjusting your search or filters.</p>
+                        ) : (
+                            <p className="text-sm">
+                                Publish a layer from the layer dropdown to add it here!
+                            </p>
+                        )}
+                    </div>
+                )}
+
+                {/* Loading State */}
+                {isLoading && layers.length === 0 && (
+                    <div className="space-y-3">
+                        {[1, 2, 3].map(i => (
+                            <div
+                                key={i}
+                                className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-800 animate-pulse"
+                            >
+                                <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2" />
+                                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full mb-3" />
+                                <div className="flex gap-2">
+                                    <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded flex-1" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Layer Preview Modal */}
+            <LayerPreviewModal
+                layer={previewLayer}
+                isOpen={isPreviewOpen}
+                onClose={closePreview}
+                onCopy={handleCopy}
+            />
+        </section>
+    );
+};
+
+export default ExploreLayoutsPanel;

@@ -1,8 +1,7 @@
 import LayersActiveIcon from "@/components/icons/LayersActive";
 import LayersDefaultIcon from "@/components/icons/LayersDefault";
 import CustomColorDialog from "@/components/CustomColorDialog";
-import { Ellipsis, Settings, Unplug, Zap } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Ellipsis, Settings, Unplug, Upload, Zap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { useVial } from "@/contexts/VialContext";
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { KEYMAP } from "@/constants/keygen";
 import { usePanels } from "@/contexts/PanelsContext";
+import { PublishLayerDialog } from "@/components/PublishLayerDialog";
 
 
 interface LayerSelectorProps {
@@ -40,11 +40,9 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
 
     // UI state
     const [showAllLayers, setShowAllLayers] = useState(true);
-    const [isEditing, setIsEditing] = useState(false);
     const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
     const [isCustomColorOpen, setIsCustomColorOpen] = useState(false);
-    const [editValue, setEditValue] = useState("");
-    const inputRef = useRef<HTMLInputElement>(null);
+    const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
     const pickerRef = useRef<HTMLDivElement>(null);
 
     // Close picker when clicking outside
@@ -72,28 +70,6 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
 
     const toggleShowLayers = () => {
         setShowAllLayers((prev) => !prev);
-    };
-
-    const handleStartEditing = () => {
-        setEditValue(svalService.getLayerName(keyboard, selectedLayer));
-        setIsEditing(true);
-    };
-
-    const handleSave = () => {
-        if (keyboard) {
-            const cosmetic = JSON.parse(JSON.stringify(keyboard.cosmetic || { layer: {}, layer_colors: {} }));
-            if (!cosmetic.layer) cosmetic.layer = {};
-
-            // If the input is empty, remove the custom name to revert to default
-            if (editValue.trim() === "") {
-                delete cosmetic.layer[selectedLayer.toString()];
-            } else {
-                cosmetic.layer[selectedLayer.toString()] = editValue;
-            }
-
-            setKeyboard({ ...keyboard, cosmetic });
-        }
-        setIsEditing(false);
     };
 
     const handleSetColor = async (colorName: string) => {
@@ -149,14 +125,6 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
                     console.error("Failed to set hardware layer color:", e);
                 }
             }
-        }
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter") {
-            handleSave();
-        } else if (e.key === "Escape") {
-            setIsEditing(false);
         }
     };
 
@@ -354,7 +322,6 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
                             <button
                                 key={`layer-tab-${i}`}
                                 onClick={handleSelectLayer(i)}
-                                onDoubleClick={handleStartEditing}
                                 className={cn(
                                     "px-5 py-1 rounded-full transition-all text-sm font-medium cursor-pointer border-none outline-none whitespace-nowrap",
                                     isActive
@@ -416,31 +383,11 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
                 </div>
 
                 <div className="flex flex-col gap-1 ml-2">
-                    {isEditing ? (
-                        <div className="flex items-center gap-2 bg-white rounded-md px-1 py-0.5 border border-black shadow-sm">
-                            <Input
-                                ref={inputRef}
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onBlur={handleSave}
-                                onKeyDown={handleKeyDown}
-                                className="h-auto py-1 px-2 text-lg font-bold border-none focus-visible:ring-0 w-auto min-w-[200px]"
-                                autoFocus
-                            />
-                        </div>
-                    ) : (
-                        <div
-                            className="text-lg flex justify-start items-center cursor-pointer group hover:bg-black/5 rounded-md px-2 py-1 transition-colors"
-                            onClick={handleStartEditing}
-                            title="Click to rename"
-                        >
-                            <span className="font-bold text-black">
-                                {svalService.getLayerName(keyboard, selectedLayer)}
-                            </span>
-                        </div>
-                    )}
-
-
+                    <div className="text-lg flex justify-start items-center px-2 py-1">
+                        <span className="font-bold text-black">
+                            {svalService.getLayerName(keyboard, selectedLayer)}
+                        </span>
+                    </div>
                 </div>
 
                 <DropdownMenu>
@@ -469,8 +416,20 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
                         <DropdownMenuItem onSelect={handleChangeDisabledToTransparent}>
                             Switch Blank to Transparent
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => setIsPublishDialogOpen(true)}>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Publish Layer...
+                        </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
+
+                {/* Publish Layer Dialog */}
+                <PublishLayerDialog
+                    isOpen={isPublishDialogOpen}
+                    onClose={() => setIsPublishDialogOpen(false)}
+                    layerIndex={selectedLayer}
+                />
             </div>
 
             {/* Custom Color Dialog */}
