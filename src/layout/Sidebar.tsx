@@ -1,4 +1,4 @@
-import { ArrowUpDown, Compass, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Piano, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
+import { ArrowUpDown, BookOpen, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Piano, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
 import { useNavigation } from "@/App";
 import { useCallback, useRef, useState } from "react";
 
@@ -407,10 +407,10 @@ const AppSidebar = () => {
                                 className="flex w-full items-center justify-start"
                             >
                                 <div className={cn(ICON_GUTTER_WIDTH, "h-4 flex items-center justify-start shrink-0", BASE_ICON_PADDING)}>
-                                    <Compass className="h-4 w-4 shrink-0" />
+                                    <BookOpen className="h-4 w-4 shrink-0" />
                                 </div>
                                 <span className="text-sm font-medium hover:text-slate-900 group-data-[state=collapsed]:hidden">
-                                    Explore Layouts
+                                    Layer Library
                                 </span>
                             </button>
                         </SidebarMenuButton>
