@@ -325,7 +325,7 @@ export const KEY_DISPLAY_OVERRIDES: Record<string, string> = {
     "{altright}": "alt",
     "{metaleft}": "gui",
     "{metaright}": "gui",
-    "{space}": "[ SPACE ]",
+    "{space}": "Space",
     "KC_GUIL": "gui",
     "KC_GUIR": "gui",
     "{cedilla}": "ç", // Visual override for French layout collision

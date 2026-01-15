@@ -102,32 +102,50 @@ export const Key: React.FC<KeyProps> = ({
     let bottomStr = "";
     let topLabel: React.ReactNode = "";
 
-    const hasModifiers = keyContents?.type === "modmask";
-
-    if (hasModifiers && keyContents) {
+    // Handle different key types systematically
+    // Use keyContents.str as the display string (not raw keycode) for composed keys
+    if (keyContents?.type === "modmask") {
+        // Modifier + key combination (e.g., LGUI(KC_TAB))
+        // Show key in center, modifier at bottom
         const show = showModMask(keyContents.modids);
         const keysArr = keyContents.str?.split("\n") || [];
         const keyStr = keysArr[0] || "";
 
-        if (!label || label === keycode) {
-            // Main keyboard case: label equals keycode (e.g., "LCTL(kc)")
-            // Need to construct a display label like "LCTL (kc)" to match panel
-            if (keyStr === "" || keyStr === "KC_NO") {
-                // It's a placeholder - show modifier + (kc) in center
-                const modStr = keyContents.top || "";
-                displayLabel = `${modStr} (kc)`;
-            } else {
-                // It has an actual key - show modifier + key
-                const modStr = keyContents.top || "";
-                displayLabel = `${modStr} ${keyStr}`;
-            }
+        if (keyStr === "" || keyStr === "KC_NO") {
+            // Placeholder - show modifier + (kc) to indicate key selection needed
+            const modStr = keyContents.top || "";
+            displayLabel = `${modStr} (kc)`;
+        } else {
+            // Show just the key in center, modifier is shown at bottom
+            displayLabel = keyStr;
         }
-        // else: QMK panel case - label already has proper format like "LCTL (kc)"
-
         bottomStr = show;
-    }
+    } else if (keyContents?.type === "modtap") {
+        // Modifier-tap key (e.g., LGUI_T(KC_TAB))
+        // Show key in center, modifier_T in top header
+        const keysArr = keyContents.str?.split("\n") || [];
+        const keyStr = keysArr[0] || "";
 
-    if (keyContents?.type === "tapdance") {
+        if (keyStr === "" || keyStr === "KC_NO") {
+            displayLabel = "(kc)";
+        } else {
+            displayLabel = keyStr;
+        }
+        // Extract modifier prefix from keycode (e.g., "LGUI_T(KC_TAB)" -> "LGUI_T")
+        const modMatch = keycode.match(/^(\w+_T)\(/);
+        topLabel = modMatch ? modMatch[1] : "MOD_T";
+    } else if (keyContents?.type === "layerhold") {
+        // Layer-tap key (e.g., LT1(KC_ENTER))
+        // Show key in center, LT# in header
+        // Extract layer number from keycode (e.g., "LT1(KC_ENTER)" -> "LT1")
+        const ltMatch = keycode.match(/^LT(\d+)/);
+        topLabel = ltMatch ? `LT${ltMatch[1]}` : "LT";
+        const keysArr = keyContents.str?.split("\n") || [];
+        displayLabel = keysArr[0] || "";
+        if (displayLabel === "" || displayLabel === "KC_NO") {
+            displayLabel = "(kc)";
+        }
+    } else if (keyContents?.type === "tapdance") {
         displayLabel = keyContents.tdid?.toString() || "";
     } else if (keyContents?.type === "macro") {
         displayLabel = keyContents.top?.replace("M", "") || "";

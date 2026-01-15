@@ -14,7 +14,7 @@ import { getKeyContents } from "@/utils/keys";
 /**
  * Valid layer modifiers supported by the UI
  */
-const LAYER_MODIFIERS = ["MO", "DF", "TG", "TT", "OSL", "TO"] as const;
+const LAYER_MODIFIERS = ["MO", "DF", "TG", "TT", "OSL", "TO", "LT"] as const;
 type LayerModifier = (typeof LAYER_MODIFIERS)[number];
 
 const MODIFIER_NAMES: Record<LayerModifier, string> = {
@@ -24,6 +24,7 @@ const MODIFIER_NAMES: Record<LayerModifier, string> = {
     TT: "Tap Toggle",
     OSL: "One Shot Layer",
     TO: "To Layer",
+    LT: "Layer Tap",
 };
 
 /**
@@ -90,7 +91,7 @@ const LayersPanel = ({ isPicker }: Props) => {
                                 size="sm"
                                 variant={isActive ? "default" : "ghost"}
                                 className={cn(
-                                    "px-6 py-1 text-md rounded-full transition-all",
+                                    "px-3 py-1 text-md rounded-full transition-all",
                                     isActive ? "shadow-sm bg-slate-900 border-none" : "text-black hover:bg-slate-200"
                                 )}
                                 onClick={() => setActiveModifier(modifier)}
@@ -115,7 +116,8 @@ const LayersPanel = ({ isPicker }: Props) => {
                     const layerName = (svalService.getLayerCosmetic(keyboard, i) || "").trim();
                     const hasCustomName = layerName !== "";
                     const layerColor = keyboard?.cosmetic?.layer_colors?.[i] ?? "primary";
-                    const keycode = `${activeModifier}(${i})`;
+                    // LT uses format LT#(key) instead of LT(#)
+                    const keycode = activeModifier === "LT" ? `LT${i}(kc)` : `${activeModifier}(${i})`;
                     const keyContents = getKeyContents(keyboard, keycode) as KeyContent;
 
                     return (
