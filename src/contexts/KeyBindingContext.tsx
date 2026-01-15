@@ -14,6 +14,7 @@ interface BindingTarget {
     layer?: number;
     row?: number;
     col?: number;
+    keyboardSubsection?: "full" | "inner"; // For compound keys (layerhold, modtap): "inner" edits tap key only
     comboId?: number;
     comboSlot?: number; // 0-4 for combo keys
     tapdanceId?: number;
@@ -37,6 +38,7 @@ interface BindingTarget {
 interface KeyBindingContextType {
     selectedTarget: BindingTarget | null;
     selectKeyboardKey: (layer: number, row: number, col: number) => void;
+    selectKeyboardKeyWithSubsection: (layer: number, row: number, col: number, subsection: "full" | "inner") => void;
     selectComboKey: (comboId: number, slot: number) => void;
     selectTapdanceKey: (tapdanceId: number, slot: "tap" | "hold" | "doubletap" | "taphold") => void;
     selectMacroKey: (macroId: number, index: number) => void;
@@ -79,6 +81,20 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 layer,
                 row,
                 col,
+            });
+            setIsBinding(true);
+        },
+        [keyboard]
+    );
+
+    const selectKeyboardKeyWithSubsection = useCallback(
+        (layer: number, row: number, col: number, subsection: "full" | "inner") => {
+            setSelectedTarget({
+                type: "keyboard",
+                layer,
+                row,
+                col,
+                keyboardSubsection: subsection,
             });
             setIsBinding(true);
         },
@@ -187,7 +203,7 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
             switch (currentTarget.type) {
                 case "keyboard": {
-                    const { layer, row, col } = currentTarget;
+                    const { layer, row, col, keyboardSubsection } = currentTarget;
                     if (layer === undefined || row === undefined || col === undefined) break;
 
                     const matrixPos = row * MATRIX_COLS + col;
@@ -197,22 +213,42 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     // Store previous value for potential rollback
                     const previousValue = updatedKeyboard.keymap[layer][matrixPos];
 
-                    updatedKeyboard.keymap[layer][matrixPos] = keycodeValue;
+                    let finalKeycodeValue = keycodeValue;
+
+                    // If subsection is "inner", compose new keycode preserving the hold/mask portion
+                    if (keyboardSubsection === "inner" && previousValue !== undefined) {
+                        const prevKeycode = typeof previousValue === "number" ? previousValue : keyService.parse(previousValue);
+                        const prevKeyStr = keyService.stringify(prevKeycode);
+
+                        // Check if it's a layerhold (LT#) or modtap (_T) key
+                        const isLayerhold = /^LT\d+\(/.test(prevKeyStr);
+                        const isModtap = /_T\(/.test(prevKeyStr);
+
+                        if (isLayerhold || isModtap) {
+                            // Extract the mask (hold portion) and compose with new inner key
+                            const mask = prevKeycode & 0xFF00;
+                            const newInner = keycodeValue & 0x00FF;
+                            finalKeycodeValue = mask | newInner;
+                            console.log(`Inner key composition: ${prevKeyStr} → mask 0x${mask.toString(16)} | inner 0x${newInner.toString(16)} = 0x${finalKeycodeValue.toString(16)}`);
+                        }
+                    }
+
+                    updatedKeyboard.keymap[layer][matrixPos] = finalKeycodeValue;
 
                     // Queue the change with callback
                     const changeDesc = `key_${layer}_${row}_${col}`;
                     queue(
                         changeDesc,
                         async () => {
-                            console.log(`Committing key change: Layer ${layer}, Key [${row},${col}] → ${keycodeValue}`);
-                            updateKey(layer, row, col, keycodeValue);
+                            console.log(`Committing key change: Layer ${layer}, Key [${row},${col}] → ${finalKeycodeValue}`);
+                            updateKey(layer, row, col, finalKeycodeValue);
                         },
                         {
                             type: "key",
                             layer,
                             row,
                             col,
-                            keycode: keycodeValue,
+                            keycode: finalKeycodeValue,
                             previousValue,
                         }
                     );
@@ -564,6 +600,7 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const value: KeyBindingContextType = {
         selectedTarget,
         selectKeyboardKey,
+        selectKeyboardKeyWithSubsection,
         selectComboKey,
         selectTapdanceKey,
         selectMacroKey,

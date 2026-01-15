@@ -18,7 +18,9 @@ interface KeyProps {
     row: number; // Matrix row
     col: number; // Matrix column
     selected?: boolean;
+    selectedSubsection?: "full" | "inner" | null; // Which subsection is selected for compound keys
     onClick?: (row: number, col: number) => void;
+    onSubsectionClick?: (row: number, col: number, subsection: "full" | "inner") => void; // For compound key subsection clicks
     keyContents?: KeyContent; // Additional key contents info
     layerColor?: string;
     isRelative?: boolean;
@@ -47,7 +49,9 @@ export const Key: React.FC<KeyProps> = ({
     col,
     layerColor = "primary",
     selected = false,
+    selectedSubsection = null,
     onClick,
+    onSubsectionClick,
     keyContents,
     isRelative = false,
     className = "",
@@ -68,6 +72,26 @@ export const Key: React.FC<KeyProps> = ({
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (onClick) {
+            onClick(row, col);
+        }
+    };
+
+    // For compound keys (layerhold, modtap): clicking header selects full key
+    const handleFullClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (onSubsectionClick) {
+            onSubsectionClick(row, col, "full");
+        } else if (onClick) {
+            onClick(row, col);
+        }
+    };
+
+    // For compound keys (layerhold, modtap): clicking center selects inner key only
+    const handleInnerClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (onSubsectionClick) {
+            onSubsectionClick(row, col, "inner");
+        } else if (onClick) {
             onClick(row, col);
         }
     };
@@ -109,28 +133,15 @@ export const Key: React.FC<KeyProps> = ({
         // Show key in center, modifier at bottom
         const show = showModMask(keyContents.modids);
         const keysArr = keyContents.str?.split("\n") || [];
-        const keyStr = keysArr[0] || "";
-
-        if (keyStr === "" || keyStr === "KC_NO") {
-            // Placeholder - show modifier + (kc) to indicate key selection needed
-            const modStr = keyContents.top || "";
-            displayLabel = `${modStr} (kc)`;
-        } else {
-            // Show just the key in center, modifier is shown at bottom
-            displayLabel = keyStr;
-        }
+        displayLabel = keysArr[0] || "";
+        // KC_NO shows blank (handled below), KC_TRNS shows ▽ from str
         bottomStr = show;
     } else if (keyContents?.type === "modtap") {
         // Modifier-tap key (e.g., LGUI_T(KC_TAB))
         // Show key in center, modifier_T in top header
         const keysArr = keyContents.str?.split("\n") || [];
-        const keyStr = keysArr[0] || "";
-
-        if (keyStr === "" || keyStr === "KC_NO") {
-            displayLabel = "(kc)";
-        } else {
-            displayLabel = keyStr;
-        }
+        displayLabel = keysArr[0] || "";
+        // KC_NO shows blank (handled below), KC_TRNS shows ▽ from str
         // Extract modifier prefix from keycode (e.g., "LGUI_T(KC_TAB)" -> "LGUI_T")
         const modMatch = keycode.match(/^(\w+_T)\(/);
         topLabel = modMatch ? modMatch[1] : "MOD_T";
@@ -142,9 +153,7 @@ export const Key: React.FC<KeyProps> = ({
         topLabel = ltMatch ? `LT${ltMatch[1]}` : "LT";
         const keysArr = keyContents.str?.split("\n") || [];
         displayLabel = keysArr[0] || "";
-        if (displayLabel === "" || displayLabel === "KC_NO") {
-            displayLabel = "(kc)";
-        }
+        // KC_NO shows blank (handled below), KC_TRNS shows ▽ from str
     } else if (keyContents?.type === "tapdance") {
         displayLabel = keyContents.tdid?.toString() || "";
     } else if (keyContents?.type === "macro") {
@@ -242,23 +251,37 @@ export const Key: React.FC<KeyProps> = ({
         );
     }
 
+    // Determine if this is a compound key with subsection selection (layerhold or modtap, NOT modmask)
+    const isSubsectionKey = keyContents?.type === "layerhold" || keyContents?.type === "modtap";
+
+    // Visual feedback for subsection selection
+    const isFullSelected = selected && (!selectedSubsection || selectedSubsection === "full");
+    const isInnerSelected = selected && selectedSubsection === "inner";
+
     // Default rendering for all other keys
     return (
         <div
             className={containerClasses}
             style={boxStyle}
-            onClick={handleClick}
+            // For compound keys with subsections, don't handle click on container
+            onClick={isSubsectionKey ? undefined : handleClick}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
             title={keycode}
         >
             {topLabel && (
-                <span className={cn(
-                    "whitespace-nowrap w-full text-center font-semibold py-0 flex items-center justify-center transition-colors duration-200",
-                    isSmall ? "text-[8px] min-h-[10px] rounded-t-[4px]" : isMedium ? "text-[10px] min-h-[14px] rounded-t-[4px]" : "text-sm min-h-[1.2rem] rounded-t-sm",
-                    "text-white",
-                    headerClassName
-                )}>
+                <span
+                    className={cn(
+                        "whitespace-nowrap w-full text-center font-semibold py-0 flex items-center justify-center transition-colors duration-200",
+                        isSmall ? "text-[8px] min-h-[10px] rounded-t-[4px]" : isMedium ? "text-[10px] min-h-[14px] rounded-t-[4px]" : "text-sm min-h-[1.2rem] rounded-t-sm",
+                        "text-white",
+                        headerClassName,
+                        // Visual feedback: highlight header when full key is selected
+                        isSubsectionKey && isFullSelected && "ring-2 ring-inset ring-white/50"
+                    )}
+                    onClick={isSubsectionKey ? handleFullClick : undefined}
+                    style={isSubsectionKey ? { cursor: 'pointer' } : undefined}
+                >
                     {topLabel}
                 </span>
             )}
@@ -268,9 +291,12 @@ export const Key: React.FC<KeyProps> = ({
             <div
                 className={cn(
                     "text-center w-full h-full justify-center items-center flex font-semibold",
-                    isSmall ? "text-[10px] px-0.5" : isMedium ? "text-[12px] px-1" : (typeof centerContent === 'string' && centerContent.length === 1 ? "text-[16px]" : "text-[15px]")
+                    isSmall ? "text-[10px] px-0.5" : isMedium ? "text-[12px] px-1" : (typeof centerContent === 'string' && centerContent.length === 1 ? "text-[16px]" : "text-[15px]"),
+                    // Visual feedback: highlight center when inner key is selected
+                    isSubsectionKey && isInnerSelected && "bg-white/20 rounded"
                 )}
                 style={textStyle}
+                onClick={isSubsectionKey ? handleInnerClick : undefined}
             >
                 {centerContent}
             </div>
@@ -284,6 +310,8 @@ export const Key: React.FC<KeyProps> = ({
                         headerClassName
                     )}
                     style={bottomTextStyle}
+                    // Bottom bar (for modmask) also selects full key
+                    onClick={isSubsectionKey ? handleFullClick : undefined}
                 >
                     {bottomStr}
                 </span>
