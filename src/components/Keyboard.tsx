@@ -23,7 +23,7 @@ interface KeyboardProps {
 
 // Fix unused var warning
 export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) => {
-    const { selectKeyboardKey, selectedTarget, clearSelection, hoveredKey, assignKeycode } = useKeyBinding();
+    const { selectKeyboardKey, selectKeyboardKeyWithSubsection, selectedTarget, clearSelection, hoveredKey, assignKeycode } = useKeyBinding();
     const { activePanel, itemToEdit } = usePanels();
     const { hasPendingChangeForKey } = useChanges();
     const [showInfoPanel, setShowInfoPanel] = React.useState(false);
@@ -105,6 +105,25 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
         selectKeyboardKey(selectedLayer, row, col);
     };
 
+    // Handle subsection clicks for compound keys (layerhold, modtap)
+    const handleKeySubsectionClick = (row: number, col: number, subsection: "full" | "inner") => {
+        // If in transmitting mode, send the key's value to the selected target (always full keycode)
+        if (isTransmitting) {
+            const pos = row * matrixCols + col;
+            const keycode = layerKeymap[pos] || 0;
+            const keycodeName = getKeycodeName(keycode);
+            assignKeycode(keycodeName);
+            return;
+        }
+
+        // if same key and same subsection is already selected, deselect it
+        if (isKeySelected(row, col) && selectedTarget?.keyboardSubsection === subsection) {
+            clearSelection();
+            return;
+        }
+        selectKeyboardKeyWithSubsection(selectedLayer, row, col, subsection);
+    };
+
     // Handle Delete/Backspace for selected key
     React.useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -184,7 +203,9 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
                             row={row}
                             col={col}
                             selected={isKeySelected(row, col)}
+                            selectedSubsection={isKeySelected(row, col) ? selectedTarget?.keyboardSubsection || null : null}
                             onClick={handleKeyClick}
+                            onSubsectionClick={handleKeySubsectionClick}
                             keyContents={keyContents}
                             layerColor={keyLayerColor}
                             headerClassName={keyHeaderClassFull}

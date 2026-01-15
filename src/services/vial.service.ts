@@ -283,6 +283,12 @@ export class ViableService {
             kbinfo.composition = payloadData.composition;
         }
 
+        // Extract VIA3 custom UI menus for dynamic settings panels
+        if (payloadData.menus && Array.isArray(payloadData.menus)) {
+            kbinfo.menus = payloadData.menus;
+            console.log("Loaded custom UI menus:", payloadData.menus.map((m: { label?: string }) => m.label).filter(Boolean));
+        }
+
         return kbinfo;
     }
 
