@@ -32,8 +32,8 @@ export function getIconForMenu(label: string | undefined): string {
 
     const labelLower = label.toLowerCase();
 
-    if (labelLower.includes('pointing') || labelLower.includes('mouse') || labelLower.includes('trackball')) {
-        return 'mouse';
+    if (labelLower.includes('pointing') || labelLower.includes('trackball') || labelLower.includes('trackpoint')) {
+        return 'pointer';
     }
     if (labelLower.includes('light') || labelLower.includes('rgb') || labelLower.includes('led')) {
         return 'lightbulb';

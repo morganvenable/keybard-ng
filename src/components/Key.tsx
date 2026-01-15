@@ -258,10 +258,24 @@ export const Key: React.FC<KeyProps> = ({
     const isFullSelected = selected && (!selectedSubsection || selectedSubsection === "full");
     const isInnerSelected = selected && selectedSubsection === "inner";
 
+    // For compound keys with inner-only selection, use different container styling
+    const compoundContainerClasses = isSubsectionKey && isInnerSelected
+        ? cn(
+            "flex flex-col items-center justify-between cursor-pointer transition-all duration-200 ease-in-out uppercase group overflow-hidden",
+            !isRelative && "absolute",
+            isSmall ? "rounded-[5px] border" : isMedium ? "rounded-[5px] border-2" : "rounded-md border-2",
+            // Keep layer color but add selection border
+            colorClass,
+            "border-red-500 ring-2 ring-red-500/50",
+            pendingChangeClass,
+            className
+        )
+        : containerClasses;
+
     // Default rendering for all other keys
     return (
         <div
-            className={containerClasses}
+            className={compoundContainerClasses}
             style={boxStyle}
             // For compound keys with subsections, don't handle click on container
             onClick={isSubsectionKey ? undefined : handleClick}
@@ -293,7 +307,8 @@ export const Key: React.FC<KeyProps> = ({
                     "text-center w-full h-full justify-center items-center flex font-semibold",
                     isSmall ? "text-[10px] px-0.5" : isMedium ? "text-[12px] px-1" : (typeof centerContent === 'string' && centerContent.length === 1 ? "text-[16px]" : "text-[15px]"),
                     // Visual feedback: highlight center when inner key is selected
-                    isSubsectionKey && isInnerSelected && "bg-white/20 rounded"
+                    // Use red background with white text for visibility on any layer color
+                    isSubsectionKey && isInnerSelected && "bg-red-500 text-white rounded m-0.5"
                 )}
                 style={textStyle}
                 onClick={isSubsectionKey ? handleInnerClick : undefined}
