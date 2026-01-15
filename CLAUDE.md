@@ -2,6 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## Directory: keybard-ng-viable (viable-protocol-migration branch)
+
+| Property | Value |
+|----------|-------|
+| **Branch** | `viable-protocol-migration` |
+| **Dev Server Port** | 5171 |
+| **URL** | http://localhost:5171/keybard-ng/ |
+
+### Quick Start
+
+```bash
+npm run dev    # Starts on port 5171 automatically
+```
+
+---
+
 ## Related Repositories
 
 | Repository | Branch | Purpose |
@@ -62,12 +80,13 @@ npm run dev
 git worktree remove ../keybard-ng-explore
 ```
 
-### Current Worktree Layout
+### Directory Layout
 
-| Directory | Branch | Purpose |
-|-----------|--------|---------|
-| `keybard-ng/` | `viable-protocol-migration` | Main development - Viable protocol |
-| `keybard-ng-explore/` | `feature/explore-layouts` | Layout library feature development |
+| Directory | Branch | Port | Purpose |
+|-----------|--------|------|---------|
+| `keybard-ng/` | `main` | 5170 | Stable main branch |
+| `keybard-ng-viable/` | `viable-protocol-migration` | 5171 | Viable protocol development |
+| `keybard-ng-explore/` | `feature/explore-layouts` | 5172 | Layout library feature |
 
 ### Configuration
 

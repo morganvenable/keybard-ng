@@ -779,6 +779,92 @@ export class ViableUSB {
     }
     return entries;
   }
+
+  // VIA Custom Value Protocol (0x07/0x08/0x09)
+  // Channels: 0 = keyboard-specific, 1 = QMK backlight, 2 = QMK rgblight
+
+  /**
+   * Get a custom value from the keyboard using VIA custom value protocol.
+   * Packet: [0x08][channel][value_id]
+   * Response: [0x08][channel][value_id][data...]
+   */
+  async customValueGet(channel: number, valueId: number, size: number = 2): Promise<Uint8Array> {
+    const resp = await this.send(
+      ViableUSB.CMD_VIA_LIGHTING_GET_VALUE,
+      [channel, valueId],
+      { uint8: true, skipBytes: 3 } // Skip cmd_echo, channel, value_id
+    );
+    return (resp as Uint8Array).slice(0, size);
+  }
+
+  /**
+   * Set a custom value on the keyboard using VIA custom value protocol.
+   * Packet: [0x07][channel][value_id][data...]
+   */
+  async customValueSet(channel: number, valueId: number, data: number[]): Promise<void> {
+    console.log(`customValueSet: channel=${channel}, valueId=${valueId}, data=[${data.join(', ')}]`);
+    await this.send(
+      ViableUSB.CMD_VIA_LIGHTING_SET_VALUE,
+      [channel, valueId, ...data],
+      {}
+    );
+  }
+
+  /**
+   * Save custom values to EEPROM using VIA custom value protocol.
+   * Packet: [0x09][channel]
+   */
+  async customValueSave(channel: number): Promise<void> {
+    await this.send(
+      ViableUSB.CMD_VIA_LIGHTING_SAVE,
+      [channel],
+      {}
+    );
+  }
+
+  // Layer Color convenience methods (channel 0, value_ids 32-47)
+  // Color format: 2 bytes [hue, sat] (0-255 range, QMK HSV)
+
+  static readonly LAYER_COLOR_VALUE_ID_BASE = 32;
+  static readonly LAYER_COLOR_CHANNEL = 0;
+
+  /**
+   * Get layer color from keyboard.
+   * Returns HSV (hue, sat) - value/brightness controlled separately.
+   */
+  async getLayerColor(layer: number): Promise<{ hue: number; sat: number }> {
+    const valueId = ViableUSB.LAYER_COLOR_VALUE_ID_BASE + layer;
+    const data = await this.customValueGet(ViableUSB.LAYER_COLOR_CHANNEL, valueId, 2);
+    return { hue: data[0], sat: data[1] };
+  }
+
+  /**
+   * Set layer color on keyboard.
+   * Takes HSV values (0-255 range).
+   */
+  async setLayerColor(layer: number, hue: number, sat: number): Promise<void> {
+    const valueId = ViableUSB.LAYER_COLOR_VALUE_ID_BASE + layer;
+    console.log(`setLayerColor: layer=${layer}, valueId=${valueId}, hue=${hue}, sat=${sat}`);
+    await this.customValueSet(ViableUSB.LAYER_COLOR_CHANNEL, valueId, [hue, sat]);
+    await this.customValueSave(ViableUSB.LAYER_COLOR_CHANNEL);
+  }
+
+  /**
+   * Get all layer colors (for initial sync).
+   * Returns array of 16 HSV values.
+   */
+  async getAllLayerColors(): Promise<Array<{ hue: number; sat: number }>> {
+    const colors: Array<{ hue: number; sat: number }> = [];
+    for (let i = 0; i < 16; i++) {
+      try {
+        const color = await this.getLayerColor(i);
+        colors.push(color);
+      } catch {
+        colors.push({ hue: 0, sat: 0 });
+      }
+    }
+    return colors;
+  }
 }
 
 // Export singleton instance

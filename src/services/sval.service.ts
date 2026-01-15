@@ -1,4 +1,5 @@
 import { VialUSB, usbInstance } from "./usb.service";
+import { getClosestPresetColor } from "../utils/color-conversion";
 
 // Svalboard-specific protocol service
 import type { KeyboardInfo } from "../types/vial.types";
@@ -122,6 +123,34 @@ export class SvalService {
             return kbinfo.cosmetic.layer[layerIndex.toString()];
         }
         return `${layerIndex}`;
+    }
+
+    /**
+     * Sync hardware layer colors to cosmetic layer colors
+     * Call this after pull() to ensure UI reflects actual hardware state
+     */
+    syncCosmeticLayerColors(kbinfo: KeyboardInfo): void {
+        if (!kbinfo.layer_colors || kbinfo.layer_colors.length === 0) {
+            return;
+        }
+
+        if (!kbinfo.cosmetic) {
+            kbinfo.cosmetic = { layer: {}, layer_colors: {} };
+        }
+        if (!kbinfo.cosmetic.layer_colors) {
+            kbinfo.cosmetic.layer_colors = {};
+        }
+
+        // For each hardware layer color, find the closest preset and set it
+        for (let i = 0; i < kbinfo.layer_colors.length; i++) {
+            const hwColor = kbinfo.layer_colors[i];
+            if (hwColor && (hwColor.hue !== 0 || hwColor.sat !== 0 || hwColor.val !== 0)) {
+                const closestPreset = getClosestPresetColor(hwColor.hue, hwColor.sat, hwColor.val);
+                if (closestPreset) {
+                    kbinfo.cosmetic.layer_colors[i.toString()] = closestPreset;
+                }
+            }
+        }
     }
 }
 

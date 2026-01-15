@@ -1,6 +1,7 @@
 import LayersActiveIcon from "@/components/icons/LayersActive";
 import LayersDefaultIcon from "@/components/icons/LayersDefault";
-import { Ellipsis, Unplug, Zap } from "lucide-react";
+import CustomColorDialog from "@/components/CustomColorDialog";
+import { Ellipsis, Settings, Unplug, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
@@ -8,7 +9,9 @@ import { useVial } from "@/contexts/VialContext";
 import { cn } from "@/lib/utils";
 import { svalService } from "@/services/sval.service";
 import { vialService } from "@/services/vial.service";
-import { colorClasses, layerColors } from "@/utils/colors";
+import { usbInstance } from "@/services/usb.service";
+import { layerColors } from "@/utils/colors";
+import { getPresetHsv, getClosestPresetColor, hsvToHex } from "@/utils/color-conversion";
 import { FC, useState, useRef, useEffect } from "react";
 import {
     DropdownMenu,
@@ -39,6 +42,7 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
     const [showAllLayers, setShowAllLayers] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+    const [isCustomColorOpen, setIsCustomColorOpen] = useState(false);
     const [editValue, setEditValue] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
     const pickerRef = useRef<HTMLDivElement>(null);
@@ -92,14 +96,60 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
         setIsEditing(false);
     };
 
-    const handleSetColor = (colorName: string) => {
+    const handleSetColor = async (colorName: string) => {
+        console.log("setColor:", colorName, "connected:", isConnected);
         if (keyboard) {
+            // Update cosmetic color for UI
             const cosmetic = JSON.parse(JSON.stringify(keyboard.cosmetic || { layer: {}, layer_colors: {} }));
             if (!cosmetic.layer_colors) cosmetic.layer_colors = {};
             cosmetic.layer_colors[selectedLayer.toString()] = colorName;
-            setKeyboard({ ...keyboard, cosmetic });
+
+            // Also update layer_colors with preset HSV so getCurrentColorHex() shows correct color
+            const hsv = getPresetHsv(colorName);
+            const updatedLayerColors = [...(keyboard.layer_colors || [])];
+            updatedLayerColors[selectedLayer] = { hue: hsv.hue, sat: hsv.sat, val: hsv.val };
+
+            setKeyboard({ ...keyboard, cosmetic, layer_colors: updatedLayerColors });
+
+            // If connected to keyboard, set hardware layer color via VIA custom values
+            if (isConnected) {
+                console.log("Sending hardware color via VIA custom values:", { layer: selectedLayer, hue: hsv.hue, sat: hsv.sat });
+                try {
+                    await usbInstance.setLayerColor(selectedLayer, hsv.hue, hsv.sat);
+                } catch (e) {
+                    console.error("Failed to set hardware layer color:", e);
+                }
+            }
         }
         setIsColorPickerOpen(false);
+    };
+
+    const handleSetCustomColor = async (hue: number, sat: number, val: number) => {
+        if (keyboard) {
+            // Find closest preset for cosmetic display, or use custom indicator
+            const closestPreset = getClosestPresetColor(hue, sat, val);
+            const cosmetic = JSON.parse(JSON.stringify(keyboard.cosmetic || { layer: {}, layer_colors: {} }));
+            if (!cosmetic.layer_colors) cosmetic.layer_colors = {};
+
+            // Store the closest preset name for UI display
+            cosmetic.layer_colors[selectedLayer.toString()] = closestPreset;
+
+            // Store actual HSV in layer_colors array for hardware state
+            const updatedLayerColors = [...(keyboard.layer_colors || [])];
+            updatedLayerColors[selectedLayer] = { hue, sat, val };
+
+            setKeyboard({ ...keyboard, cosmetic, layer_colors: updatedLayerColors });
+
+            // If connected to keyboard, set hardware layer color via VIA custom values
+            if (isConnected) {
+                console.log("Sending custom hardware color via VIA custom values:", { layer: selectedLayer, hue, sat });
+                try {
+                    await usbInstance.setLayerColor(selectedLayer, hue, sat);
+                } catch (e) {
+                    console.error("Failed to set hardware layer color:", e);
+                }
+            }
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -110,12 +160,24 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
         }
     };
 
-    const currentLayerColor = keyboard.cosmetic?.layer_colors?.[selectedLayer] || "primary";
+    const currentLayerColorName = keyboard.cosmetic?.layer_colors?.[selectedLayer] || "green";
+
+    // Get the actual display color - either from cosmetic name or hardware HSV
+    const getCurrentColorHex = (): string => {
+        // First check if we have hardware layer colors (from Svalboard)
+        const hwColor = keyboard.layer_colors?.[selectedLayer];
+        if (hwColor && (hwColor.hue !== 0 || hwColor.sat !== 0 || hwColor.val !== 0)) {
+            return hsvToHex(hwColor.hue, hwColor.sat, hwColor.val);
+        }
+        // Otherwise use the cosmetic preset color
+        const preset = layerColors.find(c => c.name === currentLayerColorName);
+        return preset?.hex || "#099e7c"; // Default to green hex
+    };
+
+    const currentColorHex = getCurrentColorHex();
 
     // All possible colors for the picker
-    const allColors = [
-        ...layerColors,
-    ];
+    const allColors = [...layerColors];
 
     // Layer Actions
     const { isConnected, connect } = useVial();
@@ -314,9 +376,9 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
                     <div
                         className={cn(
                             "w-6 h-6 rounded-full shadow-sm cursor-pointer transition-transform hover:scale-110 border-2",
-                            colorClasses[currentLayerColor] || "bg-kb-primary",
                             isColorPickerOpen ? "border-black" : "border-transparent"
                         )}
+                        style={{ backgroundColor: currentColorHex }}
                         onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
                     />
 
@@ -327,8 +389,7 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
                                     key={color.name}
                                     className={cn(
                                         "w-6 h-6 rounded-full transition-all hover:scale-110 border-2",
-                                        (keyboard.cosmetic?.layer_colors?.[selectedLayer] === color.name) ||
-                                            (!keyboard.cosmetic?.layer_colors?.[selectedLayer] && color.name === "green")
+                                        currentLayerColorName === color.name
                                             ? "border-black border-3"
                                             : "border-transparent"
                                     )}
@@ -337,6 +398,19 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
                                     title={color.name}
                                 />
                             ))}
+                            {/* Custom color button - only show when connected to keyboard */}
+                            {isConnected ? (
+                                <button
+                                    className="w-6 h-6 rounded-full transition-all hover:scale-110 border-2 border-transparent bg-gray-200 flex items-center justify-center"
+                                    onClick={() => {
+                                        setIsColorPickerOpen(false);
+                                        setIsCustomColorOpen(true);
+                                    }}
+                                    title="Custom color"
+                                >
+                                    <Settings className="w-3.5 h-3.5 text-gray-600" />
+                                </button>
+                            ) : null}
                         </div>
                     )}
                 </div>
@@ -398,6 +472,17 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
+
+            {/* Custom Color Dialog */}
+            <CustomColorDialog
+                open={isCustomColorOpen}
+                onOpenChange={setIsCustomColorOpen}
+                initialHue={keyboard.layer_colors?.[selectedLayer]?.hue ?? 85}
+                initialSat={keyboard.layer_colors?.[selectedLayer]?.sat ?? 255}
+                initialVal={keyboard.layer_colors?.[selectedLayer]?.val ?? 200}
+                onApply={handleSetCustomColor}
+                layerName={svalService.getLayerName(keyboard, selectedLayer)}
+            />
         </div>
     );
 };

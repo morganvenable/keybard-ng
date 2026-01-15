@@ -127,6 +127,8 @@ export class ViableService {
         if (isSval) {
             console.log("Svalboard detected, proto:", kbinfo.sval_proto, "firmware:", kbinfo.sval_firmware);
             await svalService.pull(kbinfo);
+            // Sync hardware layer colors to cosmetic colors for UI display
+            svalService.syncCosmeticLayerColors(kbinfo);
         }
 
         // Set up default cosmetic layer names

@@ -1,4 +1,5 @@
 import type { KeyboardInfo } from "../types/vial.types";
+import { getClosestPresetColor } from "../utils/color-conversion";
 import { FragmentComposerService } from "./fragment-composer.service";
 import { FragmentService } from "./fragment.service";
 import { keyService } from "./key.service";
@@ -421,6 +422,23 @@ export class FileService {
             viable.keylayout = kbinfo.keylayout;
         }
 
+        // Save layer colors as custom_values (matching viable-gui format)
+        // Format: [{"key": "id_layer0_color", "data": [hue, sat]}, ...]
+        if (kbinfo.layer_colors && kbinfo.layer_colors.length > 0) {
+            const customValues: Array<{ key: string; data: number[] }> = [];
+            kbinfo.layer_colors.forEach((color, idx) => {
+                if (color && (color.hue !== 0 || color.sat !== 0)) {
+                    customValues.push({
+                        key: `id_layer${idx}_color`,
+                        data: [color.hue, color.sat]
+                    });
+                }
+            });
+            if (customValues.length > 0) {
+                viable.custom_values = customValues;
+            }
+        }
+
         // Stringify and replace UID placeholder with BigInt value (no quotes)
         let result = JSON.stringify(viable, undefined, 2);
         const numericUid = kbinfo.kbid ? BigInt('0x' + kbinfo.kbid).toString() : '0';
@@ -694,6 +712,44 @@ export class FileService {
                 eepromSelections: new Map(),
                 userSelections: new Map(Object.entries(viable.fragment_selections)),
             };
+        }
+
+        // Restore layer_colors from custom_values (matching viable-gui format)
+        // Format: [{"key": "id_layer0_color", "data": [hue, sat]}, ...]
+        if (viable.custom_values && Array.isArray(viable.custom_values)) {
+            const layerColors: Array<{ hue: number; sat: number; val: number }> = [];
+            for (const cv of viable.custom_values) {
+                // Check if it's a layer color value (id_layerX_color)
+                const match = cv.key?.match(/^id_layer(\d+)_color$/);
+                if (match && Array.isArray(cv.data) && cv.data.length >= 2) {
+                    const layerIdx = parseInt(match[1], 10);
+                    layerColors[layerIdx] = {
+                        hue: cv.data[0],
+                        sat: cv.data[1],
+                        val: 255, // Default value (brightness) not stored, assume max
+                    };
+                }
+            }
+            if (layerColors.length > 0) {
+                kbinfo.layer_colors = layerColors;
+                console.log("Restored layer_colors from file:", layerColors.length, "colors");
+
+                // Also update cosmetic.layer_colors with the closest preset color names
+                // This is needed for the keyboard display to show correct colors
+                if (!kbinfo.cosmetic) {
+                    kbinfo.cosmetic = { layer: {}, layer_colors: {} };
+                }
+                if (!kbinfo.cosmetic.layer_colors) {
+                    kbinfo.cosmetic.layer_colors = {};
+                }
+                layerColors.forEach((c, idx) => {
+                    if (c) {
+                        const presetName = getClosestPresetColor(c.hue, c.sat, c.val);
+                        kbinfo.cosmetic!.layer_colors![idx.toString()] = presetName;
+                    }
+                });
+                console.log("Cosmetic layer colors restored:", kbinfo.cosmetic.layer_colors);
+            }
         }
 
         // Compose layout from fragments if available

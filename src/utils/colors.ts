@@ -7,6 +7,7 @@ export const layerColors = [
     { name: "grey", hex: "#85929b" },
     { name: "red", hex: "#d8304a" },
     { name: "brown", hex: "#b39369" },
+    { name: "magenta", hex: "#b5508a" },
     { name: "white", hex: "#ffffff" },
 ];
 
@@ -31,6 +32,7 @@ export const colorClasses: { [key: string]: string } = {
     purple: "bg-kb-purple text-white",
     grey: "bg-kb-grey text-gray-200",
     brown: "bg-kb-brown text-white",
+    magenta: "bg-kb-magenta text-white",
     white: "bg-white text-black",
 };
 
@@ -46,6 +48,7 @@ export const hoverBorderClasses: { [key: string]: string } = {
     purple: "hover:border-kb-purple",
     grey: "hover:border-kb-grey",
     brown: "hover:border-kb-brown",
+    magenta: "hover:border-kb-magenta",
     white: "hover:border-gray-300",
 };
 
@@ -61,6 +64,7 @@ export const hoverBackgroundClasses: { [key: string]: string } = {
     purple: "hover:bg-kb-purple",
     grey: "hover:bg-kb-grey",
     brown: "hover:bg-kb-brown",
+    magenta: "hover:bg-kb-magenta",
     white: "hover:bg-white",
 };
 
@@ -80,6 +84,7 @@ export const headerClasses: { [key: string]: string } = {
     purple: "bg-black/30",
     grey: "bg-black/30",
     brown: "bg-black/30",
+    magenta: "bg-black/30",
     white: "bg-black",
 };
 
@@ -98,6 +103,7 @@ export const hoverHeaderClasses: { [key: string]: string } = {
     purple: "group-hover:bg-black/30",
     grey: "group-hover:bg-black/30",
     brown: "group-hover:bg-black/30",
+    magenta: "group-hover:bg-black/30",
     white: "group-hover:bg-black",
 };
 
@@ -117,6 +123,7 @@ export const hoverTextClasses: { [key: string]: string } = {
     purple: "group-hover:text-white",
     grey: "group-hover:text-gray-200",
     brown: "group-hover:text-white",
+    magenta: "group-hover:text-white",
     white: "group-hover:text-black",
 };
 
@@ -136,5 +143,6 @@ export const hoverContainerTextClasses: { [key: string]: string } = {
     purple: "hover:text-white",
     grey: "hover:text-gray-200",
     brown: "hover:text-white",
+    magenta: "hover:text-white",
     white: "hover:text-black",
 };

@@ -18,7 +18,7 @@ export class KeyService {
    * Update keymap with custom keycodes from keyboard
    */
   generateAllKeycodes(kbinfo: KeyboardInfo): void {
-    // Populate USER00...USER63 keys as needed
+    // Populate USER00...USER63 keys as needed (legacy Vial range: 0x7e00+)
     for (let i = 0; i < 64; i++) {
       const userkey = 'USER' + ('' + i).padStart(2, '0');
       const code = KEYMAP[userkey].code;
@@ -37,6 +37,34 @@ export class KeyService {
           title: custom.title,
         };
         KEYALIASES[custom.name] = userkey;
+        // Update CODEMAP so stringify() returns the custom name
+        CODEMAP[code] = custom.name;
+      }
+    }
+
+    // Also populate QK_USER...QK_USER_31 keys (QMK range: 0x7e40+)
+    // These are the keycodes that Viable/QMK firmware actually uses
+    for (let i = 0; i < 32; i++) {
+      const qkUserKey = i === 0 ? 'QK_USER' : `QK_USER_${i}`;
+      const code = 0x7e40 + i; // QK_USER base is 0x7e40
+      if (kbinfo.custom_keycodes && kbinfo.custom_keycodes[i]) {
+        const custom = kbinfo.custom_keycodes[i];
+        KEYMAP[qkUserKey] = {
+          code,
+          qmkid: custom.name,
+          str: custom.shortName,
+          title: custom.title,
+        };
+        // Also register by custom name
+        KEYMAP[custom.name] = {
+          code,
+          qmkid: custom.name,
+          str: custom.shortName,
+          title: custom.title,
+        };
+        KEYALIASES[custom.name] = qkUserKey;
+        // Update CODEMAP so stringify() returns the custom name
+        CODEMAP[code] = custom.name;
       }
     }
 

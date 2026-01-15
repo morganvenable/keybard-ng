@@ -6,6 +6,7 @@ import { fileService } from "../services/file.service";
 import { keyService } from "../services/key.service";
 import { qmkService } from "../services/qmk.service";
 import { usbInstance } from "../services/usb.service";
+import { getClosestPresetColor } from "../utils/color-conversion";
 import type { KeyboardInfo } from "../types/vial.types";
 
 interface VialContextType {
@@ -89,6 +90,35 @@ export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 console.log("[VialContext] QMK settings loaded:", loadedInfo.settings);
             } catch (error) {
                 console.warn("Failed to load QMK settings:", error);
+            }
+
+            // Load layer colors from keyboard using VIA custom values
+            console.log("[VialContext] Loading layer colors from keyboard...");
+            try {
+                const layerColors = await usbInstance.getAllLayerColors();
+                // Convert to format with val (brightness) - default to max
+                loadedInfo.layer_colors = layerColors.map(c => ({
+                    hue: c.hue,
+                    sat: c.sat,
+                    val: 255
+                }));
+                console.log("[VialContext] Layer colors loaded:", loadedInfo.layer_colors);
+
+                // Also update cosmetic.layer_colors with the closest preset color names
+                // This is needed for the keyboard display to show correct colors
+                if (!loadedInfo.cosmetic) {
+                    loadedInfo.cosmetic = { layer: {}, layer_colors: {} };
+                }
+                if (!loadedInfo.cosmetic.layer_colors) {
+                    loadedInfo.cosmetic.layer_colors = {};
+                }
+                layerColors.forEach((c, idx) => {
+                    const presetName = getClosestPresetColor(c.hue, c.sat, 255);
+                    loadedInfo.cosmetic!.layer_colors![idx.toString()] = presetName;
+                });
+                console.log("[VialContext] Cosmetic layer colors:", loadedInfo.cosmetic.layer_colors);
+            } catch (error) {
+                console.warn("Failed to load layer colors:", error);
             }
 
             setKeyboard(loadedInfo);
