@@ -31,6 +31,7 @@ const ExploreLayoutsPage: FC<ExploreLayoutsPageProps> = ({ onBack }) => {
         setSelectedTags,
         availableTags,
         refreshLayers,
+        deleteLayer,
         copyLayer,
         layerClipboard,
         previewLayer,
@@ -55,6 +56,13 @@ const ExploreLayoutsPage: FC<ExploreLayoutsPageProps> = ({ onBack }) => {
 
         // Also copy to context for tracking
         copyLayer(layer);
+    };
+
+    // Handle delete - removes layer from library
+    const handleDelete = async (layer: LayerEntry) => {
+        if (confirm(`Delete "${layer.name}"? This cannot be undone.`)) {
+            await deleteLayer(layer.id);
+        }
     };
 
     return (
@@ -170,6 +178,7 @@ const ExploreLayoutsPage: FC<ExploreLayoutsPageProps> = ({ onBack }) => {
                                 key={layer.id}
                                 layer={layer}
                                 onCopy={handleCopy}
+                                onDelete={handleDelete}
                                 onClick={openPreview}
                             />
                         ))}

@@ -4,7 +4,7 @@
  */
 
 import type { FC } from "react";
-import { Check, Clock, Copy, Loader2, Tag, User, Keyboard } from "lucide-react";
+import { Check, Clock, Copy, Loader2, Tag, Trash2, User, Keyboard } from "lucide-react";
 import { useState } from "react";
 
 import type { LayerEntry } from "@/types/layer-library";
@@ -15,6 +15,7 @@ import { colorClasses } from "@/utils/colors";
 interface LayerCardProps {
     layer: LayerEntry;
     onCopy: (layer: LayerEntry) => void | Promise<void>;
+    onDelete?: (layer: LayerEntry) => void | Promise<void>;
     onClick?: (layer: LayerEntry) => void;
     className?: string;
 }
@@ -22,6 +23,7 @@ interface LayerCardProps {
 export const LayerCard: FC<LayerCardProps> = ({
     layer,
     onCopy,
+    onDelete,
     onClick,
     className,
 }) => {
@@ -98,11 +100,27 @@ export const LayerCard: FC<LayerCardProps> = ({
                         {layer.description || "No description"}
                     </p>
                 </div>
-                {/* Key count badge */}
-                <span className="text-xs px-2 py-1 rounded-full font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 flex items-center gap-1">
-                    <Keyboard className="w-3 h-3" />
-                    {layer.keyCount}
-                </span>
+                <div className="flex items-center gap-1">
+                    {/* Key count badge */}
+                    <span className="text-xs px-2 py-1 rounded-full font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 flex items-center gap-1">
+                        <Keyboard className="w-3 h-3" />
+                        {layer.keyCount}
+                    </span>
+                    {/* Delete button */}
+                    {onDelete && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(layer);
+                            }}
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {/* Meta info */}

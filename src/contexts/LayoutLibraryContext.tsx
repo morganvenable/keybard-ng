@@ -28,6 +28,7 @@ interface LayerLibraryContextType {
     // Actions
     loadLayers: () => Promise<void>;
     refreshLayers: () => Promise<void>;
+    deleteLayer: (id: string) => Promise<boolean>;
 
     // Layer clipboard (for copy/paste)
     layerClipboard: LayerClipboard | null;
@@ -95,6 +96,18 @@ export const LayerLibraryProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const refreshLayers = useCallback(async () => {
         layerLibraryService.clearCache();
         await loadLayers();
+    }, [loadLayers]);
+
+    // Delete a layer
+    const deleteLayer = useCallback(async (id: string): Promise<boolean> => {
+        const success = await layerLibraryService.deleteLayer(id);
+        if (success) {
+            // Refresh the list and tags
+            await loadLayers();
+            const tags = await layerLibraryService.getAllTags();
+            setAvailableTags(tags);
+        }
+        return success;
     }, [loadLayers]);
 
     // Copy a layer to clipboard
@@ -168,6 +181,7 @@ export const LayerLibraryProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 availableTags,
                 loadLayers,
                 refreshLayers,
+                deleteLayer,
                 layerClipboard,
                 copyLayer,
                 clearClipboard,
