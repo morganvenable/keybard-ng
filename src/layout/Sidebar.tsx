@@ -1,8 +1,9 @@
-import { ArrowUpDown, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Piano, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { ArrowUpDown, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Mouse, Piano, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import ComboIcon from "@/components/ComboIcon";
 import GamepadDirectional from "@/components/icons/GamepadDirectional";
+import { isExcludedMenu, getIconForMenu } from "@/constants/custom-ui-exclusions";
 
 import LayersDefaultIcon from "@/components/icons/LayersDefault";
 import MacrosIcon from "@/components/icons/MacrosIcon";
@@ -273,8 +274,28 @@ const AppSidebar = () => {
         handleCloseDetails();
     }, [handleCloseDetails]);
 
+    // Build dynamic menu items from keyboard definition
+    const dynamicMenuItems: SidebarItem[] = useMemo(() => {
+        if (!keyboard?.menus) return [];
+
+        return keyboard.menus
+            .filter((menu) => !isExcludedMenu(menu.label))
+            .map((menu, index) => {
+                const iconName = getIconForMenu(menu.label);
+                // Map icon name to component - for now use Mouse as default
+                const IconComponent = iconName === 'mouse' ? Mouse : Settings;
+
+                return {
+                    title: menu.label || `Menu ${index}`,
+                    url: `dynamic-menu-${index}`,
+                    icon: IconComponent,
+                };
+            });
+    }, [keyboard?.menus]);
+
     const activePrimaryIndex = primarySidebarItems.findIndex((item) => item.url === activePanel);
     const activeFeatureIndex = featureSidebarItems.findIndex((item) => item.url === activePanel);
+    const activeDynamicIndex = dynamicMenuItems.findIndex((item) => item.url === activePanel);
     const activeFooterIndex = footerItems.findIndex((item) => item.url === activePanel);
 
     let indicatorY = -1;
@@ -282,6 +303,9 @@ const AppSidebar = () => {
         indicatorY = activePrimaryIndex * MENU_ITEM_GAP_PX;
     } else if (activeFeatureIndex !== -1) {
         indicatorY = (primarySidebarItems.length * MENU_ITEM_GAP_PX) + FEATURE_SECTION_OFFSET + (activeFeatureIndex * MENU_ITEM_GAP_PX);
+    } else if (activeDynamicIndex !== -1 && dynamicMenuItems.length > 0) {
+        // Dynamic menu indicator position: after primary + feature + divider
+        indicatorY = (primarySidebarItems.length * MENU_ITEM_GAP_PX) + FEATURE_SECTION_OFFSET + (featureSidebarItems.length * MENU_ITEM_GAP_PX) + FEATURE_SECTION_OFFSET + (activeDynamicIndex * MENU_ITEM_GAP_PX);
     }
 
     const sidebarClasses = cn(
@@ -426,6 +450,23 @@ const AppSidebar = () => {
                             onClick={handleItemSelect}
                         />
                     ))}
+
+                    {/* Dynamic menu items from keyboard definition */}
+                    {dynamicMenuItems.length > 0 && (
+                        <>
+                            <div className="mx-4 my-2 h-[1px] bg-slate-200" />
+                            {dynamicMenuItems.map((item) => (
+                                <SidebarNavItem
+                                    key={item.url}
+                                    item={item}
+                                    isActive={activePanel === item.url}
+                                    isPreviousPanel={panelToGoBack === item.url}
+                                    alternativeHeader={alternativeHeader}
+                                    onClick={handleItemSelect}
+                                />
+                            ))}
+                        </>
+                    )}
                 </SidebarMenu>
             </SidebarContent>
 

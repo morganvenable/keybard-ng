@@ -8,6 +8,7 @@ import EditorSidePanel, { PickerMode } from "./components/EditorSidePanel";
 import AltRepeatPanel from "./Panels/AltRepeatPanel";
 import BasicKeyboards from "./Panels/BasicKeyboards";
 import CombosPanel from "./Panels/CombosPanel";
+import DynamicMenuPanel from "./Panels/DynamicMenuPanel";
 import FragmentsPanel from "./Panels/FragmentsPanel";
 import LeadersPanel from "./Panels/LeadersPanel";
 import LayersPanel from "./Panels/LayersPanel";
@@ -23,15 +24,28 @@ import TapdancePanel from "./Panels/TapdancePanel";
 import { Button } from "@/components/ui/button";
 import { Sidebar, SidebarContent, SidebarHeader, useSidebar } from "@/components/ui/sidebar";
 import { usePanels } from "@/contexts/PanelsContext";
+import { useVial } from "@/contexts/VialContext";
 import { cn } from "@/lib/utils";
+import type { CustomUIMenuItem } from "@/types/vial.types";
 
 export const DETAIL_SIDEBAR_WIDTH = "32rem";
 
 /**
  * Resolves the human-readable title for a given panel identifier.
+ * For dynamic menu panels, looks up the menu label from the keyboard definition.
  */
-const getPanelTitle = (panel: string | null | undefined): string => {
+const getPanelTitle = (panel: string | null | undefined, menus?: CustomUIMenuItem[]): string => {
     if (!panel) return "Details";
+
+    // Handle dynamic menu panels
+    if (panel.startsWith("dynamic-menu-")) {
+        const indexStr = panel.replace("dynamic-menu-", "");
+        const index = parseInt(indexStr, 10);
+        if (!isNaN(index) && menus && menus[index]) {
+            return menus[index].label || `Menu ${index}`;
+        }
+        return "Settings";
+    }
 
     const titles: Record<string, string> = {
         keyboard: "Keyboard",
@@ -59,12 +73,13 @@ const getPanelTitle = (panel: string | null | undefined): string => {
  */
 interface AlternativeHeaderProps {
     onBack?: () => void;
+    menus?: CustomUIMenuItem[];
 }
 
-const AlternativeHeader = ({ onBack }: AlternativeHeaderProps) => {
+const AlternativeHeader = ({ onBack, menus }: AlternativeHeaderProps) => {
     const { activePanel, handleCloseEditor } = usePanels();
 
-    const title = `Add Keys to ${getPanelTitle(activePanel)}`;
+    const title = `Add Keys to ${getPanelTitle(activePanel, menus)}`;
 
     return (
         <div className="flex items-center justify-start gap-4">
@@ -92,6 +107,7 @@ const AlternativeHeader = ({ onBack }: AlternativeHeaderProps) => {
 const SecondarySidebar = () => {
     const primarySidebar = useSidebar("primary-nav", { defaultOpen: false });
     const { activePanel, handleCloseDetails, state, alternativeHeader, itemToEdit, setItemToEdit } = usePanels();
+    const { keyboard } = useVial();
 
     // Calculate dynamic offset based on primary sidebar state
     const primaryOffset = primarySidebar.state === "collapsed"
@@ -129,6 +145,15 @@ const SecondarySidebar = () => {
                     Select a menu item to view contextual actions and key groups.
                 </div>
             );
+        }
+
+        // Handle dynamic menu panels
+        if (activePanel.startsWith("dynamic-menu-")) {
+            const indexStr = activePanel.replace("dynamic-menu-", "");
+            const menuIndex = parseInt(indexStr, 10);
+            if (!isNaN(menuIndex)) {
+                return <DynamicMenuPanel menuIndex={menuIndex} />;
+            }
         }
 
         switch (activePanel) {
@@ -170,12 +195,12 @@ const SecondarySidebar = () => {
             <div className="absolute inset-0 bg-sidebar-background pointer-events-none" />
             <SidebarHeader className="px-4 py-6 z-10 bg-sidebar-background">
                 {(alternativeHeader || showPicker) ? (
-                    <AlternativeHeader />
+                    <AlternativeHeader menus={keyboard?.menus} />
                 ) : (
                     <div className="flex items-center justify-between gap-4">
                         <div>
                             <h2 className="text-[22px] font-semibold leading-none text-slate-700">
-                                {getPanelTitle(activePanel)}
+                                {getPanelTitle(activePanel, keyboard?.menus)}
                             </h2>
                         </div>
                         <Button
@@ -210,7 +235,7 @@ const SecondarySidebar = () => {
                 style={{ clipPath: "inset(-50px -300px -50px 0px)" }}
             >
                 <div className="px-4 py-6 bg-white shrink-0">
-                    <AlternativeHeader onBack={() => setIsClosingEditor(true)} />
+                    <AlternativeHeader onBack={() => setIsClosingEditor(true)} menus={keyboard?.menus} />
                 </div>
 
                 <div className="absolute top-1/2 -translate-y-1/2 -right-[56px] h-48 z-50">

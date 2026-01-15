@@ -1,0 +1,240 @@
+// Custom Value Service - VIA3 Custom UI value get/set operations
+import { ViableUSB, usbInstance } from "./usb.service";
+import type { CustomUIMenuItem, CustomUIValueRef } from "../types/vial.types";
+
+/**
+ * Service for managing VIA3 custom UI values
+ * Handles GET/SET/SAVE operations via VIA protocol commands
+ */
+export class CustomValueService {
+    private usb: ViableUSB;
+    private cache: Map<string, number> = new Map();
+
+    constructor(usb: ViableUSB) {
+        this.usb = usb;
+    }
+
+    /**
+     * Parse a content array to extract value reference
+     * Content format: ["value_key", channel, value_id, ...extra_indices]
+     */
+    parseValueRef(content: (string | number)[]): CustomUIValueRef | null {
+        if (!Array.isArray(content) || content.length < 3) {
+            return null;
+        }
+
+        const key = String(content[0]);
+        const channel = Number(content[1]);
+        const valueId = Number(content[2]);
+        const extraIndices = content.slice(3).map(Number);
+
+        return {
+            key,
+            channel,
+            valueId,
+            extraIndices: extraIndices.length > 0 ? extraIndices : undefined,
+        };
+    }
+
+    /**
+     * Get a custom value from the keyboard
+     * Uses VIA CMD_VIA_CUSTOM_GET_VALUE (0x08)
+     * @param width - byte width of value (1 or 2), defaults to 1
+     */
+    async get(channel: number, valueId: number, width: number = 1): Promise<number> {
+        // Use the proper customValueGet method which uses 0x08 and skips header bytes
+        const data = await this.usb.customValueGet(channel, valueId, width);
+
+        // DEBUG: Log raw response bytes
+        const hexBytes = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join(' ');
+        console.log(`[CustomValue] GET ch=${channel} id=${valueId} w=${width}: [${hexBytes}]`);
+
+        if (!data || data.length < 1) {
+            console.warn("Invalid custom value response:", data);
+            return 0;
+        }
+
+        // Parse value from data bytes, little-endian
+        let value = 0;
+        for (let i = 0; i < width && i < data.length; i++) {
+            value |= data[i] << (i * 8);
+        }
+
+        return value;
+    }
+
+    /**
+     * Set a custom value on the keyboard
+     * Uses VIA CMD_VIA_CUSTOM_SET_VALUE (0x07)
+     * @param width - byte width of value (1 or 2), defaults to 1
+     */
+    async set(channel: number, valueId: number, value: number, width: number = 1): Promise<void> {
+        // Convert value to little-endian bytes
+        const valueBytes: number[] = [];
+        for (let i = 0; i < width; i++) {
+            valueBytes.push((value >> (i * 8)) & 0xff);
+        }
+
+        console.log(`[CustomValue] SET ch=${channel} id=${valueId} value=${value} bytes=[${valueBytes.join(', ')}]`);
+
+        // Use the proper customValueSet method which uses 0x07
+        await this.usb.customValueSet(channel, valueId, valueBytes);
+    }
+
+    /**
+     * Save all custom values to EEPROM
+     * Uses VIA CMD_VIA_CUSTOM_SAVE (0x09)
+     * @param channel - channel to save, defaults to 0 (keyboard-specific)
+     */
+    async save(channel: number = 0): Promise<void> {
+        console.log(`[CustomValue] SAVE channel=${channel}`);
+        await this.usb.customValueSave(channel);
+    }
+
+    /**
+     * Get a value from cache by key
+     */
+    getCached(key: string): number | undefined {
+        return this.cache.get(key);
+    }
+
+    /**
+     * Set a value in cache
+     */
+    setCached(key: string, value: number): void {
+        this.cache.set(key, value);
+    }
+
+    /**
+     * Clear the cache
+     */
+    clearCache(): void {
+        this.cache.clear();
+    }
+
+    /**
+     * Get the entire cache as a Map
+     */
+    getCache(): Map<string, number> {
+        return new Map(this.cache);
+    }
+
+    /**
+     * Load all values referenced in a menu tree into cache
+     * Determines byte width based on control type and options
+     */
+    async loadMenuValues(menus: CustomUIMenuItem[]): Promise<void> {
+        const itemsWithRefs = this.extractAllItemsWithRefs(menus);
+        console.log(`[CustomValue] Loading ${itemsWithRefs.length} values from menu`);
+
+        for (const { item, ref } of itemsWithRefs) {
+            try {
+                const width = this.getByteWidth(item);
+                const value = await this.get(ref.channel, ref.valueId, width);
+                console.log(`[CustomValue] ${ref.key} (ch=${ref.channel}, id=${ref.valueId}, w=${width}) = ${value}`);
+                this.cache.set(ref.key, value);
+            } catch (error) {
+                console.warn(`Failed to load custom value ${ref.key}:`, error);
+            }
+        }
+    }
+
+    /**
+     * Determine byte width based on control type and options
+     */
+    private getByteWidth(item: CustomUIMenuItem): number {
+        // Color controls use 2 bytes (HSV packed)
+        if (item.type === 'color') {
+            return 2;
+        }
+
+        // Range controls: 2 bytes if max > 255
+        if (item.type === 'range' && item.options) {
+            const options = item.options as number[];
+            const max = options[1] ?? 255;
+            return max > 255 ? 2 : 1;
+        }
+
+        // Keycode controls use 2 bytes
+        if (item.type === 'keycode') {
+            return 2;
+        }
+
+        // Default: 1 byte (toggle, dropdown, button)
+        return 1;
+    }
+
+    /**
+     * Extract all items with their value references from a menu tree
+     * Returns both the item (for type/options info) and its value ref
+     */
+    private extractAllItemsWithRefs(items: CustomUIMenuItem[]): { item: CustomUIMenuItem; ref: CustomUIValueRef }[] {
+        const results: { item: CustomUIMenuItem; ref: CustomUIValueRef }[] = [];
+
+        for (const item of items) {
+            // Check if this item has a value reference (leaf control)
+            if (item.content && Array.isArray(item.content) && item.content.length > 0) {
+                // Check if content is a value reference array (first element is string key)
+                if (typeof item.content[0] === 'string') {
+                    const ref = this.parseValueRef(item.content as (string | number)[]);
+                    if (ref) {
+                        results.push({ item, ref });
+                    }
+                } else if (typeof item.content[0] === 'object') {
+                    // Content is nested menu items, recurse
+                    results.push(...this.extractAllItemsWithRefs(item.content as CustomUIMenuItem[]));
+                }
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * Get value by key, fetching from keyboard if not cached
+     */
+    async getValue(key: string, menus: CustomUIMenuItem[]): Promise<number | undefined> {
+        // Check cache first
+        const cached = this.cache.get(key);
+        if (cached !== undefined) {
+            return cached;
+        }
+
+        // Find the item and ref for this key
+        const itemsWithRefs = this.extractAllItemsWithRefs(menus);
+        const found = itemsWithRefs.find(({ ref }) => ref.key === key);
+        if (!found) {
+            console.warn(`Value key not found in menus: ${key}`);
+            return undefined;
+        }
+
+        // Fetch from keyboard with correct byte width
+        const width = this.getByteWidth(found.item);
+        const value = await this.get(found.ref.channel, found.ref.valueId, width);
+        this.cache.set(key, value);
+        return value;
+    }
+
+    /**
+     * Set value by key
+     */
+    async setValue(key: string, value: number, menus: CustomUIMenuItem[]): Promise<void> {
+        // Find the item and ref for this key
+        const itemsWithRefs = this.extractAllItemsWithRefs(menus);
+        const found = itemsWithRefs.find(({ ref }) => ref.key === key);
+        if (!found) {
+            console.warn(`Value key not found in menus: ${key}`);
+            return;
+        }
+
+        // Set on keyboard with correct byte width
+        const width = this.getByteWidth(found.item);
+        await this.set(found.ref.channel, found.ref.valueId, value, width);
+
+        // Update cache
+        this.cache.set(key, value);
+    }
+}
+
+// Export singleton instance
+export const customValueService = new CustomValueService(usbInstance);

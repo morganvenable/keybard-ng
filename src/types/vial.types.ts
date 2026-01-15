@@ -46,6 +46,9 @@ export interface KeyboardInfo {
         macros?: Record<string, string>;
     };
     keylayout?: Record<string, any>; // Using any for now to match KLE output structure
+
+    // VIA3 Custom UI menus (auto-generated settings panels)
+    menus?: CustomUIMenuItem[];
 }
 
 export interface KeyboardPayload {
@@ -313,4 +316,35 @@ export interface FragmentState {
     // User selections in current session (from keymap file or UI)
     // Maps instance string ID -> fragment name
     userSelections: Map<string, string>;
+}
+
+// ============================================================================
+// VIA3 Custom UI Types (for dynamic keyboard settings panels)
+// ============================================================================
+
+/**
+ * Control types supported by VIA3 Custom UI
+ */
+export type CustomUIControlType = 'toggle' | 'range' | 'dropdown' | 'color' | 'keycode' | 'button';
+
+/**
+ * Custom UI menu item - can be a section (with nested content) or a control (leaf)
+ * Follows VIA3 custom_ui specification
+ */
+export interface CustomUIMenuItem {
+    label?: string;                              // Display label for section or control
+    type?: CustomUIControlType;                  // Control type (only for leaf nodes)
+    options?: number[] | string[];               // [min, max] for range, or string[] for dropdown
+    content?: (string | number)[] | CustomUIMenuItem[];  // Value ref [key, channel, id] or nested items
+    showIf?: string;                             // Conditional visibility expression e.g. "{id_foo} == 1"
+}
+
+/**
+ * Parsed value reference from content array
+ */
+export interface CustomUIValueRef {
+    key: string;          // Human-readable key (e.g., "id_automouse_enable")
+    channel: number;      // VIA channel (usually 0 for keyboard custom)
+    valueId: number;      // Index within channel
+    extraIndices?: number[];  // Additional indices for complex values (e.g., color h/s/v)
 }
