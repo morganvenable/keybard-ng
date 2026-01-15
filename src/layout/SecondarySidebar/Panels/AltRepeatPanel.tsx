@@ -78,7 +78,7 @@ const AltRepeatPanel: React.FC = () => {
         const isSelected = isEditing && itemToEdit === index;
 
         return (
-            <div className="relative w-[40px] h-[40px]">
+            <div className="relative w-[40px] h-[40px] flex items-center justify-center">
                 <Key
                     isRelative
                     x={0} y={0} w={1} h={1} row={-1} col={-1}
@@ -145,7 +145,9 @@ const AltRepeatPanel: React.FC = () => {
                         <div className="flex flex-row items-center w-full">
                             <div className="flex flex-row items-center gap-2 ml-4 overflow-hidden">
                                 {renderSmallKey(entry.keycode, i, "keycode", isEditing)}
-                                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                                <div className="flex items-center justify-center h-[40px]">
+                                    <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                                </div>
                                 {renderSmallKey(entry.alt_keycode, i, "alt_keycode", isEditing)}
                             </div>
 

@@ -1,4 +1,5 @@
-import { ArrowUpDown, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Mouse, Piano, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
+import { ArrowUpDown, BookOpen, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Mouse, Piano, Pointer, Repeat, Settings, SquareDot, Unplug, Zap } from "lucide-react";
+import { useNavigation } from "@/App";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import ComboIcon from "@/components/ComboIcon";
@@ -75,6 +76,7 @@ const featureSidebarItems: SidebarItem[] = [
     ...(SHOW_ALT_REPEAT ? [{ title: "Alt-Repeat", url: "altrepeat", icon: Repeat }] : []),
     ...(SHOW_LEADERS ? [{ title: "Leaders", url: "leaders", icon: ListOrdered }] : []),
     { title: "Fragments", url: "fragments", icon: LayoutGrid },
+    { title: "Pointing", url: "pointing", icon: Pointer },
 ];
 
 const footerItems: SidebarItem[] = [
@@ -153,6 +155,7 @@ const AppSidebar = () => {
 
     const { connect, isConnected, keyboard, setKeyboard } = useVial();
     const { queue } = useChanges();
+    const { navigateTo } = useNavigation();
 
     // Import/Export state
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -419,6 +422,22 @@ const AppSidebar = () => {
                                     Export
                                 </button>
                             </div>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild size="nav" className="text-slate-600 transition-colors">
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); navigateTo("explore"); }}
+                                className="flex w-full items-center justify-start"
+                            >
+                                <div className={cn(ICON_GUTTER_WIDTH, "h-4 flex items-center justify-start shrink-0", BASE_ICON_PADDING)}>
+                                    <BookOpen className="h-4 w-4 shrink-0" />
+                                </div>
+                                <span className="text-sm font-medium hover:text-slate-900 group-data-[state=collapsed]:hidden">
+                                    Layer Library
+                                </span>
+                            </button>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>

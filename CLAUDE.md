@@ -4,18 +4,47 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-## Directory: keybard-ng-viable (viable-protocol-migration branch)
+## IMPORTANT: This is a Git Worktree
+
+**This directory is a git worktree**, not the main repository.
 
 | Property | Value |
 |----------|-------|
-| **Branch** | `viable-protocol-migration` |
-| **Dev Server Port** | 5171 |
-| **URL** | http://localhost:5171/keybard-ng/ |
+| **Branch** | `feature/explore-layouts` |
+| **Dev Server Port** | 5172 |
+| **URL** | http://localhost:5172/keybard-ng/ |
+| **Main Repo** | `../keybard-ng/` (branch: `main`) |
+| **Viable Repo** | `../keybard-ng-viable/` (branch: `viable-protocol-migration`) |
 
 ### Quick Start
 
 ```bash
-npm run dev    # Starts on port 5171 automatically
+npm run dev    # Starts on port 5172 automatically
+```
+
+### Branch Indicator
+
+In dev mode, "feature/explore-layouts" appears in the sidebar footer (bottom left, small gray text).
+
+### Feature Being Developed: Explore Layouts
+
+This branch implements a layout library/browser feature:
+- Browse pre-made keyboard layouts
+- Preview layouts before importing
+- Selectively import layers or full layouts
+
+**Key Files for this feature:**
+- `src/contexts/LayoutLibraryContext.tsx` - State management
+- `src/components/LayoutCard.tsx` - Layout preview card
+- `src/components/LayoutPreviewModal.tsx` - Full preview modal
+- `src/layout/SecondarySidebar/Panels/ExploreLayoutsPanel.tsx` - Main panel
+- `src/services/layout-library.service.ts` - Backend service
+- `src/types/layout-library.d.ts` - TypeScript types
+
+### Removing This Worktree
+
+```bash
+cd ../keybard-ng && git worktree remove ../keybard-ng-explore
 ```
 
 ---
@@ -37,64 +66,13 @@ KeyBard-NG is a React 19 + TypeScript web application for configuring Viable-com
 ## Development Commands
 
 ```bash
-npm run dev            # Start dev server (port depends on branch, see below)
+npm run dev            # Start dev server at http://localhost:5173
 npm run build          # Production build (TypeScript check + Vite build)
 npm test               # Run all tests
 npm run test:watch     # Watch mode for development
 npm run test:coverage  # Tests with coverage report (75-90% thresholds)
 npm run test:ui        # Interactive Vitest UI
 ```
-
-## Multi-Branch Parallel Development
-
-This project supports running multiple branches simultaneously on different ports. The `vite.config.ts` automatically detects the git branch and assigns a specific port.
-
-### Port Assignments
-
-| Branch | Port | URL |
-|--------|------|-----|
-| `main` | 5170 | http://localhost:5170/keybard-ng/ |
-| `viable-protocol-migration` | 5171 | http://localhost:5171/keybard-ng/ |
-| `feature/explore-layouts` | 5172 | http://localhost:5172/keybard-ng/ |
-| (other branches) | 5173 | http://localhost:5173/keybard-ng/ |
-
-### Branch Indicator
-
-In development mode, the current branch name is displayed in the sidebar footer (bottom left, small gray text). This helps identify which branch you're viewing when multiple servers are running.
-
-### Git Worktrees
-
-To run multiple branches simultaneously, use git worktrees:
-
-```bash
-# Create a worktree for another branch
-git worktree add ../keybard-ng-explore feature/explore-layouts
-
-# Install dependencies in the worktree
-cd ../keybard-ng-explore && npm install
-
-# Start dev server (will use the branch-specific port)
-npm run dev
-
-# When done, remove the worktree
-git worktree remove ../keybard-ng-explore
-```
-
-### Directory Layout
-
-| Directory | Branch | Port | Purpose |
-|-----------|--------|------|---------|
-| `keybard-ng/` | `main` | 5170 | Stable main branch |
-| `keybard-ng-viable/` | `viable-protocol-migration` | 5171 | Viable protocol development |
-| `keybard-ng-explore/` | `feature/explore-layouts` | 5172 | Layout library feature |
-
-### Configuration
-
-The port assignment and branch detection are configured in `vite.config.ts`:
-- `getGitBranch()` - Detects current branch via `git branch --show-current`
-- `getPortForBranch()` - Maps branch names to ports
-- `__GIT_BRANCH__` - Injected global for UI display
-- `strictPort: true` - Fails if port is in use (no auto-increment)
 
 ## Architecture
 
