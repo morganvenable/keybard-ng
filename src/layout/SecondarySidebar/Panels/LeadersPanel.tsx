@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ArrowRight } from "lucide-react";
 
 import SidebarItemRow from "@/layout/SecondarySidebar/components/SidebarItemRow";
@@ -29,14 +29,23 @@ const LeadersPanel: React.FC = () => {
     const [savingTimeout, setSavingTimeout] = useState(false);
     const [savingPerKey, setSavingPerKey] = useState(false);
 
-    if (!keyboard) return null;
-
     // QMK Settings for Leader Key
     const LEADER_TIMEOUT_QSID = 28;
     const LEADER_PER_KEY_QSID = 29;
+
+    // Local state for timeout input to allow typing without async interference
+    const keyboardTimeout = keyboard?.settings?.[LEADER_TIMEOUT_QSID] ?? 300;
+    const [localTimeout, setLocalTimeout] = useState<string>(String(keyboardTimeout));
+
+    // Sync local state when keyboard settings change (e.g., on load)
+    useEffect(() => {
+        setLocalTimeout(String(keyboardTimeout));
+    }, [keyboardTimeout]);
+
+    if (!keyboard) return null;
+
     const isTimeoutSupported = keyboard.settings?.[LEADER_TIMEOUT_QSID] !== undefined;
     const isPerKeySupported = keyboard.settings?.[LEADER_PER_KEY_QSID] !== undefined;
-    const leaderTimeout = keyboard.settings?.[LEADER_TIMEOUT_QSID] ?? 300;
     const perKeyTiming = (keyboard.settings?.[LEADER_PER_KEY_QSID] ?? 0) !== 0;
 
     const handleTimeoutChange = async (value: number) => {
@@ -194,12 +203,22 @@ const LeadersPanel: React.FC = () => {
                             </div>
                             <Input
                                 type="number"
-                                value={leaderTimeout}
+                                value={localTimeout}
                                 min={50}
                                 max={5000}
                                 onChange={(e) => {
-                                    const newVal = parseInt(e.target.value) || 50;
+                                    setLocalTimeout(e.target.value);
+                                }}
+                                onBlur={() => {
+                                    const newVal = parseInt(localTimeout) || 50;
                                     handleTimeoutChange(newVal);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        const newVal = parseInt(localTimeout) || 50;
+                                        handleTimeoutChange(newVal);
+                                        (e.target as HTMLInputElement).blur();
+                                    }
                                 }}
                                 disabled={savingTimeout}
                                 className={cn("w-24 text-right", savingTimeout && "opacity-50")}
