@@ -565,11 +565,32 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             setKeyboard(updatedKeyboard);
             if (currentTarget.type === 'keyboard') {
                 selectNextKey();
+            } else if (currentTarget.type === 'leaders') {
+                // Auto-advance to next sequence slot or output
+                const { leaderId, leaderSlot, leaderSeqIndex } = currentTarget;
+                if (leaderSlot === 'sequence' && leaderSeqIndex !== undefined && leaderId !== undefined) {
+                    // Find how many slots are now filled
+                    const leaders = updatedKeyboard.leaders;
+                    const seq = leaders?.[leaderId]?.sequence || [];
+                    const filledCount = seq.filter((k: string) => k && k !== "KC_NO").length;
+
+                    // If we just filled a slot and there's room for more, advance to next empty slot
+                    if (leaderSeqIndex < 4 && filledCount < 5) {
+                        // Advance to the next slot (which is now the first empty one)
+                        selectLeaderKey(leaderId, 'sequence', filledCount < 5 ? Math.min(leaderSeqIndex + 1, filledCount) : 4);
+                    } else {
+                        // Sequence is full, move to output
+                        selectLeaderKey(leaderId, 'output');
+                    }
+                } else {
+                    // Output was set, we're done
+                    clearSelection();
+                }
             } else {
                 clearSelection();
             }
         },
-        [keyboard, setKeyboard, clearSelection, selectNextKey, queue]
+        [keyboard, setKeyboard, clearSelection, selectNextKey, selectLeaderKey, queue]
     );
 
     useEffect(() => {

@@ -244,14 +244,17 @@ const LeaderEditor: FC = () => {
             {/* Sequence Keys */}
             <div className="flex flex-col gap-2">
                 <span className="font-semibold text-sm text-slate-600">Sequence (up to 5 keys)</span>
-                <div className="flex flex-row gap-2 items-end">
+                <div className="flex flex-row items-end">
                     {[0, 1, 2, 3, 4].map((idx) => {
                         // Only show slots up to filledKeys + 1 (to allow adding one more)
                         if (idx > filledKeys) return null;
                         return (
-                            <div key={idx} className="flex items-center gap-1">
-                                {idx > 0 && <ArrowRight className="w-4 h-4 text-gray-400 -mx-1" />}
+                            <div key={idx} className="flex items-center">
                                 {renderSequenceKey(idx)}
+                                {/* Show chevron after filled keys, not after the last/empty slot */}
+                                {idx < filledKeys && (
+                                    <span className="text-gray-300 text-lg font-light mx-1 select-none">&rsaquo;</span>
+                                )}
                             </div>
                         );
                     })}
