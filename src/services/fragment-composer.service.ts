@@ -9,6 +9,7 @@
 import type { KeyboardInfo, FragmentInstance } from "../types/vial.types";
 import { KleService } from "./kle.service";
 import { FragmentService } from "./fragment.service";
+import { SVALBOARD_LAYOUT } from "../constants/svalboard-layout";
 
 /**
  * A composed key layout entry with position and matrix information
@@ -42,7 +43,7 @@ export class FragmentComposerService {
      * @returns Record keyed by matrix position (row * cols + col)
      */
     composeLayout(kbinfo: KeyboardInfo): Record<number, ComposedKeyLayout> {
-        const layout: Record<number, ComposedKeyLayout> = {};
+        let layout: Record<number, ComposedKeyLayout> = {};
 
         // Check if keyboard has fragment composition
         if (!kbinfo.composition?.instances || !kbinfo.fragments) {
@@ -58,6 +59,9 @@ export class FragmentComposerService {
             const instanceKeys = this.expandInstance(kbinfo, idx, instance, cols);
             Object.assign(layout, instanceKeys);
         }
+
+        // Apply GUI-side placement corrections for thumb clusters
+        layout = this.applyPlacementCorrections(layout, kbinfo);
 
         return layout;
     }
@@ -167,5 +171,84 @@ export class FragmentComposerService {
     hasFragments(kbinfo: KeyboardInfo): boolean {
         return Boolean(kbinfo.fragments) &&
                Boolean(kbinfo.composition?.instances?.length);
+    }
+
+    /**
+     * Apply placement corrections to thumb clusters to match GUI-side visual design.
+     *
+     * This keeps the internal cluster structure intact (relative key positions from KLE)
+     * by applying a SINGLE delta to the entire cluster, preserving all internal spacing.
+     *
+     * @param layout - The composed layout to correct
+     * @param kbinfo - Keyboard info (used to check if Svalboard)
+     * @returns Corrected layout with thumb clusters in the right positions
+     */
+    applyPlacementCorrections(
+        layout: Record<number, ComposedKeyLayout>,
+        kbinfo: KeyboardInfo
+    ): Record<number, ComposedKeyLayout> {
+        // Only apply corrections for Svalboard
+        const isSvalboard = kbinfo.name?.toLowerCase().includes('svalboard') ||
+                           kbinfo.cosmetic?.name?.toLowerCase().includes('svalboard');
+        if (!isSvalboard) {
+            return layout;
+        }
+
+        // Thumb cluster matrix rows for Svalboard
+        const thumbClusterRows = [0, 5]; // Row 0 = left thumb, Row 5 = right thumb
+
+        // Group keys by matrix row (each thumb cluster is one group)
+        const keysByCluster: Record<number, number[]> = {};
+        for (const [matrixPosStr, key] of Object.entries(layout)) {
+            const matrixPos = Number(matrixPosStr);
+            if (thumbClusterRows.includes(key.row)) {
+                if (!keysByCluster[key.row]) {
+                    keysByCluster[key.row] = [];
+                }
+                keysByCluster[key.row].push(matrixPos);
+            }
+        }
+
+        const correctedLayout = { ...layout };
+
+        // For each thumb cluster, apply ONE delta to ALL keys (preserving internal structure)
+        for (const [rowStr, clusterKeys] of Object.entries(keysByCluster)) {
+            const row = Number(rowStr);
+            if (clusterKeys.length === 0) continue;
+
+            // Find a reference key that exists in SVALBOARD_LAYOUT
+            let referenceKey: number | null = null;
+            for (const matrixPos of clusterKeys) {
+                if (SVALBOARD_LAYOUT[matrixPos]) {
+                    referenceKey = matrixPos;
+                    break;
+                }
+            }
+
+            if (referenceKey === null) continue;
+
+            // Calculate ONE delta for the entire cluster
+            const fragmentPos = layout[referenceKey];
+            const expectedPos = SVALBOARD_LAYOUT[referenceKey];
+            const deltaX = expectedPos.x - fragmentPos.x;
+            const deltaY = expectedPos.y - fragmentPos.y;
+
+            // Skip if no correction needed
+            if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) continue;
+
+            // Apply the SAME delta to ALL keys in this cluster
+            for (const matrixPos of clusterKeys) {
+                const key = correctedLayout[matrixPos];
+                correctedLayout[matrixPos] = {
+                    ...key,
+                    x: key.x + deltaX,
+                    y: key.y + deltaY,
+                };
+            }
+
+            console.log(`Thumb cluster row ${row}: applied correction (${deltaX.toFixed(2)}, ${deltaY.toFixed(2)}) to ${clusterKeys.length} keys`);
+        }
+
+        return correctedLayout;
     }
 }

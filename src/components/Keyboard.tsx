@@ -46,13 +46,19 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
     const [showInfoPanel, setShowInfoPanel] = useState(false);
 
     // Use dynamic keylayout from fragments if available, otherwise fallback to hardcoded layout
-    const keyboardLayout = useMemo(() => {
+    const { keyboardLayout, useFragmentLayout } = useMemo(() => {
         // Priority 1: Use composed keylayout if available (from fragment composition)
         if (keyboard.keylayout && Object.keys(keyboard.keylayout).length > 0) {
-            return keyboard.keylayout as Record<number, { x: number; y: number; w: number; h: number; row?: number; col?: number }>;
+            return {
+                keyboardLayout: keyboard.keylayout as Record<number, { x: number; y: number; w: number; h: number; row?: number; col?: number }>,
+                useFragmentLayout: true,
+            };
         }
         // Priority 2: Fallback to hardcoded layout for backward compatibility
-        return SVALBOARD_LAYOUT;
+        return {
+            keyboardLayout: SVALBOARD_LAYOUT,
+            useFragmentLayout: false,
+        };
     }, [keyboard.keylayout]);
 
     // Use keyboard's cols if available, otherwise fallback to constant
@@ -162,7 +168,8 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
         let maxY = 0;
 
         Object.values(keyboardLayout).forEach((key) => {
-            const yPos = key.y >= 6 ? key.y + THUMB_OFFSET_U : key.y;
+            // Only apply THUMB_OFFSET_U for hardcoded layout, not fragment-composed layouts
+            const yPos = (!useFragmentLayout && key.y >= 6) ? key.y + THUMB_OFFSET_U : key.y;
             maxX = Math.max(maxX, key.x + key.w);
             maxY = Math.max(maxY, yPos + key.h);
         });
@@ -171,7 +178,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
             width: maxX * currentUnitSize,
             height: maxY * currentUnitSize + 20,
         };
-    }, [keyboardLayout, currentUnitSize]);
+    }, [keyboardLayout, currentUnitSize, useFragmentLayout]);
 
     return (
         <div className="flex flex-col items-center justify-center p-4">
@@ -205,7 +212,8 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
                     const keyHoverBorder = isTransmitting ? hoverBorderClasses[layerColor] : undefined;
                     const keyHoverLayerColor = isTransmitting ? layerColor : undefined;
 
-                    const yPos = layout.y >= 6 ? layout.y + THUMB_OFFSET_U : layout.y;
+                    // Only apply THUMB_OFFSET_U for hardcoded layout, not fragment-composed layouts
+                    const yPos = (!useFragmentLayout && layout.y >= 6) ? layout.y + THUMB_OFFSET_U : layout.y;
 
                     return (
                         <Key
