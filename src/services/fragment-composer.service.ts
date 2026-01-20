@@ -176,8 +176,12 @@ export class FragmentComposerService {
     /**
      * Apply placement corrections to thumb clusters to match GUI-side visual design.
      *
-     * This keeps the internal cluster structure intact (relative key positions from KLE)
-     * by applying a SINGLE delta to the entire cluster, preserving all internal spacing.
+     * Alignment strategy:
+     * - Calculate the midline between left and right index clusters
+     * - Align left thumb's rightmost key edge symmetrically about midline
+     * - Align right thumb's leftmost key edge symmetrically about midline
+     *
+     * This keeps the internal cluster structure intact while centering thumbs properly.
      *
      * @param layout - The composed layout to correct
      * @param kbinfo - Keyboard info (used to check if Svalboard)
@@ -194,61 +198,141 @@ export class FragmentComposerService {
             return layout;
         }
 
-        // Thumb cluster matrix rows for Svalboard
-        const thumbClusterRows = [0, 5]; // Row 0 = left thumb, Row 5 = right thumb
+        // Cluster row definitions for Svalboard
+        const leftThumbRow = 0;
+        const rightThumbRow = 5;
+        const leftIndexRow = 1;   // Row containing V key
+        const rightIndexRow = 6;  // Row containing M key
 
-        // Group keys by matrix row (each thumb cluster is one group)
-        const keysByCluster: Record<number, number[]> = {};
+        // Group keys by matrix row
+        const keysByRow: Record<number, number[]> = {};
         for (const [matrixPosStr, key] of Object.entries(layout)) {
             const matrixPos = Number(matrixPosStr);
-            if (thumbClusterRows.includes(key.row)) {
-                if (!keysByCluster[key.row]) {
-                    keysByCluster[key.row] = [];
-                }
-                keysByCluster[key.row].push(matrixPos);
+            if (!keysByRow[key.row]) {
+                keysByRow[key.row] = [];
+            }
+            keysByRow[key.row].push(matrixPos);
+        }
+
+        // Find the midline between left and right index clusters
+        // Left index innermost key's right edge, right index innermost key's left edge
+        let leftIndexRightEdge = 0;
+        let rightIndexLeftEdge = Infinity;
+
+        // Find rightmost edge of left index cluster
+        for (const matrixPos of (keysByRow[leftIndexRow] || [])) {
+            const key = layout[matrixPos];
+            const rightEdge = key.x + key.w;
+            if (rightEdge > leftIndexRightEdge) {
+                leftIndexRightEdge = rightEdge;
             }
         }
 
+        // Find leftmost edge of right index cluster
+        for (const matrixPos of (keysByRow[rightIndexRow] || [])) {
+            const key = layout[matrixPos];
+            if (key.x < rightIndexLeftEdge) {
+                rightIndexLeftEdge = key.x;
+            }
+        }
+
+        // Calculate midline between index clusters
+        const midline = (leftIndexRightEdge + rightIndexLeftEdge) / 2;
+
+        // Find current thumb cluster edges
+        let leftThumbRightEdge = 0;
+        let rightThumbLeftEdge = Infinity;
+
+        for (const matrixPos of (keysByRow[leftThumbRow] || [])) {
+            const key = layout[matrixPos];
+            const rightEdge = key.x + key.w;
+            if (rightEdge > leftThumbRightEdge) {
+                leftThumbRightEdge = rightEdge;
+            }
+        }
+
+        for (const matrixPos of (keysByRow[rightThumbRow] || [])) {
+            const key = layout[matrixPos];
+            if (key.x < rightThumbLeftEdge) {
+                rightThumbLeftEdge = key.x;
+            }
+        }
+
+        // Calculate the current thumb cluster midpoint and desired gap
+        const currentThumbMidpoint = (leftThumbRightEdge + rightThumbLeftEdge) / 2;
+        const thumbGap = rightThumbLeftEdge - leftThumbRightEdge;
+
+        // Calculate deltas to center thumbs about the index midline
+        // Keep the same gap between thumbs, just shift to center on midline
+        const shiftX = midline - currentThumbMidpoint;
+
+        // Also need Y correction - use SVALBOARD_LAYOUT reference
+        let deltaY = 0;
+        const leftThumbKeys = keysByRow[leftThumbRow] || [];
+        if (leftThumbKeys.length > 0) {
+            const refKey = leftThumbKeys.find(pos => SVALBOARD_LAYOUT[pos]);
+            if (refKey !== undefined) {
+                deltaY = SVALBOARD_LAYOUT[refKey].y - layout[refKey].y;
+            }
+        }
+
+        // Get resolved fragment names for thumb clusters to detect non-standard variants
+        const thumbFragmentNames = this.getThumbFragmentNames(kbinfo);
+
         const correctedLayout = { ...layout };
 
-        // For each thumb cluster, apply ONE delta to ALL keys (preserving internal structure)
-        for (const [rowStr, clusterKeys] of Object.entries(keysByCluster)) {
-            const row = Number(rowStr);
+        // Apply corrections to both thumb clusters
+        for (const row of [leftThumbRow, rightThumbRow]) {
+            const clusterKeys = keysByRow[row] || [];
             if (clusterKeys.length === 0) continue;
 
-            // Find a reference key that exists in SVALBOARD_LAYOUT
-            let referenceKey: number | null = null;
-            for (const matrixPos of clusterKeys) {
-                if (SVALBOARD_LAYOUT[matrixPos]) {
-                    referenceKey = matrixPos;
-                    break;
-                }
-            }
+            // Non-standard thumb variants don't have "thumb" in the fragment name
+            // Standard ones are named like "Left thumb cluster (6 keys)"
+            const isLeftThumb = row === leftThumbRow;
+            const fragmentName = isLeftThumb ? thumbFragmentNames.left : thumbFragmentNames.right;
+            const isNonStandardThumb = fragmentName !== null && !fragmentName.toLowerCase().includes('thumb');
+            const extraYShift = isNonStandardThumb ? 1 : 0;
 
-            if (referenceKey === null) continue;
-
-            // Calculate ONE delta for the entire cluster
-            const fragmentPos = layout[referenceKey];
-            const expectedPos = SVALBOARD_LAYOUT[referenceKey];
-            const deltaX = expectedPos.x - fragmentPos.x;
-            const deltaY = expectedPos.y - fragmentPos.y;
-
-            // Skip if no correction needed
-            if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) continue;
-
-            // Apply the SAME delta to ALL keys in this cluster
             for (const matrixPos of clusterKeys) {
                 const key = correctedLayout[matrixPos];
                 correctedLayout[matrixPos] = {
                     ...key,
-                    x: key.x + deltaX,
-                    y: key.y + deltaY,
+                    x: key.x + shiftX,
+                    y: key.y + deltaY + extraYShift,
                 };
             }
 
-            console.log(`Thumb cluster row ${row}: applied correction (${deltaX.toFixed(2)}, ${deltaY.toFixed(2)}) to ${clusterKeys.length} keys`);
+            console.log(`Thumb cluster row ${row} (${fragmentName}): shifted X by ${shiftX.toFixed(2)}, Y by ${(deltaY + extraYShift).toFixed(2)}${extraYShift ? ' (non-standard, +1u Y)' : ''}`);
         }
 
+        console.log(`Midline: ${midline.toFixed(2)}, thumb gap: ${thumbGap.toFixed(2)}`);
+
         return correctedLayout;
+    }
+
+    /**
+     * Get the resolved fragment names for thumb cluster instances
+     */
+    private getThumbFragmentNames(kbinfo: KeyboardInfo): { left: string | null; right: string | null } {
+        const result = { left: null as string | null, right: null as string | null };
+
+        if (!kbinfo.composition?.instances) {
+            return result;
+        }
+
+        const instances = kbinfo.composition.instances;
+        for (let i = 0; i < instances.length; i++) {
+            const instance = instances[i];
+            const id = instance.id?.toLowerCase() || '';
+
+            // Find thumb cluster instances by their instance ID
+            if (id.includes('left') && id.includes('thumb')) {
+                result.left = this.fragmentService.resolveFragment(kbinfo, i, instance);
+            } else if (id.includes('right') && id.includes('thumb')) {
+                result.right = this.fragmentService.resolveFragment(kbinfo, i, instance);
+            }
+        }
+
+        return result;
     }
 }
