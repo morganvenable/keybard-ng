@@ -44,7 +44,7 @@ interface LayerSelectorProps {
  */
 const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer }) => {
     const { keyboard, setKeyboard } = useVial();
-    const { clearSelection } = useKeyBinding();
+    const { clearSelection, assignKeycodeTo } = useKeyBinding();
     const { layoutMode } = useLayoutSettings();
 
     const isCompact = layoutMode === "bottombar";
@@ -201,35 +201,35 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
     };
 
     const handlePasteLayer = async () => {
-        if (!keyboard) return;
+        if (!keyboard || !keyboard.keymap) return;
         try {
             const text = await navigator.clipboard.readText();
             const layerData = JSON.parse(text);
             if (Array.isArray(layerData)) {
                 if (layerData.length === 0) return;
 
-                // Update keys
+                const currentLayerKeymap = keyboard.keymap[selectedLayer] || [];
+
+                // Use assignKeycodeTo for each key to properly track changes for push/revert
                 for (let r = 0; r < keyboard.rows; r++) {
                     for (let c = 0; c < keyboard.cols; c++) {
                         const idx = r * keyboard.cols + c;
                         if (idx < layerData.length) {
-                            const val = layerData[idx];
-                            if (isConnected) {
-                                await vialService.updateKey(selectedLayer, r, c, val);
-                            } else {
-                                if (keyboard.keymap) keyboard.keymap[selectedLayer][idx] = val;
+                            const newValue = layerData[idx];
+                            const currentValue = currentLayerKeymap[idx];
+
+                            // Only queue change if value is different
+                            if (newValue !== currentValue) {
+                                assignKeycodeTo({
+                                    type: "keyboard",
+                                    layer: selectedLayer,
+                                    row: r,
+                                    col: c,
+                                }, newValue);
                             }
                         }
                     }
                 }
-
-                if (isConnected) {
-                    // Refresh map from device
-                    await vialService.getKeyMap(keyboard);
-                }
-
-                // Trigger React update
-                setKeyboard({ ...keyboard });
             }
         } catch (e) {
             console.error("Failed to paste layer", e);
