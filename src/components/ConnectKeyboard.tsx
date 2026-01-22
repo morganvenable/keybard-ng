@@ -162,7 +162,7 @@ const ConnectKeyboard = () => {
                                     </Button>
                                     <input ref={fileInputRef} type="file" accept=".viable,.vil,.kbi,.json" style={{ display: "none" }} onChange={handleLoadFile} />
                                     <Button onClick={handleLoadDemo} disabled={loading} variant={"outline"}>
-                                        {loading ? "Loading..." : "Sval-QWERTY Demo"}
+                                        {loading ? "Loading..." : "Sval-QWERTY Example"}
                                     </Button>
                                 </>
                             )}
