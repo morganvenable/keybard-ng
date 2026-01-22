@@ -6,6 +6,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { useVial } from "@/contexts/VialContext";
+import { useChanges } from "@/contexts/ChangesContext";
+import { MATRIX_COLS } from "@/constants/svalboard-layout";
 import { cn } from "@/lib/utils";
 import { svalService } from "@/services/sval.service";
 import { vialService } from "@/services/vial.service";
@@ -43,9 +45,10 @@ interface LayerSelectorProps {
  * Provides a quick-access tab bar for all layers and a detailed display of the selected layer.
  */
 const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer }) => {
-    const { keyboard, setKeyboard } = useVial();
-    const { clearSelection, assignKeycodeTo } = useKeyBinding();
+    const { keyboard, setKeyboard, updateKey } = useVial();
+    const { clearSelection } = useKeyBinding();
     const { layoutMode } = useLayoutSettings();
+    const { queue } = useChanges();
 
     const isCompact = layoutMode === "bottombar";
 
@@ -208,27 +211,60 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
             if (Array.isArray(layerData)) {
                 if (layerData.length === 0) return;
 
+                const matrixCols = keyboard.cols || MATRIX_COLS;
                 const currentLayerKeymap = keyboard.keymap[selectedLayer] || [];
 
-                // Use assignKeycodeTo for each key to properly track changes for push/revert
+                // Clone keyboard once for all changes
+                const updatedKeyboard = JSON.parse(JSON.stringify(keyboard));
+                if (!updatedKeyboard.keymap[selectedLayer]) {
+                    updatedKeyboard.keymap[selectedLayer] = [];
+                }
+
+                let hasChanges = false;
+
                 for (let r = 0; r < keyboard.rows; r++) {
                     for (let c = 0; c < keyboard.cols; c++) {
-                        const idx = r * keyboard.cols + c;
+                        const idx = r * matrixCols + c;
                         if (idx < layerData.length) {
                             const newValue = layerData[idx];
                             const currentValue = currentLayerKeymap[idx];
 
                             // Only queue change if value is different
                             if (newValue !== currentValue) {
-                                assignKeycodeTo({
-                                    type: "keyboard",
-                                    layer: selectedLayer,
-                                    row: r,
-                                    col: c,
-                                }, newValue);
+                                hasChanges = true;
+
+                                // Update the cloned keyboard
+                                updatedKeyboard.keymap[selectedLayer][idx] = newValue;
+
+                                // Queue change for tracking
+                                const row = r;
+                                const col = c;
+                                const previousValue = currentValue;
+                                const changeDesc = `key_${selectedLayer}_${row}_${col}`;
+
+                                queue(
+                                    changeDesc,
+                                    async () => {
+                                        console.log(`Committing key change: Layer ${selectedLayer}, Key [${row},${col}] → ${newValue}`);
+                                        updateKey(selectedLayer, row, col, newValue);
+                                    },
+                                    {
+                                        type: "key",
+                                        layer: selectedLayer,
+                                        row,
+                                        col,
+                                        keycode: newValue,
+                                        previousValue,
+                                    }
+                                );
                             }
                         }
                     }
+                }
+
+                // Only update state if there were changes
+                if (hasChanges) {
+                    setKeyboard(updatedKeyboard);
                 }
             }
         } catch (e) {
@@ -236,67 +272,79 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
         }
     };
 
-    const handleWipeDisable = async () => {
-        if (!keyboard) return;
-        const KC_NO = 0;
+    // Batch wipe helper - clones keyboard once, makes all changes, queues each for tracking, then updates state once
+    const batchWipeKeys = (targetKeycode: number, filterFn: (currentValue: number) => boolean) => {
+        if (!keyboard || !keyboard.keymap) return;
+
+        const matrixCols = keyboard.cols || MATRIX_COLS;
+        const currentLayerKeymap = keyboard.keymap[selectedLayer] || [];
+
+        // Clone keyboard once for all changes
+        const updatedKeyboard = JSON.parse(JSON.stringify(keyboard));
+        if (!updatedKeyboard.keymap[selectedLayer]) {
+            updatedKeyboard.keymap[selectedLayer] = [];
+        }
+
+        // Track if any changes were made
+        let hasChanges = false;
+
         for (let r = 0; r < keyboard.rows; r++) {
             for (let c = 0; c < keyboard.cols; c++) {
-                if (isConnected) {
-                    await vialService.updateKey(selectedLayer, r, c, KC_NO);
-                } else {
-                    const idx = r * keyboard.cols + c;
-                    if (keyboard.keymap) keyboard.keymap[selectedLayer][idx] = KC_NO;
+                const idx = r * matrixCols + c;
+                const currentValue = currentLayerKeymap[idx];
+
+                // Only process keys that pass the filter
+                if (filterFn(currentValue)) {
+                    hasChanges = true;
+
+                    // Update the cloned keyboard
+                    updatedKeyboard.keymap[selectedLayer][idx] = targetKeycode;
+
+                    // Queue change for tracking (captures row, col, targetKeycode by value)
+                    const row = r;
+                    const col = c;
+                    const previousValue = currentValue;
+                    const changeDesc = `key_${selectedLayer}_${row}_${col}`;
+
+                    queue(
+                        changeDesc,
+                        async () => {
+                            console.log(`Committing key change: Layer ${selectedLayer}, Key [${row},${col}] → ${targetKeycode}`);
+                            updateKey(selectedLayer, row, col, targetKeycode);
+                        },
+                        {
+                            type: "key",
+                            layer: selectedLayer,
+                            row,
+                            col,
+                            keycode: targetKeycode,
+                            previousValue,
+                        }
+                    );
                 }
             }
         }
-        if (isConnected) {
-            await vialService.getKeyMap(keyboard);
+
+        // Only update state if there were changes
+        if (hasChanges) {
+            setKeyboard(updatedKeyboard);
         }
-        setKeyboard({ ...keyboard });
     };
 
-    const handleWipeTransparent = async () => {
-        if (!keyboard) return;
-        const KC_TRNS = KEYMAP['KC_TRNS']?.code ?? 1;
-        for (let r = 0; r < keyboard.rows; r++) {
-            for (let c = 0; c < keyboard.cols; c++) {
-                if (isConnected) {
-                    await vialService.updateKey(selectedLayer, r, c, KC_TRNS);
-                } else {
-                    const idx = r * keyboard.cols + c;
-                    if (keyboard.keymap) keyboard.keymap[selectedLayer][idx] = KC_TRNS;
-                }
-            }
-        }
-        if (isConnected) {
-            await vialService.getKeyMap(keyboard);
-        }
-        setKeyboard({ ...keyboard });
+    const handleWipeDisable = () => {
+        const KC_NO = 0;
+        batchWipeKeys(KC_NO, (currentValue) => currentValue !== KC_NO);
     };
 
-    const handleChangeDisabledToTransparent = async () => {
-        if (!keyboard?.keymap) return;
+    const handleWipeTransparent = () => {
+        const KC_TRNS = KEYMAP['KC_TRNS']?.code ?? 1;
+        batchWipeKeys(KC_TRNS, (currentValue) => currentValue !== KC_TRNS);
+    };
+
+    const handleChangeDisabledToTransparent = () => {
         const KC_TRNS = KEYMAP['KC_TRNS']?.code ?? 1;
         const KC_NO = 0;
-        const currentLayerData = keyboard.keymap[selectedLayer];
-
-        for (let r = 0; r < keyboard.rows; r++) {
-            for (let c = 0; c < keyboard.cols; c++) {
-                const idx = r * keyboard.cols + c;
-                const currentKey = currentLayerData[idx];
-                if (currentKey === KC_NO) {
-                    if (isConnected) {
-                        await vialService.updateKey(selectedLayer, r, c, KC_TRNS);
-                    } else {
-                        keyboard.keymap[selectedLayer][idx] = KC_TRNS;
-                    }
-                }
-            }
-        }
-        if (isConnected) {
-            await vialService.getKeyMap(keyboard);
-        }
-        setKeyboard({ ...keyboard });
+        batchWipeKeys(KC_TRNS, (currentValue) => currentValue === KC_NO);
     };
 
     const { activePanel } = usePanels();
