@@ -77,21 +77,22 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
     }, []);
 
     const setPrimarySidebarExpanded = useCallback((expanded: boolean, isManualToggle?: boolean) => {
-        if (primarySidebarExpandedRef.current !== expanded) {
-            primarySidebarExpandedRef.current = expanded;
-            setPrimarySidebarExpandedState(expanded);
+        // Always sync the ref to ensure it matches the actual sidebar state
+        primarySidebarExpandedRef.current = expanded;
 
-            // Track user manual collapse/expand for auto-expand logic
-            if (isManualToggle) {
-                if (!expanded) {
-                    // User manually collapsed - don't auto-expand
-                    userManuallyCollapsedRef.current = true;
-                    setUserManuallyCollapsedSidebar(true);
-                } else {
-                    // User manually expanded - allow auto-collapse/expand again
-                    userManuallyCollapsedRef.current = false;
-                    setUserManuallyCollapsedSidebar(false);
-                }
+        // Only update React state if changed (to avoid unnecessary re-renders)
+        setPrimarySidebarExpandedState(prev => prev !== expanded ? expanded : prev);
+
+        // Track user manual collapse/expand for auto-expand logic
+        if (isManualToggle) {
+            if (!expanded) {
+                // User manually collapsed - don't auto-expand
+                userManuallyCollapsedRef.current = true;
+                setUserManuallyCollapsedSidebar(true);
+            } else {
+                // User manually expanded - allow auto-collapse/expand again
+                userManuallyCollapsedRef.current = false;
+                setUserManuallyCollapsedSidebar(false);
             }
         }
     }, []);
@@ -175,20 +176,27 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
                 ? (secondaryOpen ? sidebarExpandedWithSecondary : sidebarExpandedNoSecondary)
                 : (secondaryOpen ? sidebarCollapsedWithSecondary : sidebarCollapsedNoSecondary);
 
-            if (!keyboardFits(currentSidebarAvailable, "small")) {
+            const smallFits = keyboardFits(currentSidebarAvailable, "small");
+
+            if (!smallFits) {
                 // Small doesn't fit - try collapsing primary sidebar if expanded
                 if (primaryExpanded) {
                     const collapsedAvailable = secondaryOpen ? sidebarCollapsedWithSecondary : sidebarCollapsedNoSecondary;
+                    const fitsCollapsed = keyboardFits(collapsedAvailable, "small");
 
-                    if (keyboardFits(collapsedAvailable, "small")) {
+                    if (fitsCollapsed) {
                         // Collapsing sidebar makes it fit - request collapse
                         targetSidebarExpanded = false;
                         if (collapsePrimarySidebar) {
                             setTimeout(() => collapsePrimarySidebar(), 0);
                         }
                     } else {
-                        // Even collapsed doesn't fit - switch to bottom bar
+                        // Even collapsed doesn't fit - switch to bottom bar AND collapse sidebar
                         useSidebarMode = false;
+                        targetSidebarExpanded = false;
+                        if (collapsePrimarySidebar) {
+                            setTimeout(() => collapsePrimarySidebar(), 0);
+                        }
                     }
                 } else {
                     // Already collapsed and still doesn't fit - switch to bottom bar

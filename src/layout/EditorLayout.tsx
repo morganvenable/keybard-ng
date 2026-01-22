@@ -265,17 +265,21 @@ const EditorLayoutInner = () => {
     }, [state, setSecondarySidebarOpen]);
 
     // Track the previous sidebar state to detect user-initiated toggles
-    const prevSidebarStateRef = React.useRef(primarySidebar?.state);
+    const prevSidebarStateRef = React.useRef<string | undefined>(undefined);
     const autoToggleInProgressRef = React.useRef(false);
 
     React.useEffect(() => {
         if (primarySidebar?.state) {
             const prevState = prevSidebarStateRef.current;
             const newState = primarySidebar.state;
+            const stateChanged = prevState !== newState;
             prevSidebarStateRef.current = newState;
 
             // Detect if this is a manual toggle (state changed but not by auto-layout)
-            const isManualToggle = prevState !== newState && !autoToggleInProgressRef.current;
+            const isManualToggle = stateChanged && prevState !== undefined && !autoToggleInProgressRef.current;
+
+            // Always sync the expanded state to context (not just on change)
+            // This ensures the ref stays in sync even if initial state differs
             setPrimarySidebarExpanded(newState === "expanded", isManualToggle);
         }
     }, [primarySidebar?.state, setPrimarySidebarExpanded]);
