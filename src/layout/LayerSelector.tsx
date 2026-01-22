@@ -4,7 +4,6 @@ import CustomColorDialog from "@/components/CustomColorDialog";
 import { Ellipsis, Settings, Unplug, Upload, Zap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
-import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { useVial } from "@/contexts/VialContext";
 import { useChanges } from "@/contexts/ChangesContext";
 import { MATRIX_COLS } from "@/constants/svalboard-layout";
@@ -35,15 +34,10 @@ import { PublishLayerDialog } from "@/components/PublishLayerDialog";
 import { Input } from "@/components/ui/input";
 
 
-// Minimum space needed to show the full layer selector (tabs + layer name)
-const LAYER_SELECTOR_MIN_HEIGHT = 100;
-
 interface LayerSelectorProps {
     selectedLayer: number;
     setSelectedLayer: (layer: number) => void;
-    /** Available vertical space above the keyboard (in pixels) */
-    availableSpaceAbove?: number;
-    /** Force hide the layer selector completely (e.g., when editor overlay is shown) */
+    /** Force compact mode (e.g., when editor overlay is shown) */
     forceHide?: boolean;
 }
 
@@ -51,18 +45,14 @@ interface LayerSelectorProps {
  * Component for selecting and managing active layers in the keyboard editor.
  * Provides a quick-access tab bar for all layers and a detailed display of the selected layer.
  */
-const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer, availableSpaceAbove, forceHide }) => {
+const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer, forceHide }) => {
     const { keyboard, setKeyboard, updateKey } = useVial();
     const { clearSelection } = useKeyBinding();
-    const { layoutMode } = useLayoutSettings();
     const { queue } = useChanges();
 
-    // Show compact mode only when there's not enough space above the keyboard
-    // Use layoutMode as a hint, but ultimately decide based on available space
-    // Also force compact when editor overlay is shown to minimize interference
-    const isCompact = forceHide || (availableSpaceAbove !== undefined
-        ? availableSpaceAbove < LAYER_SELECTOR_MIN_HEIGHT
-        : layoutMode === "bottombar");
+    // Show full layer selector by default
+    // Only use compact mode when editor overlay is shown (forceHide)
+    const isCompact = forceHide || false;
 
     // UI state
     const [showAllLayers, setShowAllLayers] = useState(true);

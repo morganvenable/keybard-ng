@@ -34,9 +34,9 @@ interface LayoutSettingsContextType {
     isAutoKeySize: boolean;
     setIsAutoKeySize: (auto: boolean) => void;
     setSecondarySidebarOpen: (open: boolean) => void;
-    setPrimarySidebarExpanded: (expanded: boolean) => void;
-    // Callback for EditorLayout to provide - allows context to request sidebar collapse
-    registerPrimarySidebarControl: (collapse: () => void) => void;
+    setPrimarySidebarExpanded: (expanded: boolean, isManualToggle?: boolean) => void;
+    // Callback for EditorLayout to provide - allows context to request sidebar collapse/expand
+    registerPrimarySidebarControl: (collapse: () => void, expand: () => void) => void;
     // Allow EditorLayout to provide actual measured dimensions for more accurate auto-sizing
     setMeasuredDimensions: (dimensions: MeasuredDimensions) => void;
 }
@@ -54,11 +54,14 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
     const [secondarySidebarOpen, setSecondarySidebarOpenState] = useState<boolean>(false);
     const [primarySidebarExpanded, setPrimarySidebarExpandedState] = useState<boolean>(true);
     const [collapsePrimarySidebar, setCollapsePrimarySidebar] = useState<(() => void) | null>(null);
+    const [expandPrimarySidebar, setExpandPrimarySidebar] = useState<(() => void) | null>(null);
+    const [userManuallyCollapsedSidebar, setUserManuallyCollapsedSidebar] = useState<boolean>(false);
     const [measuredDimensions, setMeasuredDimensionsState] = useState<MeasuredDimensions | null>(null);
 
     // Use refs to track current values without triggering re-renders during calculation
     const secondarySidebarOpenRef = useRef(false);
     const primarySidebarExpandedRef = useRef(true);
+    const userManuallyCollapsedRef = useRef(false);
     const measuredDimensionsRef = useRef<MeasuredDimensions | null>(null);
 
     const setMeasuredDimensions = useCallback((dimensions: MeasuredDimensions) => {
@@ -73,15 +76,29 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
         }
     }, []);
 
-    const setPrimarySidebarExpanded = useCallback((expanded: boolean) => {
+    const setPrimarySidebarExpanded = useCallback((expanded: boolean, isManualToggle?: boolean) => {
         if (primarySidebarExpandedRef.current !== expanded) {
             primarySidebarExpandedRef.current = expanded;
             setPrimarySidebarExpandedState(expanded);
+
+            // Track user manual collapse/expand for auto-expand logic
+            if (isManualToggle) {
+                if (!expanded) {
+                    // User manually collapsed - don't auto-expand
+                    userManuallyCollapsedRef.current = true;
+                    setUserManuallyCollapsedSidebar(true);
+                } else {
+                    // User manually expanded - allow auto-collapse/expand again
+                    userManuallyCollapsedRef.current = false;
+                    setUserManuallyCollapsedSidebar(false);
+                }
+            }
         }
     }, []);
 
-    const registerPrimarySidebarControl = useCallback((collapse: () => void) => {
+    const registerPrimarySidebarControl = useCallback((collapse: () => void, expand: () => void) => {
         setCollapsePrimarySidebar(() => collapse);
+        setExpandPrimarySidebar(() => expand);
     }, []);
 
     // Calculate available width for keyboard
@@ -122,6 +139,7 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
         const measured = measuredDimensionsRef.current;
         const secondaryOpen = secondarySidebarOpenRef.current;
         const primaryExpanded = primarySidebarExpandedRef.current;
+        const userManuallyCollapsed = userManuallyCollapsedRef.current;
 
         // If we have measured dimensions, use the actual container width directly
         if (measured && isAutoKeySize) {
@@ -176,6 +194,14 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
                     // Already collapsed and still doesn't fit - switch to bottom bar
                     useSidebarMode = false;
                 }
+            } else if (!primaryExpanded && !userManuallyCollapsed && expandPrimarySidebar) {
+                // Sidebar is collapsed but NOT by user - check if we can expand it
+                const expandedAvailable = secondaryOpen ? sidebarExpandedWithSecondary : sidebarExpandedNoSecondary;
+                if (keyboardFits(expandedAvailable, "small")) {
+                    // There's room with expanded sidebar - auto-expand
+                    targetSidebarExpanded = true;
+                    setTimeout(() => expandPrimarySidebar(), 0);
+                }
             }
 
             setLayoutModeState(useSidebarMode ? "sidebar" : "bottombar");
@@ -192,7 +218,7 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
                 }
             }
         }
-    }, [isAutoLayoutMode, isAutoKeySize, collapsePrimarySidebar, getAvailableWidth, getBestKeySize, keyboardFits]);
+    }, [isAutoLayoutMode, isAutoKeySize, collapsePrimarySidebar, expandPrimarySidebar, getAvailableWidth, getBestKeySize, keyboardFits]);
 
     // Listen for window resize
     useEffect(() => {
@@ -221,6 +247,10 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
     useEffect(() => {
         primarySidebarExpandedRef.current = primarySidebarExpanded;
     }, [primarySidebarExpanded]);
+
+    useEffect(() => {
+        userManuallyCollapsedRef.current = userManuallyCollapsedSidebar;
+    }, [userManuallyCollapsedSidebar]);
 
     // When auto mode is disabled, use the manual setting
     useEffect(() => {

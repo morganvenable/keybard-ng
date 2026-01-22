@@ -68,9 +68,8 @@ const EditorLayoutInner = () => {
     const { keyVariant, setKeyVariant, layoutMode, setLayoutMode, isAutoLayoutMode, setIsAutoLayoutMode, isAutoKeySize, setIsAutoKeySize, setSecondarySidebarOpen, setPrimarySidebarExpanded, registerPrimarySidebarControl, setMeasuredDimensions } = useLayoutSettings();
     const { layerClipboard, openPasteDialog } = useLayoutLibrary();
 
-    // Refs and state for measuring available space above keyboard
+    // Ref for measuring container dimensions
     const contentContainerRef = React.useRef<HTMLDivElement>(null);
-    const [availableSpaceAboveKeyboard, setAvailableSpaceAboveKeyboard] = React.useState<number>(200);
 
     // Calculate keyboard layout extents (independent of current keyVariant)
     const keyboardExtents = React.useMemo(() => {
@@ -108,17 +107,13 @@ const EditorLayoutInner = () => {
         small: keyboardExtents.maxX * 30 + 32,
     }), [keyboardExtents]);
 
-    // Measure available space and report dimensions using ResizeObserver
+    // Measure container dimensions and report to context for auto-sizing
     React.useEffect(() => {
         const container = contentContainerRef.current;
         if (!container) return;
 
         const measureSpace = () => {
             const containerWidth = container.clientWidth;
-
-            // Keyboard is top-aligned with one key-width of padding
-            // Space above is just that padding amount
-            setAvailableSpaceAboveKeyboard(currentUnitSize);
 
             // Report measured dimensions to context for auto-sizing
             setMeasuredDimensions({
@@ -135,7 +130,7 @@ const EditorLayoutInner = () => {
         resizeObserver.observe(container);
 
         return () => resizeObserver.disconnect();
-    }, [currentUnitSize, keyboardWidths, setMeasuredDimensions]);
+    }, [keyboardWidths, setMeasuredDimensions]);
 
     const { getSetting, updateSetting } = useSettings();
     const { getPendingCount, commit, setInstant, clearAll, getPendingChanges } = useChanges();
@@ -269,19 +264,52 @@ const EditorLayoutInner = () => {
         setSecondarySidebarOpen(panelIsSelected);
     }, [state, setSecondarySidebarOpen]);
 
+    // Track the previous sidebar state to detect user-initiated toggles
+    const prevSidebarStateRef = React.useRef(primarySidebar?.state);
+    const autoToggleInProgressRef = React.useRef(false);
+
     React.useEffect(() => {
         if (primarySidebar?.state) {
-            setPrimarySidebarExpanded(primarySidebar.state === "expanded");
+            const prevState = prevSidebarStateRef.current;
+            const newState = primarySidebar.state;
+            prevSidebarStateRef.current = newState;
+
+            // Detect if this is a manual toggle (state changed but not by auto-layout)
+            const isManualToggle = prevState !== newState && !autoToggleInProgressRef.current;
+            setPrimarySidebarExpanded(newState === "expanded", isManualToggle);
         }
     }, [primarySidebar?.state, setPrimarySidebarExpanded]);
 
-    // Register callback for auto-layout to collapse the sidebar
-    // Use a ref to avoid recreating the callback
-    const collapseSidebarRef = React.useRef(() => primarySidebar.setOpen(false));
-    collapseSidebarRef.current = () => primarySidebar.setOpen(false);
+    // Register callbacks for auto-layout to collapse/expand the sidebar
+    // Use refs to avoid recreating the callbacks
+    const collapseSidebarRef = React.useRef(() => {
+        autoToggleInProgressRef.current = true;
+        primarySidebar.setOpen(false);
+        // Reset flag after state change propagates
+        setTimeout(() => { autoToggleInProgressRef.current = false; }, 50);
+    });
+    const expandSidebarRef = React.useRef(() => {
+        autoToggleInProgressRef.current = true;
+        primarySidebar.setOpen(true);
+        // Reset flag after state change propagates
+        setTimeout(() => { autoToggleInProgressRef.current = false; }, 50);
+    });
+    collapseSidebarRef.current = () => {
+        autoToggleInProgressRef.current = true;
+        primarySidebar.setOpen(false);
+        setTimeout(() => { autoToggleInProgressRef.current = false; }, 50);
+    };
+    expandSidebarRef.current = () => {
+        autoToggleInProgressRef.current = true;
+        primarySidebar.setOpen(true);
+        setTimeout(() => { autoToggleInProgressRef.current = false; }, 50);
+    };
 
     React.useEffect(() => {
-        registerPrimarySidebarControl(() => collapseSidebarRef.current());
+        registerPrimarySidebarControl(
+            () => collapseSidebarRef.current(),
+            () => expandSidebarRef.current()
+        );
     }, [registerPrimarySidebarControl]);
 
     const contentOffset = showDetailsSidebar ? `calc(${primaryOffset ?? "0px"} + ${DETAIL_SIDEBAR_WIDTH})` : primaryOffset ?? undefined;
@@ -310,7 +338,6 @@ const EditorLayoutInner = () => {
                 <LayerSelector
                     selectedLayer={selectedLayer}
                     setSelectedLayer={setSelectedLayer}
-                    availableSpaceAbove={availableSpaceAboveKeyboard}
                     forceHide={showEditorOverlay}
                 />
 
