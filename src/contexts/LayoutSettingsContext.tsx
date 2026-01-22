@@ -59,7 +59,6 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
     // Use refs to track current values without triggering re-renders during calculation
     const secondarySidebarOpenRef = useRef(false);
     const primarySidebarExpandedRef = useRef(true);
-    const isUpdatingRef = useRef(false);
     const measuredDimensionsRef = useRef<MeasuredDimensions | null>(null);
 
     const setMeasuredDimensions = useCallback((dimensions: MeasuredDimensions) => {
@@ -118,89 +117,80 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
 
     // Handle auto-switching based on available space
     const updateAutoLayout = useCallback(() => {
-        // Prevent re-entry during update
-        if (isUpdatingRef.current) return;
         if (!isAutoLayoutMode && !isAutoKeySize) return;
 
-        isUpdatingRef.current = true;
+        const measured = measuredDimensionsRef.current;
+        const secondaryOpen = secondarySidebarOpenRef.current;
+        const primaryExpanded = primarySidebarExpandedRef.current;
 
-        try {
-            const measured = measuredDimensionsRef.current;
-            const secondaryOpen = secondarySidebarOpenRef.current;
-            const primaryExpanded = primarySidebarExpandedRef.current;
+        // If we have measured dimensions, use the actual container width directly
+        if (measured && isAutoKeySize) {
+            // Direct comparison: does the keyboard fit at each size?
+            const containerWidth = measured.containerWidth;
+            const widths = measured.keyboardWidths;
 
-            // If we have measured dimensions, use the actual container width directly
-            if (measured && isAutoKeySize) {
-                // Direct comparison: does the keyboard fit at each size?
-                const containerWidth = measured.containerWidth;
-                const widths = measured.keyboardWidths;
-
-                let bestSize: KeyVariant = "small";
-                if (containerWidth >= widths.default) {
-                    bestSize = "default";
-                } else if (containerWidth >= widths.medium) {
-                    bestSize = "medium";
-                }
-                setKeyVariantState(bestSize);
+            let bestSize: KeyVariant = "small";
+            if (containerWidth >= widths.default) {
+                bestSize = "default";
+            } else if (containerWidth >= widths.medium) {
+                bestSize = "medium";
             }
+            setKeyVariantState(bestSize);
+        }
 
-            // For layout mode, still use window-based calculation for sidebar decisions
-            if (isAutoLayoutMode) {
-                const windowWidth = window.innerWidth;
+        // For layout mode, still use window-based calculation for sidebar decisions
+        if (isAutoLayoutMode) {
+            const windowWidth = window.innerWidth;
 
-                // Calculate available space in different configurations
-                const sidebarExpandedNoSecondary = getAvailableWidth(windowWidth, "sidebar", false, true);
-                const sidebarExpandedWithSecondary = getAvailableWidth(windowWidth, "sidebar", true, true);
-                const sidebarCollapsedNoSecondary = getAvailableWidth(windowWidth, "sidebar", false, false);
-                const sidebarCollapsedWithSecondary = getAvailableWidth(windowWidth, "sidebar", true, false);
-                const bottomBarAvailable = getAvailableWidth(windowWidth, "bottombar", false, false);
+            // Calculate available space in different configurations
+            const sidebarExpandedNoSecondary = getAvailableWidth(windowWidth, "sidebar", false, true);
+            const sidebarExpandedWithSecondary = getAvailableWidth(windowWidth, "sidebar", true, true);
+            const sidebarCollapsedNoSecondary = getAvailableWidth(windowWidth, "sidebar", false, false);
+            const sidebarCollapsedWithSecondary = getAvailableWidth(windowWidth, "sidebar", true, false);
+            const bottomBarAvailable = getAvailableWidth(windowWidth, "bottombar", false, false);
 
-                let targetSidebarExpanded = primaryExpanded;
-                let useSidebarMode = true;
+            let targetSidebarExpanded = primaryExpanded;
+            let useSidebarMode = true;
 
-                // Check with current sidebar state
-                const currentSidebarAvailable = primaryExpanded
-                    ? (secondaryOpen ? sidebarExpandedWithSecondary : sidebarExpandedNoSecondary)
-                    : (secondaryOpen ? sidebarCollapsedWithSecondary : sidebarCollapsedNoSecondary);
+            // Check with current sidebar state
+            const currentSidebarAvailable = primaryExpanded
+                ? (secondaryOpen ? sidebarExpandedWithSecondary : sidebarExpandedNoSecondary)
+                : (secondaryOpen ? sidebarCollapsedWithSecondary : sidebarCollapsedNoSecondary);
 
-                if (!keyboardFits(currentSidebarAvailable, "small")) {
-                    // Small doesn't fit - try collapsing primary sidebar if expanded
-                    if (primaryExpanded) {
-                        const collapsedAvailable = secondaryOpen ? sidebarCollapsedWithSecondary : sidebarCollapsedNoSecondary;
+            if (!keyboardFits(currentSidebarAvailable, "small")) {
+                // Small doesn't fit - try collapsing primary sidebar if expanded
+                if (primaryExpanded) {
+                    const collapsedAvailable = secondaryOpen ? sidebarCollapsedWithSecondary : sidebarCollapsedNoSecondary;
 
-                        if (keyboardFits(collapsedAvailable, "small")) {
-                            // Collapsing sidebar makes it fit - request collapse
-                            targetSidebarExpanded = false;
-                            if (collapsePrimarySidebar) {
-                                setTimeout(() => collapsePrimarySidebar(), 0);
-                            }
-                        } else {
-                            // Even collapsed doesn't fit - switch to bottom bar
-                            useSidebarMode = false;
+                    if (keyboardFits(collapsedAvailable, "small")) {
+                        // Collapsing sidebar makes it fit - request collapse
+                        targetSidebarExpanded = false;
+                        if (collapsePrimarySidebar) {
+                            setTimeout(() => collapsePrimarySidebar(), 0);
                         }
                     } else {
-                        // Already collapsed and still doesn't fit - switch to bottom bar
+                        // Even collapsed doesn't fit - switch to bottom bar
                         useSidebarMode = false;
                     }
-                }
-
-                setLayoutModeState(useSidebarMode ? "sidebar" : "bottombar");
-
-                // If no measured dimensions yet, use calculated available width for key size
-                if (!measured && isAutoKeySize) {
-                    if (useSidebarMode) {
-                        const actualAvailable = targetSidebarExpanded
-                            ? (secondaryOpen ? sidebarExpandedWithSecondary : sidebarExpandedNoSecondary)
-                            : (secondaryOpen ? sidebarCollapsedWithSecondary : sidebarCollapsedNoSecondary);
-                        setKeyVariantState(getBestKeySize(actualAvailable));
-                    } else {
-                        setKeyVariantState(getBestKeySize(bottomBarAvailable));
-                    }
+                } else {
+                    // Already collapsed and still doesn't fit - switch to bottom bar
+                    useSidebarMode = false;
                 }
             }
-        } finally {
-            // Use setTimeout to reset the flag after the render cycle completes
-            setTimeout(() => { isUpdatingRef.current = false; }, 0);
+
+            setLayoutModeState(useSidebarMode ? "sidebar" : "bottombar");
+
+            // If no measured dimensions yet, use calculated available width for key size
+            if (!measured && isAutoKeySize) {
+                if (useSidebarMode) {
+                    const actualAvailable = targetSidebarExpanded
+                        ? (secondaryOpen ? sidebarExpandedWithSecondary : sidebarExpandedNoSecondary)
+                        : (secondaryOpen ? sidebarCollapsedWithSecondary : sidebarCollapsedNoSecondary);
+                    setKeyVariantState(getBestKeySize(actualAvailable));
+                } else {
+                    setKeyVariantState(getBestKeySize(bottomBarAvailable));
+                }
+            }
         }
     }, [isAutoLayoutMode, isAutoKeySize, collapsePrimarySidebar, getAvailableWidth, getBestKeySize, keyboardFits]);
 

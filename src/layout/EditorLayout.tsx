@@ -95,11 +95,11 @@ const EditorLayoutInner = () => {
         return { maxX, maxY };
     }, [keyboard]);
 
-    // Calculate keyboard height based on current key variant
-    const keyboardHeight = React.useMemo(() => {
-        const currentUnitSize = keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : UNIT_SIZE;
-        return keyboardExtents.maxY * currentUnitSize + 20 + 32; // +20 from Keyboard component, +32 for padding
-    }, [keyboardExtents, keyVariant]);
+    // Current key unit size based on variant
+    const currentUnitSize = React.useMemo(() =>
+        keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : UNIT_SIZE,
+    [keyVariant]);
+
 
     // Calculate keyboard widths at each size (for auto-sizing)
     const keyboardWidths = React.useMemo(() => ({
@@ -114,12 +114,11 @@ const EditorLayoutInner = () => {
         if (!container) return;
 
         const measureSpace = () => {
-            const containerHeight = container.clientHeight;
             const containerWidth = container.clientWidth;
 
-            // Keyboard is centered, so space above = (container - keyboard) / 2
-            const spaceAbove = Math.max(0, (containerHeight - keyboardHeight) / 2);
-            setAvailableSpaceAboveKeyboard(spaceAbove);
+            // Keyboard is top-aligned with one key-width of padding
+            // Space above is just that padding amount
+            setAvailableSpaceAboveKeyboard(currentUnitSize);
 
             // Report measured dimensions to context for auto-sizing
             setMeasuredDimensions({
@@ -136,7 +135,7 @@ const EditorLayoutInner = () => {
         resizeObserver.observe(container);
 
         return () => resizeObserver.disconnect();
-    }, [keyboardHeight, keyboardWidths, setMeasuredDimensions]);
+    }, [currentUnitSize, keyboardWidths, setMeasuredDimensions]);
 
     const { getSetting, updateSetting } = useSettings();
     const { getPendingCount, commit, setInstant, clearAll, getPendingChanges } = useChanges();
@@ -315,7 +314,10 @@ const EditorLayoutInner = () => {
                     forceHide={showEditorOverlay}
                 />
 
-                <div className="flex-1 overflow-hidden flex items-center justify-center max-w-full relative">
+                <div
+                    className="flex-1 overflow-hidden flex items-start justify-center max-w-full relative"
+                    style={{ paddingTop: currentUnitSize }}
+                >
                     {activePanel === "matrixtester" ? (
                         <MatrixTester />
                     ) : (
