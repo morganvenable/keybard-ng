@@ -4,6 +4,7 @@ import MainScreen from "./components/MainScreen";
 import PrintableKeymapWrapper from "./components/PrintableKeymapWrapper";
 import ExploreLayoutsPage from "./pages/ExploreLayoutsPage";
 import { ChangesProvider } from "./contexts/ChangesContext";
+import { DragProvider } from "./contexts/DragContext";
 import { KeyBindingProvider } from "./contexts/KeyBindingContext";
 import { LayoutLibraryProvider } from "./contexts/LayoutLibraryContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
@@ -57,7 +58,9 @@ function AppContent() {
                     <PrintableKeymapWrapper />
                 </>
             ) : currentPage === "explore" ? (
-                <ExploreLayoutsPage onBack={goBack} />
+                <DragProvider>
+                    <ExploreLayoutsPage onBack={goBack} />
+                </DragProvider>
             ) : null}
         </>
     );
