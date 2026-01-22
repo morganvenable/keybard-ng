@@ -1,6 +1,7 @@
 import * as React from "react"
 
-const MOBILE_BREAKPOINT = 768
+// Disable mobile mode - this app requires minimum 850px width and uses scrollbars
+const MOBILE_BREAKPOINT = 0
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)

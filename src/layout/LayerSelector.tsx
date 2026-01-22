@@ -45,14 +45,26 @@ interface LayerSelectorProps {
  * Component for selecting and managing active layers in the keyboard editor.
  * Provides a quick-access tab bar for all layers and a detailed display of the selected layer.
  */
+// Minimum window height before layer selector auto-hides
+const MIN_HEIGHT_FOR_LAYER_SELECTOR = 500;
+
 const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer, forceHide }) => {
     const { keyboard, setKeyboard, updateKey } = useVial();
     const { clearSelection } = useKeyBinding();
     const { queue } = useChanges();
 
-    // Show full layer selector by default
-    // Only use compact mode when editor overlay is shown (forceHide)
-    const isCompact = forceHide || false;
+    // Track window height for auto-hiding
+    const [windowHeight, setWindowHeight] = useState(window.innerHeight);
+
+    useEffect(() => {
+        const handleResize = () => setWindowHeight(window.innerHeight);
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
+
+    // Hide layer selector when window is too short or when editor overlay is shown
+    const shouldHide = forceHide || windowHeight < MIN_HEIGHT_FOR_LAYER_SELECTOR;
+    const isCompact = shouldHide;
 
     // UI state
     const [showAllLayers, setShowAllLayers] = useState(true);
