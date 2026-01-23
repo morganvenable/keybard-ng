@@ -1,4 +1,4 @@
-import { ArrowUpDown, BookOpen, Download, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Mouse, Piano, Pointer, Repeat, Settings, SquareDot, Unplug, Upload, Zap } from "lucide-react";
+import { ArrowUpDown, BookOpen, Download, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Mouse, Piano, Repeat, Settings, SquareDot, Unplug, Upload, Zap } from "lucide-react";
 import { useNavigation } from "@/App";
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -77,7 +77,6 @@ const featureSidebarItems: SidebarItem[] = [
     ...(SHOW_ALT_REPEAT ? [{ title: "Alt-Repeat", url: "altrepeat", icon: Repeat }] : []),
     ...(SHOW_LEADERS ? [{ title: "Leaders", url: "leaders", icon: ListOrdered }] : []),
     { title: "Fragments", url: "fragments", icon: LayoutGrid },
-    { title: "Pointing", url: "pointing", icon: Pointer },
 ];
 
 const footerItems: SidebarItem[] = [

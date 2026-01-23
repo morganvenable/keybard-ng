@@ -284,11 +284,13 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
         return () => window.removeEventListener("resize", handleResize);
     }, [updateAutoLayout]);
 
-    // Re-run auto layout when sidebar states change or measured dimensions update
-    // Using state values here is safe because they're debounced by the refs
+    // Re-run auto layout when measured dimensions update
+    // NOTE: We intentionally do NOT trigger on secondarySidebarOpen or primarySidebarExpanded
+    // changes because we don't want clicking sidebar items to cause layout mode switches.
+    // Layout mode should only change on window resize.
     useEffect(() => {
         updateAutoLayout();
-    }, [secondarySidebarOpen, primarySidebarExpanded, measuredDimensions, updateAutoLayout]);
+    }, [measuredDimensions, updateAutoLayout]);
 
     // Sync refs when state changes (in case setState was called directly)
     useEffect(() => {
