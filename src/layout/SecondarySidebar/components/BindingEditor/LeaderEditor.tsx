@@ -205,61 +205,72 @@ const LeaderEditor: FC = () => {
     // Count how many sequence keys are filled
     const filledKeys = leaderEntry.sequence?.filter(k => k && k !== "KC_NO").length || 0;
 
-    // Horizontal layout for bottom bar mode
+    // ==========================================
+    // HORIZONTAL LAYOUT (Bottom Bar Mode)
+    // ==========================================
     if (isHorizontal) {
         return (
-            <div className="flex flex-row items-center gap-4 px-4 py-2">
-                {/* Sequence Keys */}
-                <div className="flex flex-row gap-1 items-end">
-                    {[0, 1, 2, 3, 4].map((idx) => {
-                        if (idx > filledKeys) return null;
-                        return (
-                            <div key={idx} className="flex items-center gap-0.5">
-                                {idx > 0 && <ArrowRight className="w-3 h-3 text-gray-400" />}
-                                {renderSequenceKey(idx)}
-                            </div>
-                        );
-                    })}
+            <div className="flex flex-col gap-1 px-4 py-2">
+                {/* Keys row */}
+                <div className="flex flex-row items-center gap-4">
+                    {/* Sequence Keys */}
+                    <div className="flex flex-row gap-1 items-end">
+                        {[0, 1, 2, 3, 4].map((idx) => {
+                            if (idx > filledKeys) return null;
+                            return (
+                                <div key={idx} className="flex items-center gap-0.5">
+                                    {idx > 0 && <ArrowRight className="w-3 h-3 text-gray-400" />}
+                                    {renderSequenceKey(idx)}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <ArrowRight className="w-5 h-5 text-gray-600 flex-shrink-0" />
+
+                    {/* Output Key */}
+                    {renderOutputKey()}
                 </div>
 
-                <ArrowRight className="w-5 h-5 text-gray-600 flex-shrink-0" />
-
-                {/* Output Key */}
-                {renderOutputKey()}
-
-                {/* Info */}
-                <div className="text-xs text-muted-foreground ml-2">
+                {/* Info - below the keys */}
+                <div className="text-xs text-muted-foreground">
                     Press Leader key, then type this sequence to trigger output.
                 </div>
             </div>
         );
     }
 
-    // Vertical layout (sidebar mode)
+    // ==========================================
+    // VERTICAL LAYOUT (Sidebar Mode)
+    // ==========================================
     return (
-        <div className="flex flex-col gap-4 py-4 px-5">
-            {/* Sequence + Output Keys - all in one row, wraps when needed */}
-            <div className="flex flex-wrap gap-1 items-end">
-                {[0, 1, 2, 3, 4].map((idx) => {
-                    // Only show slots up to filledKeys + 1 (to allow adding one more)
-                    if (idx > filledKeys) return null;
-                    return (
-                        <div key={idx} className="flex items-center gap-1">
-                            {idx > 0 && <ArrowRight className="w-4 h-4 text-gray-400 mt-5" />}
-                            {renderSequenceKey(idx)}
-                        </div>
-                    );
-                })}
-                {/* Output Key inline with sequence */}
-                <div className="flex items-center gap-1">
-                    <ArrowRight className="w-5 h-5 text-black mt-5" />
-                    {renderOutputKey()}
+        <div className="flex flex-col gap-4 py-6 pl-[84px] pr-5 pb-4">
+            {/* Sequence Keys */}
+            <div className="flex flex-col gap-2">
+                <span className="font-semibold text-sm text-slate-600">Sequence (up to 5 keys)</span>
+                <div className="flex flex-row gap-2 items-end">
+                    {[0, 1, 2, 3, 4].map((idx) => {
+                        // Only show slots up to filledKeys + 1 (to allow adding one more)
+                        if (idx > filledKeys) return null;
+                        return (
+                            <div key={idx} className="flex items-center gap-1">
+                                {idx > 0 && <ArrowRight className="w-4 h-4 text-gray-400 -mx-1" />}
+                                {renderSequenceKey(idx)}
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 
+            {/* Output Key */}
+            <div className="flex flex-row gap-4 items-center mt-4">
+                <ArrowRight className="w-6 h-6 text-black" />
+                {renderOutputKey()}
+            </div>
+
             {/* Info */}
-            <div className="text-xs text-muted-foreground">
-                Press Leader key, then type this sequence to trigger output.
+            <div className="text-xs text-muted-foreground mt-4">
+                Press the Leader key, then type this sequence to trigger the output keycode.
             </div>
         </div>
     );
