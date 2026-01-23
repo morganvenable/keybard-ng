@@ -1,6 +1,6 @@
 import LayersActiveIcon from "@/components/icons/LayersActive";
 import LayersDefaultIcon from "@/components/icons/LayersDefault";
-import { Unplug, Zap } from "lucide-react";
+import { ChevronDown, Unplug, Zap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { useVial } from "@/contexts/VialContext";
@@ -42,6 +42,10 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerWidth, setContainerWidth] = useState(0);
 
+    // Track window height for hover-only mode when vertically constrained
+    const [windowHeight, setWindowHeight] = useState(window.innerHeight);
+    const [isHovered, setIsHovered] = useState(false);
+
     useEffect(() => {
         if (!containerRef.current) return;
         const resizeObserver = new ResizeObserver((entries) => {
@@ -53,10 +57,22 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
         return () => resizeObserver.disconnect();
     }, []);
 
+    // Track window height for hover-only mode
+    useEffect(() => {
+        const handleResize = () => setWindowHeight(window.innerHeight);
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
+
     // When narrow: force-hide blank layers (override user toggle)
     // When wide: respect user's showAllLayers toggle
     // Threshold of 800px accounts for sidebar + layer tabs needing room
     const isNarrow = containerWidth > 0 && containerWidth < 800;
+
+    // When vertically constrained, go into hover-only mode
+    // Threshold of 550px is when keyboard + layer bar start competing for space
+    const isVerticallyConstrained = windowHeight < 550;
+    const showFullBar = !isVerticallyConstrained || isHovered;
 
     if (!keyboard) return null;
 
@@ -306,40 +322,55 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
     };
 
     // Single clean render - horizontal bar of layer tabs (single line, no wrap, no scroll)
+    // When vertically constrained: hover-only mode with collapsed hint bar
     return (
         <div
             ref={containerRef}
-            className="w-full flex-shrink-0 pt-4 overflow-hidden"
+            className={cn(
+                "w-full flex-shrink-0 overflow-hidden transition-all duration-200",
+                showFullBar ? "pt-4" : "pt-0"
+            )}
             onClick={(e) => e.stopPropagation()}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
         >
-            {/* Layer Tabs with filter toggle - single line only */}
-            <div className="flex items-center gap-2 pl-5 py-2 whitespace-nowrap">
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <button
-                            onClick={toggleShowLayers}
-                            disabled={isNarrow}
-                            className={cn(
-                                "p-1.5 rounded-md transition-colors flex-shrink-0",
-                                isNarrow
-                                    ? "text-gray-400 cursor-not-allowed"
-                                    : "text-black hover:bg-gray-200"
-                            )}
-                            aria-label={isNarrow ? "Blank layers auto-hidden" : (showAllLayers ? "Hide Blank Layers" : "Show All Layers")}
-                        >
-                            {(isNarrow || !showAllLayers) ? <LayersActiveIcon className="h-5 w-5" /> : <LayersDefaultIcon className="h-5 w-5" />}
-                        </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                        {isNarrow ? "Blank layers auto-hidden (narrow)" : (showAllLayers ? "Hide Blank Layers" : "Show All Layers")}
-                    </TooltipContent>
-                </Tooltip>
-
-                {/* Layer tabs - single line */}
-                <div className="flex items-center gap-1">
-                    {Array.from({ length: keyboard.layers || 16 }, (_, i) => renderLayerTab(i))}
+            {/* Collapsed hint bar - shown when vertically constrained and not hovered */}
+            {isVerticallyConstrained && !isHovered && (
+                <div className="flex items-center justify-center text-gray-300 cursor-pointer h-3">
+                    <ChevronDown className="h-3 w-3" />
                 </div>
-            </div>
+            )}
+
+            {/* Full layer tabs - shown when not constrained or when hovered */}
+            {showFullBar && (
+                <div className="flex items-center gap-2 pl-5 py-2 whitespace-nowrap">
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                onClick={toggleShowLayers}
+                                disabled={isNarrow}
+                                className={cn(
+                                    "p-1.5 rounded-md transition-colors flex-shrink-0",
+                                    isNarrow
+                                        ? "text-gray-400 cursor-not-allowed"
+                                        : "text-black hover:bg-gray-200"
+                                )}
+                                aria-label={isNarrow ? "Blank layers auto-hidden" : (showAllLayers ? "Hide Blank Layers" : "Show All Layers")}
+                            >
+                                {(isNarrow || !showAllLayers) ? <LayersActiveIcon className="h-5 w-5" /> : <LayersDefaultIcon className="h-5 w-5" />}
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                            {isNarrow ? "Blank layers auto-hidden (narrow)" : (showAllLayers ? "Hide Blank Layers" : "Show All Layers")}
+                        </TooltipContent>
+                    </Tooltip>
+
+                    {/* Layer tabs - single line */}
+                    <div className="flex items-center gap-1">
+                        {Array.from({ length: keyboard.layers || 16 }, (_, i) => renderLayerTab(i))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
