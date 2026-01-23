@@ -217,15 +217,27 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
 
             const smallFits = keyboardFits(currentAvailable, "small");
 
-            // If keyboard fits in current mode, stay in current mode
-            // Only evaluate mode changes when things don't fit
+            // If keyboard fits in current mode, evaluate if we should change modes
             if (smallFits) {
-                // Current mode works fine - check if we can expand sidebar in sidebar mode
-                if (useSidebarMode && !primaryExpanded && !userManuallyCollapsed && expandPrimarySidebar) {
-                    const expandedAvailable = secondaryOpen ? sidebarExpandedWithSecondary : sidebarExpandedNoSecondary;
-                    if (keyboardFits(expandedAvailable, "small")) {
+                if (useSidebarMode) {
+                    // In sidebar mode - check if we can expand the primary sidebar
+                    if (!primaryExpanded && !userManuallyCollapsed && expandPrimarySidebar) {
+                        const expandedAvailable = secondaryOpen ? sidebarExpandedWithSecondary : sidebarExpandedNoSecondary;
+                        if (keyboardFits(expandedAvailable, "small")) {
+                            targetSidebarExpanded = true;
+                            setTimeout(() => expandPrimarySidebar(), 0);
+                        }
+                    }
+                } else {
+                    // In bottombar mode - check if we can switch back to sidebar mode
+                    // Use the appropriate width based on whether secondary panel is open
+                    const sidebarAvailable = secondaryOpen ? sidebarExpandedWithSecondary : sidebarExpandedNoSecondary;
+                    if (keyboardFits(sidebarAvailable, "small")) {
+                        useSidebarMode = true;
                         targetSidebarExpanded = true;
-                        setTimeout(() => expandPrimarySidebar(), 0);
+                        if (expandPrimarySidebar) {
+                            setTimeout(() => expandPrimarySidebar(), 0);
+                        }
                     }
                 }
             } else if (!smallFits) {
