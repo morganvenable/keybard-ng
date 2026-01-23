@@ -139,6 +139,60 @@ Tests use Vitest with jsdom environment. WebHID API is mocked in `tests/setup.ts
 - `QMKSettings` - QMK settings UI panel
 - `MainScreen` - Root application UI
 
+## CRITICAL: Dual Layout Modes (Sidebar vs Bottom Bar)
+
+**The application supports TWO distinct UI layout modes that must be maintained separately:**
+
+### Layout Mode Detection
+```typescript
+const { layoutMode } = useLayoutSettings();
+const isHorizontal = layoutMode === "bottombar";  // Bottom bar mode
+const isVertical = layoutMode !== "bottombar";    // Sidebar mode (default)
+```
+
+### Sidebar Mode (Vertical)
+- **When:** Default mode, panels appear in right sidebar
+- **Panel container:** `SecondarySidebar` components
+- **Layout direction:** Vertical, stacked content
+- **Panel width:** Fixed (e.g., 450px, 520px for leaders)
+- **Key sizes:** Larger (50px sequence, 60px output)
+
+### Bottom Bar Mode (Horizontal)
+- **When:** User enables bottom bar layout in settings
+- **Panel container:** `BottomPanel` component
+- **Layout direction:** Horizontal, inline content
+- **Panel height:** Constrained, content must be compact
+- **Key sizes:** Smaller (45px for all keys)
+
+### Editor Component Pattern
+Many editor components (LeaderEditor, ComboEditor, etc.) have TWO render paths:
+
+```typescript
+// Check layout mode
+if (isHorizontal) {
+    // BOTTOM BAR layout - horizontal, compact
+    return (
+        <div className="flex flex-row items-center gap-4 px-4 py-2">
+            {/* Horizontal layout with smaller keys */}
+        </div>
+    );
+}
+
+// SIDEBAR layout - vertical, more spacious
+return (
+    <div className="flex flex-col gap-4 py-4 px-5">
+        {/* Vertical layout with larger keys */}
+    </div>
+);
+```
+
+### WARNING: Do Not Confuse Layout Modes!
+When making changes to editor panels:
+1. **Identify which layout mode** you're modifying (check `isHorizontal`)
+2. **Test BOTH modes** after making changes
+3. **Keep changes isolated** - don't accidentally modify one mode when fixing the other
+4. The `horizontal` or `compact` prop on components indicates bottom bar mode
+
 ## Documentation
 
 Comprehensive docs in `/docs/`:
