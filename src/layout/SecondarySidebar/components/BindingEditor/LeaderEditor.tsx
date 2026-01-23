@@ -8,7 +8,6 @@ import { usePanels } from "@/contexts/PanelsContext";
 import { useVial } from "@/contexts/VialContext";
 import { cn } from "@/lib/utils";
 import { getKeyContents } from "@/utils/keys";
-import { LeaderOptions } from "@/types/vial.types";
 import { vialService } from "@/services/vial.service";
 
 const LeaderEditor: FC = () => {
@@ -38,23 +37,6 @@ const LeaderEditor: FC = () => {
             selectedTarget.leaderSlot === slot &&
             (slot === "output" || selectedTarget.leaderSeqIndex === seqIndex)
         );
-    };
-
-    const updateOption = async (bit: number, checked: boolean) => {
-        if (!keyboard || !leaderEntry) return;
-        const updatedKeyboard = JSON.parse(JSON.stringify(keyboard));
-        let options = updatedKeyboard.leaders[leaderIndex].options;
-        if (checked) options |= bit;
-        else options &= ~bit;
-        updatedKeyboard.leaders[leaderIndex].options = options;
-        setKeyboard(updatedKeyboard);
-
-        try {
-            await vialService.updateLeader(updatedKeyboard, leaderIndex);
-            await vialService.saveViable();
-        } catch (err) {
-            console.error("Failed to update leader:", err);
-        }
     };
 
     const clearKey = async (slot: "sequence" | "output", seqIndex?: number) => {
@@ -220,123 +202,63 @@ const LeaderEditor: FC = () => {
 
     if (!leaderEntry) return <div className="p-5">Leader entry not found</div>;
 
-    const isEnabled = (leaderEntry.options & LeaderOptions.ENABLED) !== 0;
-
     // Count how many sequence keys are filled
     const filledKeys = leaderEntry.sequence?.filter(k => k && k !== "KC_NO").length || 0;
 
     // Horizontal layout for bottom bar mode
     if (isHorizontal) {
         return (
-            <div className="flex flex-row items-center gap-6 px-6 py-3">
-                {/* Active Toggle */}
-                <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium text-slate-500">Status</span>
-                    <div className="flex flex-row items-center gap-0.5 bg-gray-200/50 p-0.5 rounded-md border border-gray-400/50">
-                        <button
-                            onClick={() => updateOption(LeaderOptions.ENABLED, true)}
-                            className={cn(
-                                "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-bold border",
-                                isEnabled
-                                    ? "bg-black text-white shadow-sm border-black"
-                                    : "text-gray-500 border-transparent hover:text-black hover:bg-white hover:shadow-sm"
-                            )}
-                        >
-                            ON
-                        </button>
-                        <button
-                            onClick={() => updateOption(LeaderOptions.ENABLED, false)}
-                            className={cn(
-                                "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-bold border",
-                                !isEnabled
-                                    ? "bg-black text-white shadow-sm border-black"
-                                    : "text-gray-500 border-transparent hover:text-black hover:bg-white hover:shadow-sm"
-                            )}
-                        >
-                            OFF
-                        </button>
-                    </div>
-                </div>
-
+            <div className="flex flex-row items-center gap-4 px-4 py-2">
                 {/* Sequence Keys */}
-                <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium text-slate-500">Sequence</span>
-                    <div className="flex flex-row gap-1 items-end">
-                        {[0, 1, 2, 3, 4].map((idx) => {
-                            if (idx > filledKeys) return null;
-                            return (
-                                <div key={idx} className="flex items-center gap-0.5">
-                                    {idx > 0 && <ArrowRight className="w-3 h-3 text-gray-400" />}
-                                    {renderSequenceKey(idx)}
-                                </div>
-                            );
-                        })}
-                    </div>
+                <div className="flex flex-row gap-1 items-end">
+                    {[0, 1, 2, 3, 4].map((idx) => {
+                        if (idx > filledKeys) return null;
+                        return (
+                            <div key={idx} className="flex items-center gap-0.5">
+                                {idx > 0 && <ArrowRight className="w-3 h-3 text-gray-400" />}
+                                {renderSequenceKey(idx)}
+                            </div>
+                        );
+                    })}
                 </div>
 
                 <ArrowRight className="w-5 h-5 text-gray-600 flex-shrink-0" />
 
                 {/* Output Key */}
                 {renderOutputKey()}
+
+                {/* Info */}
+                <div className="text-xs text-muted-foreground ml-2">
+                    Press Leader key, then type this sequence to trigger output.
+                </div>
             </div>
         );
     }
 
     // Vertical layout (sidebar mode)
     return (
-        <div className="flex flex-col gap-4 py-8 pl-[84px] pr-5 pb-4">
-            {/* Active Toggle */}
-            <div className="flex flex-row items-center gap-0.5 bg-gray-200/50 p-0.5 rounded-md border border-gray-400/50 w-fit">
-                <button
-                    onClick={() => updateOption(LeaderOptions.ENABLED, true)}
-                    className={cn(
-                        "px-3 py-1 text-xs uppercase tracking-wide rounded-[4px] transition-all font-bold border",
-                        isEnabled
-                            ? "bg-black text-white shadow-sm border-black"
-                            : "text-gray-500 border-transparent hover:text-black hover:bg-white hover:shadow-sm"
-                    )}
-                >
-                    ON
-                </button>
-                <button
-                    onClick={() => updateOption(LeaderOptions.ENABLED, false)}
-                    className={cn(
-                        "px-3 py-1 text-xs uppercase tracking-wide rounded-[4px] transition-all font-bold border",
-                        !isEnabled
-                            ? "bg-black text-white shadow-sm border-black"
-                            : "text-gray-500 border-transparent hover:text-black hover:bg-white hover:shadow-sm"
-                    )}
-                >
-                    OFF
-                </button>
-            </div>
-
+        <div className="flex flex-col gap-2 py-3 px-3 overflow-hidden">
             {/* Sequence Keys */}
-            <div className="flex flex-col gap-2">
-                <span className="font-semibold text-sm text-slate-600">Sequence (up to 5 keys)</span>
-                <div className="flex flex-row gap-2 items-end">
-                    {[0, 1, 2, 3, 4].map((idx) => {
-                        // Only show slots up to filledKeys + 1 (to allow adding one more)
-                        if (idx > filledKeys) return null;
-                        return (
-                            <div key={idx} className="flex items-center gap-1">
-                                {idx > 0 && <ArrowRight className="w-4 h-4 text-gray-400 -mx-1" />}
-                                {renderSequenceKey(idx)}
-                            </div>
-                        );
-                    })}
-                </div>
+            <div className="flex flex-wrap gap-1 items-end">
+                {[0, 1, 2, 3, 4].map((idx) => {
+                    // Only show slots up to filledKeys + 1 (to allow adding one more)
+                    if (idx > filledKeys) return null;
+                    return (
+                        <div key={idx} className="flex items-center gap-0.5">
+                            {idx > 0 && <ArrowRight className="w-3 h-3 text-gray-400 mt-5" />}
+                            {renderSequenceKey(idx)}
+                        </div>
+                    );
+                })}
             </div>
 
-            {/* Output Key */}
-            <div className="flex flex-row gap-4 items-center mt-4">
-                <ArrowRight className="w-6 h-6 text-black" />
+            {/* Output Key on its own row */}
+            <div className="flex items-center gap-2">
+                <ArrowRight className="w-4 h-4 text-black" />
                 {renderOutputKey()}
-            </div>
-
-            {/* Info */}
-            <div className="text-xs text-muted-foreground mt-4">
-                Press the Leader key, then type this sequence to trigger the output keycode.
+                <span className="text-xs text-muted-foreground ml-2">
+                    Press Leader key, type sequence, get output.
+                </span>
             </div>
         </div>
     );

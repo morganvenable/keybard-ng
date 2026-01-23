@@ -8,6 +8,8 @@ import OverridesIcon from "@/components/icons/Overrides";
 import { usePanels } from "@/contexts/PanelsContext";
 import { cn } from "@/lib/utils";
 import { X, Repeat, ListOrdered } from "lucide-react";
+import { LeaderOptions } from "@/types/vial.types";
+import { vialService } from "@/services/vial.service";
 import { Input } from "@/components/ui/input";
 import AltRepeatEditor from "./AltRepeatEditor";
 import LeaderEditor from "./LeaderEditor";
@@ -41,6 +43,33 @@ const labels = {
     altrepeat: "Alt-Repeat Key",
     leaders: "Leader Sequence",
 };
+
+const LeaderToggle: FC<{ isEnabled: boolean; onToggle: (enabled: boolean) => void }> = ({ isEnabled, onToggle }) => (
+    <div className="flex flex-row items-center gap-0.5 bg-gray-200/50 p-0.5 rounded-md border border-gray-400/50 ml-3">
+        <button
+            onClick={() => onToggle(true)}
+            className={cn(
+                "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-bold border",
+                isEnabled
+                    ? "bg-black text-white shadow-sm border-black"
+                    : "text-gray-500 border-transparent hover:text-black hover:bg-white hover:shadow-sm"
+            )}
+        >
+            ON
+        </button>
+        <button
+            onClick={() => onToggle(false)}
+            className={cn(
+                "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-bold border",
+                !isEnabled
+                    ? "bg-black text-white shadow-sm border-black"
+                    : "text-gray-500 border-transparent hover:text-black hover:bg-white hover:shadow-sm"
+            )}
+        >
+            OFF
+        </button>
+    </div>
+);
 
 const BindingEditorContainer: FC<Props> = ({ shouldClose, inline = false }) => {
     const { itemToEdit, handleCloseEditor, bindingTypeToEdit } = usePanels();
@@ -201,6 +230,25 @@ const BindingEditorContainer: FC<Props> = ({ shouldClose, inline = false }) => {
                                 (labels as any)[bindingTypeToEdit!]
                             )}
                         </div>
+                        {bindingTypeToEdit === "leaders" && keyboard?.leaders && itemToEdit !== null && (
+                            <LeaderToggle
+                                isEnabled={(keyboard.leaders[itemToEdit]?.options & LeaderOptions.ENABLED) !== 0}
+                                onToggle={async (enabled) => {
+                                    const updatedKeyboard = JSON.parse(JSON.stringify(keyboard));
+                                    let options = updatedKeyboard.leaders[itemToEdit].options;
+                                    if (enabled) options |= LeaderOptions.ENABLED;
+                                    else options &= ~LeaderOptions.ENABLED;
+                                    updatedKeyboard.leaders[itemToEdit].options = options;
+                                    setKeyboard(updatedKeyboard);
+                                    try {
+                                        await vialService.updateLeader(updatedKeyboard, itemToEdit);
+                                        await vialService.saveViable();
+                                    } catch (err) {
+                                        console.error("Failed to update leader:", err);
+                                    }
+                                }}
+                            />
+                        )}
                     </div>
                     {!isEditingTitle && !inline && (
                         <button

@@ -568,12 +568,15 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             if (target === selectedTargetRef.current) {
                 if (target.type === 'keyboard') {
                     selectNextKey();
+                } else if (target.type === 'leaders' && target.leaderSlot === 'sequence' && target.leaderSeqIndex !== undefined && target.leaderSeqIndex < 4) {
+                    // Auto-advance to next sequence slot for leaders
+                    selectLeaderKey(target.leaderId!, 'sequence', target.leaderSeqIndex + 1);
                 } else {
                     clearSelection();
                 }
             }
         },
-        [keyboard, setKeyboard, clearSelection, selectNextKey, queue, updateKey]
+        [keyboard, setKeyboard, clearSelection, selectNextKey, selectLeaderKey, queue, updateKey]
     );
 
     const swapKeys = useCallback(
