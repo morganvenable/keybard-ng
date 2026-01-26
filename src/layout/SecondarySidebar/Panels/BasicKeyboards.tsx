@@ -45,19 +45,60 @@ const MODIFIER_MAP: Record<number, string> = {
     15: "HYPR",
 };
 
-// Helper to apply modifiers to a keycode
-const applyModifiers = (keycode: string, activeModifiers: Modifier[]) => {
-    if (activeModifiers.length === 0) return keycode;
+// Mod-Tap variants (hold for modifier, tap for keycode)
+const MOD_TAP_MAP: Record<number, string> = {
+    1: "LCTL_T",
+    2: "LSFT_T",
+    3: "C_S_T",
+    4: "LALT_T",
+    5: "LCA_T",
+    6: "LSA_T",
+    7: "MEH_T",
+    8: "LGUI_T",
+    9: "LCG_T",
+    10: "SGUI_T",
+    11: "LSCG_T",
+    12: "LAG_T",
+    13: "LCAG_T",
+    14: "LSAG_T",
+    15: "HYPR_T",
+};
 
+// One-Shot Modifier keycodes (standalone, don't wrap a keycode)
+const ONE_SHOT_MAP: Record<number, string> = {
+    1: "OSM(MOD_LCTL)",
+    2: "OSM(MOD_LSFT)",
+    3: "OSM(MOD_LCTL|MOD_LSFT)",
+    4: "OSM(MOD_LALT)",
+    5: "OSM(MOD_LCTL|MOD_LALT)",
+    6: "OSM(MOD_LSFT|MOD_LALT)",
+    7: "OSM(MOD_MEH)",
+    8: "OSM(MOD_LGUI)",
+    9: "OSM(MOD_LCTL|MOD_LGUI)",
+    10: "OSM(MOD_LSFT|MOD_LGUI)",
+    11: "OSM(MOD_LCTL|MOD_LSFT|MOD_LGUI)",
+    12: "OSM(MOD_LALT|MOD_LGUI)",
+    13: "OSM(MOD_LCTL|MOD_LALT|MOD_LGUI)",
+    14: "OSM(MOD_LSFT|MOD_LALT|MOD_LGUI)",
+    15: "OSM(MOD_HYPR)",
+};
+
+// Helper to get modifier bitmask
+const getModifierMask = (activeModifiers: Modifier[]): number => {
     const hasCtrl = activeModifiers.includes("Ctrl");
     const hasShift = activeModifiers.includes("Shift");
     const hasAlt = activeModifiers.includes("Alt");
     const hasGui = activeModifiers.includes("Gui");
+    return (hasCtrl ? 1 : 0) | (hasShift ? 2 : 0) | (hasAlt ? 4 : 0) | (hasGui ? 8 : 0);
+};
 
-    // bitmask: Ctrl=1, Shift=2, Alt=4, Gui=8
-    const mask = (hasCtrl ? 1 : 0) | (hasShift ? 2 : 0) | (hasAlt ? 4 : 0) | (hasGui ? 8 : 0);
+// Helper to apply modifiers to a keycode
+const applyModifiers = (keycode: string, activeModifiers: Modifier[], isModTap: boolean) => {
+    if (activeModifiers.length === 0) return keycode;
 
-    const modifierFunc = MODIFIER_MAP[mask];
+    const mask = getModifierMask(activeModifiers);
+    const modMap = isModTap ? MOD_TAP_MAP : MODIFIER_MAP;
+    const modifierFunc = modMap[mask];
     return modifierFunc ? `${modifierFunc}(${keycode})` : keycode;
 };
 
@@ -67,6 +108,8 @@ interface Props {
 
 const BasicKeyboards = ({ isPicker }: Props) => {
     const [activeModifiers, setActiveModifiers] = useState<Modifier[]>([]);
+    const [modTapEnabled, setModTapEnabled] = useState(false);
+    const [oneShotEnabled, setOneShotEnabled] = useState(false);
     const { assignKeycode, isBinding } = useKeyBinding();
     const { keyboard } = useVial();
     const { selectedLayer } = useLayer();
@@ -76,6 +119,8 @@ const BasicKeyboards = ({ isPicker }: Props) => {
 
     useEffect(() => {
         setActiveModifiers([]);
+        setModTapEnabled(false);
+        setOneShotEnabled(false);
     }, []);
 
     const layerColorName = keyboard?.cosmetic?.layer_colors?.[selectedLayer] || "primary";
@@ -95,9 +140,19 @@ const BasicKeyboards = ({ isPicker }: Props) => {
     const handleKeyClick = (keycode: string) => {
         if (!isBinding || !keyboard) return;
 
+        // One-shot mode: assign OSM keycode directly (ignores clicked key)
+        if (oneShotEnabled && activeModifiers.length > 0) {
+            const mask = getModifierMask(activeModifiers);
+            const osmKeycode = ONE_SHOT_MAP[mask];
+            if (osmKeycode) {
+                assignKeycode(osmKeycode);
+                return;
+            }
+        }
+
         // Ensure we translate names like 'SV_...' to actual keycodes if needed
         const mappedKeycode = getKeyCodeForButton(keyboard, keycode) || keycode;
-        const finalKeycode = applyModifiers(mappedKeycode, activeModifiers);
+        const finalKeycode = applyModifiers(mappedKeycode, activeModifiers, modTapEnabled);
         assignKeycode(finalKeycode);
     };
 
@@ -203,9 +258,10 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                             "rounded-md px-2 py-1 h-7 transition-all text-xs font-medium border-none w-full",
                             activeModifiers.length === 0 ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white"
                         )}
-                        onClick={() => setActiveModifiers([])}
+                        onClick={() => { setActiveModifiers([]); setModTapEnabled(false); setOneShotEnabled(false); }}
+                        title="Clear modifiers"
                     >
-                        NONE
+                        None
                     </Button>
                     {modifierOptions.map((modifier) => {
                         const isActive = activeModifiers.includes(modifier);
@@ -227,6 +283,40 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                             </Button>
                         );
                     })}
+
+                    {/* Mod-Tap / One-Shot toggles */}
+                    <div className="border-t border-gray-200 pt-1 mt-1 flex flex-col gap-1">
+                        <Button
+                            type="button"
+                            variant={modTapEnabled ? "default" : "secondary"}
+                            size="sm"
+                            className={cn(
+                                "rounded-md px-2 py-1 h-7 transition-all text-[10px] font-medium border-none w-full",
+                                modTapEnabled ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white",
+                                activeModifiers.length === 0 && "opacity-50 cursor-not-allowed"
+                            )}
+                            onClick={() => { setModTapEnabled(!modTapEnabled); setOneShotEnabled(false); }}
+                            disabled={activeModifiers.length === 0}
+                            title="Mod-Tap: Hold for modifier, tap for key"
+                        >
+                            Mod-Tap
+                        </Button>
+                        <Button
+                            type="button"
+                            variant={oneShotEnabled ? "default" : "secondary"}
+                            size="sm"
+                            className={cn(
+                                "rounded-md px-2 py-1 h-7 transition-all text-[10px] font-medium border-none w-full",
+                                oneShotEnabled ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white",
+                                activeModifiers.length === 0 && "opacity-50 cursor-not-allowed"
+                            )}
+                            onClick={() => { setOneShotEnabled(!oneShotEnabled); setModTapEnabled(false); }}
+                            disabled={activeModifiers.length === 0}
+                            title="One-Shot: Modifier active for next keypress only"
+                        >
+                            One-Shot
+                        </Button>
+                    </div>
                 </div>
 
                 {/* QWERTY keyboard - main content, no language selector here */}
@@ -274,18 +364,19 @@ const BasicKeyboards = ({ isPicker }: Props) => {
             )}
             <section className="flex flex-col gap-2 sticky top-0 z-20 bg-white pt-4 pb-4 -mt-4">
                 <span className="font-semibold text-lg text-slate-700">Modifiers</span>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-1">
                     <Button
                         type="button"
                         variant={activeModifiers.length === 0 ? "default" : "secondary"}
                         size="sm"
                         className={cn(
-                            "rounded-md px-5 transition-all text-sm font-medium border-none",
+                            "rounded-md px-2 py-1 h-8 transition-all text-xs font-medium border-none",
                             activeModifiers.length === 0 ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white"
                         )}
-                        onClick={() => setActiveModifiers([])}
+                        onClick={() => { setActiveModifiers([]); setModTapEnabled(false); setOneShotEnabled(false); }}
+                        title="Clear modifiers"
                     >
-                        NONE
+                        None
                     </Button>
                     {modifierOptions.map((modifier) => {
                         const isActive = activeModifiers.includes(modifier);
@@ -296,7 +387,7 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                                 variant={isActive ? "default" : "secondary"}
                                 size="sm"
                                 className={cn(
-                                    "rounded-md px-5 transition-all text-sm font-medium border-none",
+                                    "rounded-md px-3 py-1 h-8 transition-all text-xs font-medium border-none",
                                     isActive ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white"
                                 )}
                                 onClick={() => handleModifierToggle(modifier)}
@@ -305,6 +396,40 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                             </Button>
                         );
                     })}
+
+                    {/* Mod-Tap / One-Shot toggles */}
+                    <div className="border-l border-gray-300 pl-2 ml-2 flex gap-1">
+                        <Button
+                            type="button"
+                            variant={modTapEnabled ? "default" : "secondary"}
+                            size="sm"
+                            className={cn(
+                                "rounded-md px-2 py-1 h-8 transition-all text-xs font-medium border-none",
+                                modTapEnabled ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white",
+                                activeModifiers.length === 0 && "opacity-50 cursor-not-allowed"
+                            )}
+                            onClick={() => { setModTapEnabled(!modTapEnabled); setOneShotEnabled(false); }}
+                            disabled={activeModifiers.length === 0}
+                            title="Mod-Tap: Hold for modifier, tap for key"
+                        >
+                            Mod-Tap
+                        </Button>
+                        <Button
+                            type="button"
+                            variant={oneShotEnabled ? "default" : "secondary"}
+                            size="sm"
+                            className={cn(
+                                "rounded-md px-2 py-1 h-8 transition-all text-xs font-medium border-none",
+                                oneShotEnabled ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white",
+                                activeModifiers.length === 0 && "opacity-50 cursor-not-allowed"
+                            )}
+                            onClick={() => { setOneShotEnabled(!oneShotEnabled); setModTapEnabled(false); }}
+                            disabled={activeModifiers.length === 0}
+                            title="One-Shot: Modifier active for next keypress only"
+                        >
+                            One-Shot
+                        </Button>
+                    </div>
                 </div>
             </section>
 

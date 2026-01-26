@@ -5,7 +5,6 @@ import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { useVial } from "@/contexts/VialContext";
 import { hoverBackgroundClasses, hoverBorderClasses, hoverHeaderClasses } from "@/utils/colors";
 import { Key } from "@/components/Key";
-import { KeyContent } from "@/types/vial.types";
 
 interface Props {
     isPicker?: boolean;
@@ -31,19 +30,7 @@ const QmkKeyPanel = ({ isPicker }: Props) => {
     const keySizeClass = keyVariant === 'small' ? 'h-[30px] w-[30px]' : keyVariant === 'medium' ? 'h-[45px] w-[45px]' : 'h-[60px] w-[60px]';
 
     const renderKey = (keycode: string, label: string, small?: boolean) => {
-        // For mod-tap template keycodes like LGUI_T(kc), create proper KeyContent
-        let keyContents: KeyContent | undefined;
-        const modTapMatch = keycode.match(/^(\w+_T)\(kc\)$/);
-        if (modTapMatch) {
-            // Template mod-tap key - show modifier in header, (kc) in body
-            keyContents = {
-                type: "modtap",
-                str: "(kc)",
-                top: modTapMatch[1],
-            };
-        } else {
-            keyContents = getKeyContents(keyboard!, keycode);
-        }
+        const keyContents = getKeyContents(keyboard!, keycode);
 
         return (
             <Key
@@ -76,16 +63,6 @@ const QmkKeyPanel = ({ isPicker }: Props) => {
             { kc: "OSM(MOD_RSFT)", label: "R⇧" }, { kc: "OSM(MOD_RCTL)", label: "R⌃" },
             { kc: "OSM(MOD_RALT)", label: "R⌥" }, { kc: "OSM(MOD_RGUI)", label: "R⌘" },
         ];
-        const modTapLeft = [
-            { kc: "LCTL_T(kc)", label: "LCTL_T" }, { kc: "LSFT_T(kc)", label: "LSFT_T" },
-            { kc: "LALT_T(kc)", label: "LALT_T" }, { kc: "LGUI_T(kc)", label: "LGUI_T" },
-            { kc: "MEH_T(kc)", label: "MEH_T" }, { kc: "HYPR_T(kc)", label: "HYPR_T" },
-        ];
-        const modTapRight = [
-            { kc: "RCTL_T(kc)", label: "RCTL_T" }, { kc: "RSFT_T(kc)", label: "RSFT_T" },
-            { kc: "RALT_T(kc)", label: "RALT_T" }, { kc: "RGUI_T(kc)", label: "RGUI_T" },
-            { kc: "RMEH_T(kc)", label: "RMEH_T" }, { kc: "RHYP_T(kc)", label: "RHYP_T" },
-        ];
 
         const renderGroup = (keys: { kc: string; label: string }[], label: string) => (
             <div className="flex flex-col gap-1">
@@ -100,8 +77,6 @@ const QmkKeyPanel = ({ isPicker }: Props) => {
             <div className="flex flex-row gap-3 h-full items-start flex-wrap content-start">
                 {renderGroup(osmLeftKeys, "OSM Left")}
                 {renderGroup(osmRightKeys, "OSM Right")}
-                {renderGroup(modTapLeft, "Mod-Tap L")}
-                {renderGroup(modTapRight, "Mod-Tap R")}
             </div>
         );
     }
@@ -160,48 +135,6 @@ const QmkKeyPanel = ({ isPicker }: Props) => {
                 </div>
             </section>
 
-            {/* Mod-Tap Section */}
-            <section className="flex flex-col gap-3">
-                <span className="font-semibold text-lg text-slate-700">Mod-Tap</span>
-
-                <div className="flex flex-col gap-2">
-                    <span className="text-base font-medium text-black">Left Hand Side</span>
-                    <div className="flex flex-wrap gap-2">
-                        {renderKey("LCTL_T(kc)", "LCTL_T")}
-                        {renderKey("LSFT_T(kc)", "LSFT_T")}
-                        {renderKey("LALT_T(kc)", "LALT_T")}
-                        {renderKey("LGUI_T(kc)", "LGUI_T")}
-                        {renderKey("C_S_T(kc)", "C_S_T")}
-                        {renderKey("LCA_T(kc)", "LCA_T")}
-                        {renderKey("LSA_T(kc)", "LSA_T")}
-                        {renderKey("SGUI_T(kc)", "SGUI_T")}
-                        {renderKey("LCG_T(kc)", "LCG_T")}
-                        {renderKey("LAG_T(kc)", "LAG_T")}
-                        {renderKey("LCAG_T(kc)", "LCAG_T")}
-                        {renderKey("MEH_T(kc)", "MEH_T")}
-                        {renderKey("HYPR_T(kc)", "HYPR_T")}
-                    </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                    <span className="text-base font-medium text-black">Right Hand Side</span>
-                    <div className="flex flex-wrap gap-2">
-                        {renderKey("RCTL_T(kc)", "RCTL_T")}
-                        {renderKey("RSFT_T(kc)", "RSFT_T")}
-                        {renderKey("RALT_T(kc)", "RALT_T")}
-                        {renderKey("RGUI_T(kc)", "RGUI_T")}
-                        {renderKey("RCS_T(kc)", "RCS_T")}
-                        {renderKey("RCA_T(kc)", "RCA_T")}
-                        {renderKey("RSA_T(kc)", "RSA_T")}
-                        {renderKey("RSG_T(kc)", "RSG_T")}
-                        {renderKey("RCG_T(kc)", "RCG_T")}
-                        {renderKey("RAG_T(kc)", "RAG_T")}
-                        {renderKey("RCAG_T(kc)", "RCAG_T")}
-                        {renderKey("RMEH_T(kc)", "RMEH_T")}
-                        {renderKey("RHYP_T(kc)", "RHYP_T")}
-                    </div>
-                </div>
-            </section>
         </div>
     );
 };
