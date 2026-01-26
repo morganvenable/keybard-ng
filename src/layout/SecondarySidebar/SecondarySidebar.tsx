@@ -11,6 +11,7 @@ import CombosPanel from "./Panels/CombosPanel";
 import DynamicMenuPanel from "./Panels/DynamicMenuPanel";
 import ExploreLayoutsPanel from "./Panels/ExploreLayoutsPanel";
 import FragmentsPanel from "./Panels/FragmentsPanel";
+import LayoutsPanel from "./Panels/LayoutsPanel";
 import LeadersPanel from "./Panels/LeadersPanel";
 import LayersPanel from "./Panels/LayersPanel";
 import MacrosPanel from "./Panels/MacrosPanel";
@@ -63,6 +64,7 @@ const getPanelTitle = (panel: string | null | undefined, menus?: CustomUIMenuIte
         leaders: "Leader Sequences",
         fragments: "Fragment Selections",
         explore: "Layer Library",
+        layouts: "Layouts",
         pointing: "Pointing Devices",
         qmksettings: "QMK Settings",
         settings: "Settings",
@@ -171,6 +173,7 @@ const SecondarySidebar = () => {
             case "leaders": return <LeadersPanel />;
             case "fragments": return <FragmentsPanel />;
             case "explore": return <ExploreLayoutsPanel />;
+            case "layouts": return <LayoutsPanel />;
             case "pointing": return <PointingPanel />;
             case "qmk": return <QmkKeyPanel />;
             case "special": return <SpecialKeysPanel />;

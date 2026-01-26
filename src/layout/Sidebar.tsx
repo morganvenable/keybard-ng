@@ -1,5 +1,5 @@
-import { ArrowUpDown, BookOpen, Download, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Mouse, Piano, Repeat, Settings, SquareDot, Unplug, Upload, Zap } from "lucide-react";
-import { useNavigation } from "@/App";
+import { ArrowUpDown, Download, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Mouse, Piano, Repeat, Settings, SquareDot, Unplug, Upload, Zap } from "lucide-react";
+import LayoutsIcon from "@/components/icons/Layouts";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import ComboIcon from "@/components/ComboIcon";
@@ -157,7 +157,6 @@ const AppSidebar = () => {
 
     const { connect, isConnected, keyboard, setKeyboard } = useVial();
     const { queue } = useChanges();
-    const { navigateTo } = useNavigation();
 
     // Import/Export state
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -454,36 +453,36 @@ const AppSidebar = () => {
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     )}
-                    {/* Layer Library - expanded view only */}
+                    {/* Layouts - expanded view only */}
                     {!isCollapsed && (
                         <SidebarMenuItem>
                             <SidebarMenuButton asChild size="nav" className="text-slate-600 transition-colors">
                                 <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); navigateTo("explore"); }}
+                                    onClick={(e) => { e.stopPropagation(); handleItemSelect({ title: "Layouts", url: "layouts", icon: LayoutsIcon }); }}
                                     className="flex w-full items-center justify-start"
                                 >
                                     <div className={cn(getIconGutterWidth(isCollapsed), "h-4 flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
-                                        <BookOpen className="h-4 w-4 shrink-0" />
+                                        <LayoutsIcon className="h-4 w-4 shrink-0" />
                                     </div>
                                     <span className="text-sm font-medium hover:text-slate-900">
-                                        Layer Library
+                                        Layouts
                                     </span>
                                 </button>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     )}
-                    {/* Layer Library - collapsed view */}
+                    {/* Layouts - collapsed view */}
                     {isCollapsed && (
                         <SidebarMenuItem>
-                            <SidebarMenuButton asChild size="nav" tooltip="Layer Library" sidebarName="primary-nav" className="text-slate-600 transition-colors">
+                            <SidebarMenuButton asChild size="nav" tooltip="Layouts" sidebarName="primary-nav" className="text-slate-600 transition-colors">
                                 <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); navigateTo("explore"); }}
+                                    onClick={(e) => { e.stopPropagation(); handleItemSelect({ title: "Layouts", url: "layouts", icon: LayoutsIcon }); }}
                                     className="flex w-full items-center justify-center"
                                 >
                                     <div className={cn(getIconGutterWidth(isCollapsed), "h-4 flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
-                                        <BookOpen className="h-4 w-4 shrink-0" />
+                                        <LayoutsIcon className="h-4 w-4 shrink-0" />
                                     </div>
                                 </button>
                             </SidebarMenuButton>

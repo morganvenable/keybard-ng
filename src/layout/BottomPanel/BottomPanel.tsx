@@ -7,6 +7,7 @@ import BasicKeyboards from "../SecondarySidebar/Panels/BasicKeyboards";
 import CombosPanel from "../SecondarySidebar/Panels/CombosPanel";
 import DynamicMenuPanel from "../SecondarySidebar/Panels/DynamicMenuPanel";
 import FragmentsPanel from "../SecondarySidebar/Panels/FragmentsPanel";
+import LayoutsPanel from "../SecondarySidebar/Panels/LayoutsPanel";
 import LeadersPanel from "../SecondarySidebar/Panels/LeadersPanel";
 import LayersPanel from "../SecondarySidebar/Panels/LayersPanel";
 import MacrosPanel from "../SecondarySidebar/Panels/MacrosPanel";
@@ -91,6 +92,7 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ leftOffset, pickerMode }) => 
             case "altrepeat": return <AltRepeatPanel />;
             case "leaders": return <LeadersPanel />;
             case "fragments": return <FragmentsPanel />;
+            case "layouts": return <LayoutsPanel />;
             case "pointing": return <PointingPanel />;
             case "qmk": return <QmkKeyPanel />;
             case "special": return <SpecialKeysPanel />;

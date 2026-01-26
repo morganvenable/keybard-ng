@@ -1,6 +1,7 @@
 /**
  * Layer Library Service
  * Manages local layer database - reading from bundled JSON and writing to localStorage
+ * Also handles importing .viable layout files for the Layouts panel
  */
 
 import type {
@@ -8,10 +9,22 @@ import type {
     LayerEntry,
     LayerSearchOptions,
     LayerSearchResults,
+    LayoutGroup,
+    ImportedLayer,
+    ImportedLayoutsStorage,
 } from '../types/layer-library';
+import type { KeyboardInfo } from '../types/vial.types';
+import { fileService } from './file.service';
 
 // localStorage key for user-added layers
 const STORAGE_KEY = 'keybard-layer-library';
+
+// localStorage key for imported layouts
+const IMPORTED_LAYOUTS_KEY = 'keybard-imported-layouts';
+
+// Keycodes for empty layer detection
+const KC_NO = 0;
+const KC_TRNS = 1;
 
 // Path to bundled layers
 const BUNDLED_LAYERS_PATH = '/keybard-ng/layer-library/layers.json';
@@ -229,6 +242,161 @@ export class LayerLibraryService {
         this.bundledLayers = [];
         // Don't clear userLayers - they're in localStorage
         this.loadUserLayers();
+    }
+
+    // --- Layout Import Methods (for .viable files) ---
+
+    /**
+     * Check if a layer is empty (only contains KC_NO or KC_TRNS)
+     */
+    isLayerEmpty(keymap: number[]): boolean {
+        return keymap.every(k => k === KC_NO || k === KC_TRNS);
+    }
+
+    /**
+     * Import a .viable or .vil file and add it to localStorage
+     */
+    async importLayoutFromFile(file: File): Promise<LayoutGroup> {
+        const kbinfo = await fileService.loadFile(file);
+        const name = file.name.replace(/\.(viable|vil|json)$/i, '');
+        return this.importLayoutFromKeyboardInfo(kbinfo, name);
+    }
+
+    /**
+     * Convert KeyboardInfo to LayoutGroup
+     */
+    importLayoutFromKeyboardInfo(kbinfo: KeyboardInfo, name: string): LayoutGroup {
+        const layers: ImportedLayer[] = [];
+
+        if (kbinfo.keymap) {
+            for (let i = 0; i < kbinfo.keymap.length; i++) {
+                const keymap = kbinfo.keymap[i];
+
+                // Skip empty layers
+                if (this.isLayerEmpty(keymap)) continue;
+
+                layers.push({
+                    index: i,
+                    name: kbinfo.cosmetic?.layer?.[i] || `Layer ${i}`,
+                    keymap,
+                    color: kbinfo.cosmetic?.layer_colors?.[i],
+                });
+            }
+        }
+
+        const layoutGroup: LayoutGroup = {
+            id: this.generateId(),
+            name,
+            source: "imported",
+            importedAt: new Date().toISOString(),
+            layers,
+        };
+
+        // Save to localStorage
+        this.saveImportedLayout(layoutGroup);
+
+        return layoutGroup;
+    }
+
+    /**
+     * Get all imported layouts from localStorage
+     */
+    getImportedLayouts(): LayoutGroup[] {
+        try {
+            const stored = localStorage.getItem(IMPORTED_LAYOUTS_KEY);
+            if (stored) {
+                const data = JSON.parse(stored) as ImportedLayoutsStorage;
+                return data.layouts || [];
+            }
+        } catch (e) {
+            console.warn('Failed to load imported layouts:', e);
+        }
+        return [];
+    }
+
+    /**
+     * Save an imported layout to localStorage
+     */
+    private saveImportedLayout(layout: LayoutGroup): void {
+        const layouts = this.getImportedLayouts();
+        layouts.unshift(layout);
+        this.saveImportedLayouts(layouts);
+    }
+
+    /**
+     * Save all imported layouts to localStorage
+     */
+    private saveImportedLayouts(layouts: LayoutGroup[]): void {
+        try {
+            const storage: ImportedLayoutsStorage = { layouts };
+            localStorage.setItem(IMPORTED_LAYOUTS_KEY, JSON.stringify(storage));
+        } catch (e) {
+            console.error('Failed to save imported layouts:', e);
+        }
+    }
+
+    /**
+     * Delete an imported layout by ID
+     */
+    deleteImportedLayout(id: string): boolean {
+        const layouts = this.getImportedLayouts();
+        const index = layouts.findIndex(l => l.id === id);
+        if (index >= 0) {
+            layouts.splice(index, 1);
+            this.saveImportedLayouts(layouts);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Get the current keyboard as a LayoutGroup
+     */
+    getCurrentKeyboardGroup(keyboard: KeyboardInfo): LayoutGroup {
+        const layers: ImportedLayer[] = [];
+
+        if (keyboard.keymap) {
+            for (let i = 0; i < keyboard.keymap.length; i++) {
+                const keymap = keyboard.keymap[i];
+
+                // Skip empty layers
+                if (this.isLayerEmpty(keymap)) continue;
+
+                layers.push({
+                    index: i,
+                    name: keyboard.cosmetic?.layer?.[i] || `Layer ${i}`,
+                    keymap,
+                    color: keyboard.cosmetic?.layer_colors?.[i],
+                });
+            }
+        }
+
+        return {
+            id: "current",
+            name: keyboard.cosmetic?.name || keyboard.name || "Current Keyboard",
+            source: "current",
+            layers,
+        };
+    }
+
+    /**
+     * Convert an ImportedLayer to a LayerEntry (for clipboard/paste compatibility)
+     */
+    importedLayerToLayerEntry(layer: ImportedLayer, sourceLayout: string): LayerEntry {
+        return {
+            id: this.generateId(),
+            name: layer.name,
+            description: `Imported from ${sourceLayout}`,
+            author: "Imported",
+            tags: [],
+            keyboardType: "svalboard",
+            keyCount: layer.keymap.length,
+            keymap: layer.keymap,
+            layerColor: layer.color,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            sourceLayout,
+        };
     }
 }
 

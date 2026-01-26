@@ -211,6 +211,18 @@ When making changes to editor panels:
 3. **Keep changes isolated** - don't accidentally modify one mode when fixing the other
 4. The `horizontal` or `compact` prop on components indicates bottom bar mode
 
+### MANDATORY: Every Feature Needs Both Modes
+**Every new panel or feature MUST be implemented for BOTH sidebar AND bottom bar modes.**
+
+When creating a new panel:
+1. **Register in SecondarySidebar.tsx** - Import and add case in `renderContent()` switch
+2. **Register in BottomPanel.tsx** - Import and add case in `renderContent()` switch
+3. **Test both modes** - Even if crude at first, both must work
+
+Files to update for new panels:
+- `src/layout/SecondarySidebar/SecondarySidebar.tsx` - Sidebar panel registration
+- `src/layout/BottomPanel/BottomPanel.tsx` - Bottom bar panel registration
+
 ## Documentation
 
 Comprehensive docs in `/docs/`:

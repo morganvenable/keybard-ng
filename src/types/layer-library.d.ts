@@ -108,3 +108,50 @@ export interface PublishLayerData {
     /** Tags */
     tags: string[];
 }
+
+// --- Layout Library Types (for importing .viable files) ---
+
+/**
+ * A group of layers from an imported layout file or the current keyboard
+ */
+export interface LayoutGroup {
+    /** Unique identifier */
+    id: string;
+
+    /** Display name (from filename or user-provided) */
+    name: string;
+
+    /** Source of the layout */
+    source: "current" | "imported";
+
+    /** ISO date string when imported (for imported layouts only) */
+    importedAt?: string;
+
+    /** Non-empty layers in this layout */
+    layers: ImportedLayer[];
+}
+
+/**
+ * A single layer from an imported layout
+ */
+export interface ImportedLayer {
+    /** Original layer index (0, 1, 2...) */
+    index: number;
+
+    /** Layer name from cosmetic or "Layer N" */
+    name: string;
+
+    /** Flat array of keycodes */
+    keymap: number[];
+
+    /** Layer color if available */
+    color?: string;
+}
+
+/**
+ * localStorage structure for imported layouts
+ */
+export interface ImportedLayoutsStorage {
+    /** Array of imported layout groups */
+    layouts: LayoutGroup[];
+}
