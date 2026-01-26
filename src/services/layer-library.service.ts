@@ -280,6 +280,7 @@ export class LayerLibraryService {
                     name: kbinfo.cosmetic?.layer?.[i] || `Layer ${i}`,
                     keymap,
                     color: kbinfo.cosmetic?.layer_colors?.[i],
+                    ledColor: kbinfo.layer_colors?.[i],
                 });
             }
         }
@@ -367,6 +368,7 @@ export class LayerLibraryService {
                     name: keyboard.cosmetic?.layer?.[i] || `Layer ${i}`,
                     keymap,
                     color: keyboard.cosmetic?.layer_colors?.[i],
+                    ledColor: keyboard.layer_colors?.[i],
                 });
             }
         }
@@ -393,6 +395,7 @@ export class LayerLibraryService {
             keyCount: layer.keymap.length,
             keymap: layer.keymap,
             layerColor: layer.color,
+            ledColor: layer.ledColor,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             sourceLayout,

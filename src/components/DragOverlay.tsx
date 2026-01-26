@@ -3,7 +3,9 @@ import EditorKey from "@/layout/SecondarySidebar/components/EditorKey";
 import React from "react";
 import { useDrag } from "@/contexts/DragContext";
 import MacrosIcon from "@/components/icons/MacrosIcon";
+import { Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { colorClasses } from "@/utils/colors";
 
 // Reusing styles from EditorKey roughly to ensure it looks identical
 const classes = {
@@ -18,16 +20,18 @@ export const DragOverlay: React.FC = () => {
     if (!isDragging || !draggedItem) return null;
 
     // Use dimensions if provided (Key.tsx provides exact pixel dimensions), otherwise default (EditorKey 48px)
-    const width = draggedItem.width || 48;
-    const height = draggedItem.height || 48;
+    // For layers, we use auto sizing
+    const isLayer = draggedItem.component === "Layer";
+    const width = isLayer ? "auto" : (draggedItem.width || 48);
+    const height = isLayer ? "auto" : (draggedItem.height || 48);
 
     // We position the overlay so its center matches the cursor
     const style: React.CSSProperties = {
         position: "fixed",
         left: `${dragPosition.x}px`,
         top: `${dragPosition.y}px`,
-        width: `${width}px`,
-        height: `${height}px`,
+        width: typeof width === "number" ? `${width}px` : width,
+        height: typeof height === "number" ? `${height}px` : height,
         transform: 'translate(-50%, -50%)',
         pointerEvents: "none",
         zIndex: 9999,
@@ -39,6 +43,22 @@ export const DragOverlay: React.FC = () => {
         }
         if (draggedItem.component === "EditorKey" && draggedItem.props) {
             return <EditorKey {...draggedItem.props as any} />;
+        }
+        if (draggedItem.component === "Layer" && draggedItem.layerData) {
+            // Layer drag visualization
+            const layerColor = draggedItem.layerData.layerColor;
+            const colorClass = layerColor ? colorClasses[layerColor] || "bg-blue-500" : "bg-blue-500";
+            return (
+                <div className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg border-2 border-white",
+                    colorClass
+                )}>
+                    <Layers className="w-5 h-5 text-white" />
+                    <span className="text-white font-medium text-sm whitespace-nowrap">
+                        {draggedItem.layerData.name}
+                    </span>
+                </div>
+            );
         }
 
         // Fallback for any other items or legacy path

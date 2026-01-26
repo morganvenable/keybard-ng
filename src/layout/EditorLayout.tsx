@@ -2,7 +2,7 @@ import * as React from "react";
 
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { PanelsProvider, usePanels } from "@/contexts/PanelsContext";
-import { DragProvider } from "@/contexts/DragContext";
+import { DragProvider, useDrag } from "@/contexts/DragContext";
 import { DragOverlay } from "@/components/DragOverlay";
 import SecondarySidebar, { DETAIL_SIDEBAR_WIDTH } from "./SecondarySidebar/SecondarySidebar";
 import { BottomPanel, BOTTOM_PANEL_HEIGHT } from "./BottomPanel";
@@ -66,7 +66,12 @@ const EditorLayoutInner = () => {
     const { selectedLayer, setSelectedLayer } = useLayer();
     const { clearSelection } = useKeyBinding();
     const { keyVariant, setKeyVariant, layoutMode, setLayoutMode, isAutoLayoutMode, setIsAutoLayoutMode, isAutoKeySize, setIsAutoKeySize, setSecondarySidebarOpen, setPrimarySidebarExpanded, registerPrimarySidebarControl, setMeasuredDimensions } = useLayoutSettings();
-    const { layerClipboard, openPasteDialog } = useLayoutLibrary();
+    const { layerClipboard, copyLayer, openPasteDialog } = useLayoutLibrary();
+    const { isDragging, draggedItem, markDropConsumed } = useDrag();
+
+    // Track if we're dragging a layer over the keyboard area
+    const [isLayerDragOver, setIsLayerDragOver] = React.useState(false);
+    const isDraggingLayer = isDragging && draggedItem?.type === "layer";
 
     // Ref for measuring container dimensions
     const contentContainerRef = React.useRef<HTMLDivElement>(null);
@@ -173,6 +178,8 @@ const EditorLayoutInner = () => {
         if (!keyboard || !layerClipboard || !keyboard.keymap) return;
 
         const sourceKeymap = layerClipboard.layer.keymap;
+        const sourceLayerColor = layerClipboard.layer.layerColor;
+        const sourceLedColor = layerClipboard.layer.ledColor;
         const targetLayerKeymap = keyboard.keymap[selectedLayer] || [];
         const cols = keyboard.cols || MATRIX_COLS;
 
@@ -180,6 +187,29 @@ const EditorLayoutInner = () => {
         const updatedKeyboard = JSON.parse(JSON.stringify(keyboard));
         if (!updatedKeyboard.keymap[selectedLayer]) {
             updatedKeyboard.keymap[selectedLayer] = [];
+        }
+
+        // Copy cosmetic layer color if the source layer has one
+        if (sourceLayerColor) {
+            if (!updatedKeyboard.cosmetic) {
+                updatedKeyboard.cosmetic = {};
+            }
+            if (!updatedKeyboard.cosmetic.layer_colors) {
+                updatedKeyboard.cosmetic.layer_colors = {};
+            }
+            updatedKeyboard.cosmetic.layer_colors[selectedLayer] = sourceLayerColor;
+        }
+
+        // Copy LED hardware color if the source layer has one
+        if (sourceLedColor) {
+            if (!updatedKeyboard.layer_colors) {
+                updatedKeyboard.layer_colors = [];
+            }
+            // Ensure array is long enough
+            while (updatedKeyboard.layer_colors.length <= selectedLayer) {
+                updatedKeyboard.layer_colors.push({ hue: 0, sat: 0, val: 0 });
+            }
+            updatedKeyboard.layer_colors[selectedLayer] = { ...sourceLedColor };
         }
 
         // Collect all changes and apply to the single copy
@@ -216,6 +246,18 @@ const EditorLayoutInner = () => {
         // Update state ONCE with all changes
         setKeyboard(updatedKeyboard);
     }, [keyboard, layerClipboard, selectedLayer, queue, updateKey, setKeyboard]);
+
+    // Handle layer drop on keyboard area
+    const handleLayerDrop = React.useCallback(() => {
+        if (!isDraggingLayer || !draggedItem?.layerData) return;
+
+        // Copy the layer to clipboard and open paste dialog
+        copyLayer(draggedItem.layerData);
+        markDropConsumed();
+
+        // Open paste dialog after a brief delay to ensure clipboard is set
+        setTimeout(() => openPasteDialog(), 0);
+    }, [isDraggingLayer, draggedItem, copyLayer, markDropConsumed, openPasteDialog]);
 
     // Get current layer name for the paste dialog
     const currentLayerName = React.useMemo(() => {
@@ -382,10 +424,30 @@ const EditorLayoutInner = () => {
             {useSidebarLayout && <SecondarySidebar />}
             <div
                 ref={contentContainerRef}
-                className="relative flex-1 px-4 h-screen max-h-screen flex flex-col max-w-full w-full overflow-hidden bg-kb-gray border-none"
+                className={cn(
+                    "relative flex-1 px-4 h-screen max-h-screen flex flex-col max-w-full w-full overflow-hidden bg-kb-gray border-none",
+                    isDraggingLayer && "ring-4 ring-inset ring-blue-400 ring-opacity-50 bg-blue-50/10"
+                )}
                 style={contentStyle}
                 onClick={() => clearSelection()}
+                onMouseEnter={() => isDraggingLayer && setIsLayerDragOver(true)}
+                onMouseLeave={() => setIsLayerDragOver(false)}
+                onMouseUp={() => {
+                    if (isDraggingLayer && isLayerDragOver) {
+                        handleLayerDrop();
+                        setIsLayerDragOver(false);
+                    }
+                }}
             >
+                {/* Layer drop indicator - covers entire content area */}
+                {isDraggingLayer && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                        <div className="bg-blue-500/90 text-white px-6 py-3 rounded-lg shadow-lg text-lg font-medium">
+                            Drop to place on Layer {selectedLayer}
+                        </div>
+                    </div>
+                )}
+
                 <LayerSelector
                     selectedLayer={selectedLayer}
                     setSelectedLayer={setSelectedLayer}
@@ -395,6 +457,7 @@ const EditorLayoutInner = () => {
                     className="flex-1 overflow-hidden flex items-start justify-center max-w-full relative transition-[padding] duration-200"
                     style={{ paddingTop: dynamicTopPadding }}
                 >
+
                     {activePanel === "matrixtester" ? (
                         <MatrixTester />
                     ) : (

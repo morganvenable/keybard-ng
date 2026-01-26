@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useRef, useCallback } from 
 import { KeyProps } from "@/components/Key";
 import { EditorKeyProps } from "@/layout/SecondarySidebar/components/EditorKey";
 import { KeyContent } from "@/types/vial.types";
+import type { LayerEntry } from "@/types/layer-library";
 
 export interface DragItem {
     keycode: string;
@@ -11,11 +12,13 @@ export interface DragItem {
     sourceId?: string;
     width?: number;
     height?: number;
-    component?: "Key" | "EditorKey";
+    component?: "Key" | "EditorKey" | "Layer";
     props?: KeyProps | EditorKeyProps;
     row?: number;
     col?: number;
     layer?: number;
+    /** Layer data when dragging an entire layer */
+    layerData?: LayerEntry;
 }
 
 interface DragContextType {

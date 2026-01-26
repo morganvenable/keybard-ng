@@ -15,6 +15,31 @@ const MAX_INSTANCES = 21;
 // Value indicating no detection/selection
 const NO_SELECTION = 0xff;
 
+/**
+ * Safely get a value from something that might be a Map or a plain object
+ * (handles JSON deserialization where Maps become objects)
+ */
+function safeMapGet<K extends string | number, V>(
+    mapOrObj: Map<K, V> | Record<string, V> | undefined,
+    key: K
+): V | undefined {
+    if (!mapOrObj) return undefined;
+    if (mapOrObj instanceof Map) {
+        return mapOrObj.get(key);
+    }
+    // Plain object - convert key to string for lookup
+    return (mapOrObj as Record<string, V>)[String(key)];
+}
+
+/**
+ * Safely set a value on something that might be a Map or convert it to a Map first
+ */
+function ensureMap<K, V>(obj: Map<K, V> | Record<string, V> | undefined): Map<K, V> {
+    if (!obj) return new Map();
+    if (obj instanceof Map) return obj;
+    return new Map(Object.entries(obj)) as unknown as Map<K, V>;
+}
+
 export class FragmentService {
     constructor(private usb: ViableUSB) { }
 
@@ -136,8 +161,8 @@ export class FragmentService {
             if (i === instanceIdx) {
                 selections[i] = optionIdx;
             } else {
-                // Use current EEPROM selection or 0xFF
-                selections[i] = kbinfo.fragmentState.eepromSelections.get(i) ?? NO_SELECTION;
+                // Use current EEPROM selection or 0xFF (safe access handles Map or object)
+                selections[i] = safeMapGet(kbinfo.fragmentState.eepromSelections, i) ?? NO_SELECTION;
             }
         }
 
@@ -281,7 +306,8 @@ export class FragmentService {
         }
 
         const allowOverride = instance.allow_override !== false;
-        const hwFragmentId = state?.hwDetection.get(instanceIdx);
+        // Safe access handles both Map and plain object from JSON deserialization
+        const hwFragmentId = safeMapGet(state?.hwDetection, instanceIdx);
         const hwDetected = hwFragmentId !== undefined && hwFragmentId !== NO_SELECTION;
 
         // 1. Hardware detected AND override not allowed
@@ -296,7 +322,7 @@ export class FragmentService {
         }
 
         // 2. User selection (from keymap file or UI)
-        const userSelection = state?.userSelections.get(instance.id);
+        const userSelection = safeMapGet(state?.userSelections, instance.id);
         if (userSelection) {
             const matchingOption = options.find(opt => opt.fragment === userSelection);
             if (matchingOption) {
@@ -305,7 +331,7 @@ export class FragmentService {
         }
 
         // 3. EEPROM selection
-        const eepromOptionIdx = state?.eepromSelections.get(instanceIdx);
+        const eepromOptionIdx = safeMapGet(state?.eepromSelections, instanceIdx);
         if (eepromOptionIdx !== undefined && eepromOptionIdx < options.length) {
             return options[eepromOptionIdx].fragment;
         }

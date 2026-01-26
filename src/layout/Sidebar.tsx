@@ -82,6 +82,7 @@ const featureSidebarItems: SidebarItem[] = [
 const footerItems: SidebarItem[] = [
     { title: "About", url: "about", icon: HelpCircle },
     { title: "Matrix Tester", url: "matrixtester", icon: GamepadDirectional },
+    { title: "Layouts", url: "layouts", icon: LayoutsIcon },
     { title: "Settings", url: "settings", icon: Settings },
 ];
 
@@ -448,41 +449,6 @@ const AppSidebar = () => {
                                 <button type="button" onClick={(e) => { e.stopPropagation(); setIsExportOpen(true); }} className="flex w-full items-center justify-center disabled:opacity-50" disabled={!keyboard}>
                                     <div className={cn(getIconGutterWidth(isCollapsed), "h-4 flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
                                         <Upload className="h-4 w-4 shrink-0" />
-                                    </div>
-                                </button>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    )}
-                    {/* Layouts - expanded view only */}
-                    {!isCollapsed && (
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild size="nav" className="text-slate-600 transition-colors">
-                                <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); handleItemSelect({ title: "Layouts", url: "layouts", icon: LayoutsIcon }); }}
-                                    className="flex w-full items-center justify-start"
-                                >
-                                    <div className={cn(getIconGutterWidth(isCollapsed), "h-4 flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
-                                        <LayoutsIcon className="h-4 w-4 shrink-0" />
-                                    </div>
-                                    <span className="text-sm font-medium hover:text-slate-900">
-                                        Layouts
-                                    </span>
-                                </button>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    )}
-                    {/* Layouts - collapsed view */}
-                    {isCollapsed && (
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild size="nav" tooltip="Layouts" sidebarName="primary-nav" className="text-slate-600 transition-colors">
-                                <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); handleItemSelect({ title: "Layouts", url: "layouts", icon: LayoutsIcon }); }}
-                                    className="flex w-full items-center justify-center"
-                                >
-                                    <div className={cn(getIconGutterWidth(isCollapsed), "h-4 flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
-                                        <LayoutsIcon className="h-4 w-4 shrink-0" />
                                     </div>
                                 </button>
                             </SidebarMenuButton>

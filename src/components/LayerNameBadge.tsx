@@ -276,18 +276,17 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({ selectedLayer, x
                                     title={color.name}
                                 />
                             ))}
-                            {isConnected && (
-                                <button
-                                    className="w-5 h-5 rounded-full transition-all hover:scale-110 border-2 border-transparent bg-gray-200 flex items-center justify-center"
-                                    onClick={() => {
-                                        setIsColorPickerOpen(false);
-                                        setIsCustomColorOpen(true);
-                                    }}
-                                    title="Custom color"
-                                >
-                                    <Settings className="w-3 h-3 text-gray-600" />
-                                </button>
-                            )}
+                            {/* Custom color button - always available, hardware write only happens when connected */}
+                            <button
+                                className="w-5 h-5 rounded-full transition-all hover:scale-110 border-2 border-transparent bg-gray-200 flex items-center justify-center"
+                                onClick={() => {
+                                    setIsColorPickerOpen(false);
+                                    setIsCustomColorOpen(true);
+                                }}
+                                title="Custom color"
+                            >
+                                <Settings className="w-3 h-3 text-gray-600" />
+                            </button>
                         </div>
                     )}
                 </div>

@@ -72,6 +72,7 @@ export const PublishLayerDialog: FC<PublishLayerDialogProps> = ({
             // Extract the layer keymap
             const keymap = keyboard.keymap[layerIndex] || [];
             const layerColor = keyboard.cosmetic?.layer_colors?.[layerIndex.toString()];
+            const ledColor = keyboard.layer_colors?.[layerIndex];
 
             // Create the layer entry
             const layerEntry: LayerEntry = {
@@ -84,6 +85,7 @@ export const PublishLayerDialog: FC<PublishLayerDialogProps> = ({
                 keyCount: keymap.length,
                 keymap: [...keymap],
                 layerColor: layerColor,
+                ledColor: ledColor,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             };

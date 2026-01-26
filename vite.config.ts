@@ -19,6 +19,7 @@ function getPortForBranch(branch: string): number {
         "main": 5170,
         "viable-protocol-migration": 5171,
         "feature/explore-layouts": 5172,
+        "feature/layout-library-panel": 9876,
     };
     return portMap[branch] ?? 5173; // Default fallback port
 }
@@ -46,6 +47,6 @@ export default defineConfig({
     },
     server: {
         port: devPort,
-        strictPort: true, // Fail if port is in use rather than auto-increment
+        strictPort: false, // Allow auto-increment to find available port
     },
 });

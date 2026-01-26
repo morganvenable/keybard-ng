@@ -7,6 +7,22 @@ import { vialService } from "@/services/vial.service";
 import type { FragmentInstance } from "@/types/vial.types";
 
 /**
+ * Safely get a value from something that might be a Map or a plain object
+ * (handles JSON deserialization where Maps become objects)
+ */
+function safeMapGet<K extends string | number, V>(
+    mapOrObj: Map<K, V> | Record<string, V> | undefined,
+    key: K
+): V | undefined {
+    if (!mapOrObj) return undefined;
+    if (mapOrObj instanceof Map) {
+        return mapOrObj.get(key);
+    }
+    // Plain object - convert key to string for lookup
+    return (mapOrObj as Record<string, V>)[String(key)];
+}
+
+/**
  * Fragment Selections Panel
  *
  * Allows users to select which physical component (fragment) is installed
@@ -148,8 +164,8 @@ const FragmentsPanel: React.FC = () => {
                     const options = fragmentService.getFragmentOptions(instance);
                     const currentFragment = fragmentService.resolveFragment(keyboard, idx, instance);
 
-                    // Get hardware detection info
-                    const hwFragmentId = keyboard.fragmentState?.hwDetection.get(idx);
+                    // Get hardware detection info (safe access handles Map or object)
+                    const hwFragmentId = safeMapGet(keyboard.fragmentState?.hwDetection, idx);
                     const hwDetected = hwFragmentId !== undefined && hwFragmentId !== 0xff;
                     const hwFragmentName = hwDetected
                         ? fragmentService.getFragmentNameById(keyboard, hwFragmentId)

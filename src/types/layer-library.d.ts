@@ -29,8 +29,11 @@ export interface LayerEntry {
     /** Flat array of keycodes for this layer */
     keymap: number[];
 
-    /** Optional layer color name */
+    /** Optional layer color name (for display) */
     layerColor?: string;
+
+    /** Optional LED color (HSV values for hardware) */
+    ledColor?: { hue: number; sat: number; val: number };
 
     /** ISO date string of creation */
     createdAt: string;
@@ -144,8 +147,11 @@ export interface ImportedLayer {
     /** Flat array of keycodes */
     keymap: number[];
 
-    /** Layer color if available */
+    /** Layer display color if available */
     color?: string;
+
+    /** LED color (HSV values for hardware) */
+    ledColor?: { hue: number; sat: number; val: number };
 }
 
 /**
