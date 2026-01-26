@@ -31,15 +31,6 @@ function safeMapGet<K extends string | number, V>(
     return (mapOrObj as Record<string, V>)[String(key)];
 }
 
-/**
- * Safely set a value on something that might be a Map or convert it to a Map first
- */
-function ensureMap<K, V>(obj: Map<K, V> | Record<string, V> | undefined): Map<K, V> {
-    if (!obj) return new Map();
-    if (obj instanceof Map) return obj;
-    return new Map(Object.entries(obj)) as unknown as Map<K, V>;
-}
-
 export class FragmentService {
     constructor(private usb: ViableUSB) { }
 
