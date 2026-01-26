@@ -249,7 +249,8 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                         ))}
                     </select>
 
-                    {/* None button */}
+                    {/* Modifiers section */}
+                    <span className="text-[9px] font-bold text-slate-500 uppercase">Modifiers</span>
                     <Button
                         type="button"
                         variant={activeModifiers.length === 0 ? "default" : "secondary"}
@@ -268,7 +269,6 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                     <div className="grid grid-cols-2 gap-0.5">
                         {modifierOptions.map((modifier) => {
                             const isActive = activeModifiers.includes(modifier);
-                            const abbrev = modifier === "Shift" ? "⇧" : modifier === "Ctrl" ? "⌃" : modifier === "Alt" ? "⌥" : "⌘";
                             return (
                                 <Button
                                     key={modifier}
@@ -276,13 +276,13 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                                     variant={isActive ? "default" : "secondary"}
                                     size="sm"
                                     className={cn(
-                                        "rounded-md px-1 py-0.5 h-6 transition-all text-[10px] font-medium border-none",
+                                        "rounded-md px-0.5 py-0.5 h-6 transition-all text-[8px] font-medium border-none",
                                         isActive ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white"
                                     )}
                                     onClick={() => handleModifierToggle(modifier)}
                                     title={modifier}
                                 >
-                                    {abbrev}
+                                    {modifier.toUpperCase()}
                                 </Button>
                             );
                         })}
