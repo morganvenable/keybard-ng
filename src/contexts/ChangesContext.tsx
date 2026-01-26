@@ -22,9 +22,10 @@ const ChangesContext = createContext<ChangesContextType | undefined>(undefined);
 
 interface ChangesProviderProps {
     children: ReactNode;
+    onPush?: () => void;
 }
 
-export const ChangesProvider: React.FC<ChangesProviderProps> = ({ children }) => {
+export const ChangesProvider: React.FC<ChangesProviderProps> = ({ children, onPush }) => {
     const [todo, setTodo] = useState<Record<string, PendingChange>>({});
     const [isInstant, setInstant] = useState(true);
 
@@ -38,9 +39,12 @@ export const ChangesProvider: React.FC<ChangesProviderProps> = ({ children }) =>
                     ...prev,
                     [desc]: change,
                 }));
+            } else if (isInstant) {
+                // Instant push succeeded, mark state as saved
+                onPush?.();
             }
         },
-        [isInstant]
+        [isInstant, onPush]
     );
 
     const clear = useCallback((desc: string) => {
@@ -54,7 +58,8 @@ export const ChangesProvider: React.FC<ChangesProviderProps> = ({ children }) =>
     const commit = useCallback(async () => {
         await changesUtils.commitChanges(todo);
         setTodo({}); // Clear all changes after commit
-    }, [todo]);
+        onPush?.(); // Mark state as saved after push
+    }, [todo, onPush]);
 
     const clearAll = useCallback(() => {
         setTodo({});

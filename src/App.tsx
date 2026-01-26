@@ -3,15 +3,16 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import MainScreen from "./components/MainScreen";
 import PrintableKeymapWrapper from "./components/PrintableKeymapWrapper";
 import ExploreLayoutsPage from "./pages/ExploreLayoutsPage";
+import { ProofSheetPage } from "./pages/ProofSheet";
 import { ChangesProvider } from "./contexts/ChangesContext";
 import { DragProvider } from "./contexts/DragContext";
 import { KeyBindingProvider } from "./contexts/KeyBindingContext";
 import { LayoutLibraryProvider } from "./contexts/LayoutLibraryContext";
 import { SettingsProvider } from "./contexts/SettingsContext";
-import { VialProvider } from "./contexts/VialContext";
+import { VialProvider, useVial } from "./contexts/VialContext";
 
 // Simple page navigation context
-type Page = "main" | "explore";
+type Page = "main" | "explore" | "proof-sheet";
 
 interface NavigationContextType {
     currentPage: Page;
@@ -27,6 +28,12 @@ export const useNavigation = () => {
         throw new Error("useNavigation must be used within NavigationProvider");
     }
     return context;
+};
+
+// Wrapper to connect VialContext's markAsSaved to ChangesProvider
+const ChangesProviderWithVial = ({ children }: { children: ReactNode }) => {
+    const { markAsSaved } = useVial();
+    return <ChangesProvider onPush={markAsSaved}>{children}</ChangesProvider>;
 };
 
 const NavigationProvider = ({ children }: { children: ReactNode }) => {
@@ -61,6 +68,10 @@ function AppContent() {
                 <DragProvider>
                     <ExploreLayoutsPage onBack={goBack} />
                 </DragProvider>
+            ) : currentPage === "proof-sheet" ? (
+                <DragProvider>
+                    <ProofSheetPage onBack={goBack} />
+                </DragProvider>
             ) : null}
         </>
     );
@@ -70,7 +81,7 @@ function App() {
     return (
         <VialProvider>
             <SettingsProvider>
-                <ChangesProvider>
+                <ChangesProviderWithVial>
                     <KeyBindingProvider>
                         <LayoutLibraryProvider>
                             <NavigationProvider>
@@ -78,7 +89,7 @@ function App() {
                             </NavigationProvider>
                         </LayoutLibraryProvider>
                     </KeyBindingProvider>
-                </ChangesProvider>
+                </ChangesProviderWithVial>
             </SettingsProvider>
         </VialProvider>
     );

@@ -62,9 +62,9 @@ const EditorLayout = () => {
 };
 
 const EditorLayoutInner = () => {
-    const { keyboard, isConnected, setKeyboard } = useVial();
+    const { keyboard, isConnected, setKeyboard, resetToOriginal, hasUnsavedChanges, updateKey } = useVial();
     const { selectedLayer, setSelectedLayer } = useLayer();
-    const { clearSelection, assignKeycodeTo } = useKeyBinding();
+    const { clearSelection } = useKeyBinding();
     const { keyVariant, setKeyVariant, layoutMode, setLayoutMode, isAutoLayoutMode, setIsAutoLayoutMode, isAutoKeySize, setIsAutoKeySize, setSecondarySidebarOpen, setPrimarySidebarExpanded, registerPrimarySidebarControl, setMeasuredDimensions } = useLayoutSettings();
     const { layerClipboard, openPasteDialog } = useLayoutLibrary();
 
@@ -149,7 +149,7 @@ const EditorLayoutInner = () => {
     }, [keyboardWidths, keyboardHeights, setMeasuredDimensions]);
 
     const { getSetting, updateSetting } = useSettings();
-    const { getPendingCount, commit, setInstant, clearAll, getPendingChanges } = useChanges();
+    const { getPendingCount, commit, setInstant, clearAll, queue } = useChanges();
 
     // Ctrl+V handler for pasting layers
     React.useEffect(() => {
@@ -176,24 +176,46 @@ const EditorLayoutInner = () => {
         const targetLayerKeymap = keyboard.keymap[selectedLayer] || [];
         const cols = keyboard.cols || MATRIX_COLS;
 
-        // Use assignKeycodeTo for each key to properly track changes for push/revert
+        // Create ONE copy and batch all changes to avoid React state batching issues
+        const updatedKeyboard = JSON.parse(JSON.stringify(keyboard));
+        if (!updatedKeyboard.keymap[selectedLayer]) {
+            updatedKeyboard.keymap[selectedLayer] = [];
+        }
+
+        // Collect all changes and apply to the single copy
         for (let i = 0; i < targetLayerKeymap.length && i < sourceKeymap.length; i++) {
             const row = Math.floor(i / cols);
             const col = i % cols;
             const newValue = sourceKeymap[i];
             const currentValue = targetLayerKeymap[i];
+            const matrixPos = row * cols + col;
 
-            // Only queue change if value is different
             if (newValue !== currentValue) {
-                assignKeycodeTo({
-                    type: "keyboard",
-                    layer: selectedLayer,
-                    row,
-                    col,
-                }, newValue);
+                // Apply to the single copy
+                updatedKeyboard.keymap[selectedLayer][matrixPos] = newValue;
+
+                // Queue change for push to device
+                const changeDesc = `key_${selectedLayer}_${row}_${col}`;
+                queue(
+                    changeDesc,
+                    async () => {
+                        await updateKey(selectedLayer, row, col, newValue);
+                    },
+                    {
+                        type: "key",
+                        layer: selectedLayer,
+                        row,
+                        col,
+                        keycode: newValue,
+                        previousValue: currentValue,
+                    }
+                );
             }
         }
-    }, [keyboard, layerClipboard, selectedLayer, assignKeycodeTo]);
+
+        // Update state ONCE with all changes
+        setKeyboard(updatedKeyboard);
+    }, [keyboard, layerClipboard, selectedLayer, queue, updateKey, setKeyboard]);
 
     // Get current layer name for the paste dialog
     const currentLayerName = React.useMemo(() => {
@@ -207,36 +229,13 @@ const EditorLayoutInner = () => {
         setInstant(!!liveUpdating);
     }, [liveUpdating, setInstant]);
 
-    const hasChanges = getPendingCount() > 0;
+    const hasChanges = getPendingCount() > 0 || hasUnsavedChanges;
 
-    // Revert function that restores original values from pending changes
+    // Revert function that restores original keyboard state
     const revert = React.useCallback(() => {
-        if (!keyboard || getPendingCount() === 0) {
-            clearAll();
-            return;
-        }
-
-        const pendingChanges = getPendingChanges();
-        const restoredKeyboard = JSON.parse(JSON.stringify(keyboard));
-
-        for (const change of pendingChanges) {
-            if (change.type === 'key' &&
-                change.layer !== undefined &&
-                change.row !== undefined &&
-                change.col !== undefined &&
-                change.previousValue !== undefined) {
-                const matrixPos = change.row * MATRIX_COLS + change.col;
-                if (restoredKeyboard.keymap?.[change.layer]) {
-                    restoredKeyboard.keymap[change.layer][matrixPos] = change.previousValue;
-                }
-            }
-            // Note: combo/tapdance/override revert would need additional logic
-            // For now, those changes will just be discarded from the queue
-        }
-
-        setKeyboard(restoredKeyboard);
+        resetToOriginal();
         clearAll();
-    }, [keyboard, setKeyboard, getPendingCount, getPendingChanges, clearAll]);
+    }, [resetToOriginal, clearAll]);
 
     const primarySidebar = useSidebar("primary-nav", { defaultOpen: false });
     const { isMobile, state, activePanel, itemToEdit, setItemToEdit, handleCloseEditor } = usePanels();

@@ -12,6 +12,10 @@ import type { KeyboardInfo } from "../types/vial.types";
 interface VialContextType {
     keyboard: KeyboardInfo | null;
     setKeyboard: (keyboard: KeyboardInfo) => void;
+    originalKeyboard: KeyboardInfo | null;
+    resetToOriginal: () => void;
+    markAsSaved: () => void;
+    hasUnsavedChanges: boolean;
     isConnected: boolean;
     isWebHIDSupported: boolean;
     loadedFrom: string | null;
@@ -28,6 +32,7 @@ const VialContext = createContext<VialContextType | undefined>(undefined);
 
 export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [keyboard, setKeyboard] = useState<KeyboardInfo | null>(null);
+    const [originalKeyboard, setOriginalKeyboard] = useState<KeyboardInfo | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const [loadedFrom, setLoadedFrom] = useState<string | null>(null);
     const [lastHeartbeat, setLastHeartbeat] = useState<number>(0);
@@ -122,6 +127,8 @@ export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
 
             setKeyboard(loadedInfo);
+            // Store original state for revert functionality
+            setOriginalKeyboard(JSON.parse(JSON.stringify(loadedInfo)));
             // Set loadedFrom to device product name
             const deviceName = usbInstance.getDeviceName();
             setLoadedFrom(deviceName || loadedInfo.kbid || "Connected Device");
@@ -146,6 +153,8 @@ export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children
             svalService.setupCosmeticLayerNames(kbinfo);
             keyService.generateAllKeycodes(kbinfo);
             setKeyboard(kbinfo);
+            // Store original state for revert functionality
+            setOriginalKeyboard(JSON.parse(JSON.stringify(kbinfo)));
             const filePath = file.name;
             setLoadedFrom(filePath);
             setIsConnected(false);
@@ -176,9 +185,33 @@ export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return result;
     }, [keyboard, isConnected]);
 
+    // Reset keyboard to original state (used by revert)
+    const resetToOriginal = useCallback(() => {
+        if (originalKeyboard) {
+            setKeyboard(JSON.parse(JSON.stringify(originalKeyboard)));
+        }
+    }, [originalKeyboard]);
+
+    // Mark current state as saved (called after push/commit)
+    const markAsSaved = useCallback(() => {
+        if (keyboard) {
+            setOriginalKeyboard(JSON.parse(JSON.stringify(keyboard)));
+        }
+    }, [keyboard]);
+
+    // Detect if there are unsaved changes by comparing current to original
+    const hasUnsavedChanges = React.useMemo(() => {
+        if (!keyboard || !originalKeyboard) return false;
+        return JSON.stringify(keyboard) !== JSON.stringify(originalKeyboard);
+    }, [keyboard, originalKeyboard]);
+
     const value: VialContextType = {
         keyboard,
         setKeyboard,
+        originalKeyboard,
+        resetToOriginal,
+        markAsSaved,
+        hasUnsavedChanges,
         isConnected,
         isWebHIDSupported,
         loadedFrom,
