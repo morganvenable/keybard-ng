@@ -17,7 +17,7 @@ export const SETTINGS: SettingDefinition[] = [
         name: "typing-binds-key",
         label: "Typing binds a key",
         description: "When enabled, typing on your physical keyboard will bind the corresponding key on the layout.",
-        defaultValue: false,
+        defaultValue: true,
         type: "boolean",
     },
     {
@@ -29,7 +29,7 @@ export const SETTINGS: SettingDefinition[] = [
             { label: "Across rows then columns", value: "row-col" },
             { label: "Svalboard by key direction", value: "svalboard" },
         ],
-        defaultValue: "col-row",
+        defaultValue: "svalboard",
     },
     {
         name: "international-keyboards",

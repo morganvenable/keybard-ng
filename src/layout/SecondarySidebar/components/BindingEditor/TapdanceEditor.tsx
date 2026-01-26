@@ -50,6 +50,13 @@ const TapdanceEditor: FC<Props> = () => {
         setAlternativeHeader(true);
     }, []);
 
+    // Auto-select first slot when editor opens
+    useEffect(() => {
+        if (itemToEdit !== null && itemToEdit !== undefined) {
+            selectTapdanceKey(itemToEdit, "tap");
+        }
+    }, [itemToEdit, selectTapdanceKey]);
+
     const updateTapMs = (ms: number) => {
         if (keyboard && (keyboard as any).tapdances && itemToEdit !== null) {
             const updatedKeyboard = { ...keyboard };

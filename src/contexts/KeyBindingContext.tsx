@@ -176,7 +176,7 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             : SVALBOARD_LAYOUT;
 
         const matrixCols = keyboard.cols || MATRIX_COLS;
-        const mode = getSetting('serial-assignment', 'col-row') as SerialMode;
+        const mode = getSetting('serial-assignment', 'svalboard') as SerialMode;
         const ordered = getOrderedKeyPositions(keylayout, mode, matrixCols);
 
         if (ordered.length === 0) {
@@ -564,19 +564,41 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
             setKeyboard(updatedKeyboard);
 
-            // Clear selection if this was the selected target, advance to next key for keyboard type
+            // Auto-advance to next slot after assignment
             if (target === selectedTargetRef.current) {
                 if (target.type === 'keyboard') {
                     selectNextKey();
-                } else if (target.type === 'leaders' && target.leaderSlot === 'sequence' && target.leaderSeqIndex !== undefined && target.leaderSeqIndex < 4) {
-                    // Auto-advance to next sequence slot for leaders
-                    selectLeaderKey(target.leaderId!, 'sequence', target.leaderSeqIndex + 1);
+                } else if (target.type === 'combo' && target.comboSlot !== undefined && target.comboSlot < 4) {
+                    // Combo: advance through input slots 0→1→2→3→4 (output)
+                    selectComboKey(target.comboId!, target.comboSlot + 1);
+                } else if (target.type === 'tapdance' && target.tapdanceSlot) {
+                    // Tap dance: advance tap→hold→doubletap→taphold
+                    const tdOrder: Array<"tap" | "hold" | "doubletap" | "taphold"> = ["tap", "hold", "doubletap", "taphold"];
+                    const currentIdx = tdOrder.indexOf(target.tapdanceSlot);
+                    if (currentIdx >= 0 && currentIdx < tdOrder.length - 1) {
+                        selectTapdanceKey(target.tapdanceId!, tdOrder[currentIdx + 1]);
+                    } else {
+                        clearSelection();
+                    }
+                } else if (target.type === 'override' && target.overrideSlot === 'trigger') {
+                    // Override: advance trigger→replacement
+                    selectOverrideKey(target.overrideId!, 'replacement');
+                } else if (target.type === 'altrepeat' && target.altRepeatSlot === 'keycode') {
+                    // Alt-repeat: advance keycode→alt_keycode
+                    selectAltRepeatKey(target.altRepeatId!, 'alt_keycode');
+                } else if (target.type === 'leaders' && target.leaderSlot === 'sequence' && target.leaderSeqIndex !== undefined) {
+                    // Leader: advance within sequence, then to output
+                    if (target.leaderSeqIndex < 4) {
+                        selectLeaderKey(target.leaderId!, 'sequence', target.leaderSeqIndex + 1);
+                    } else {
+                        selectLeaderKey(target.leaderId!, 'output');
+                    }
                 } else {
                     clearSelection();
                 }
             }
         },
-        [keyboard, setKeyboard, clearSelection, selectNextKey, selectLeaderKey, queue, updateKey]
+        [keyboard, setKeyboard, clearSelection, selectNextKey, selectComboKey, selectTapdanceKey, selectOverrideKey, selectAltRepeatKey, selectLeaderKey, queue, updateKey]
     );
 
     const swapKeys = useCallback(
