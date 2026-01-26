@@ -1,5 +1,5 @@
 import { SettingDefinition, SettingsCategory, SettingsContextType, SettingsState } from "@/types/settings.types";
-import { SettingsIcon } from "lucide-react";
+import { SettingsIcon, Import as ImportIcon, FileJson } from "lucide-react";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { SettingsService } from "@/services/settings.service";
@@ -89,6 +89,13 @@ export const SETTINGS: SettingDefinition[] = [
         action: "open-qmk-settings",
     },
     {
+        name: "key-proof-sheet",
+        label: "Key Proof Sheet...",
+        description: "Visual inspection of key renderings at all sizes",
+        type: "action",
+        action: "open-proof-sheet",
+    },
+    {
         name: "left-dpi",
         label: "Left DPI",
         description: "Adjust sensitivity for your left pointing device.",
@@ -156,6 +163,18 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
         label: "General",
         icon: SettingsIcon,
         settings: ["typing-binds-key", "serial-assignment", "international-keyboards", "qmk-settings"],
+    },
+    {
+        name: "import-export",
+        label: "Import / Export",
+        icon: ImportIcon,
+        settings: ["import", "export", "print"],
+    },
+    {
+        name: "developer",
+        label: "Developer",
+        icon: FileJson,
+        settings: ["key-proof-sheet"],
     },
 ];
 

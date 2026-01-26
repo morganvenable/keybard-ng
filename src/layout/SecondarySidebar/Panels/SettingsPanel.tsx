@@ -17,6 +17,7 @@ import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { usePanels } from "@/contexts/PanelsContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useVial } from "@/contexts/VialContext";
+import { useNavigation } from "@/App";
 import { cn } from "@/lib/utils";
 import { fileService } from "@/services/file.service";
 import { printService } from "@/services/print.service";
@@ -28,6 +29,7 @@ const SettingsPanel = () => {
     const { keyboard, setKeyboard, isConnected } = useVial();
     const { setActivePanel } = usePanels();
     const { layoutMode } = useLayoutSettings();
+    const { navigateTo } = useNavigation();
 
     const isHorizontal = layoutMode === "bottombar";
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -305,6 +307,21 @@ const SettingsPanel = () => {
                         </Button>
                     </div>
                 </div>
+
+                {/* Developer tools */}
+                <div className="flex flex-col gap-1">
+                    <span className="text-[9px] font-bold text-slate-500 uppercase">Developer</span>
+                    <div className="flex flex-row gap-1">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2"
+                            onClick={() => navigateTo("proof-sheet")}
+                        >
+                            Proof Sheet
+                        </Button>
+                    </div>
+                </div>
             </div>
         );
     }
@@ -467,6 +484,8 @@ const SettingsPanel = () => {
                                             setIsPrintOpen(true);
                                         } else if (setting.action === "open-qmk-settings") {
                                             setActivePanel("qmksettings");
+                                        } else if (setting.action === "open-proof-sheet") {
+                                            navigateTo("proof-sheet");
                                         }
                                     }}
                                 >
