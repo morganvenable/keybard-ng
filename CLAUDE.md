@@ -4,6 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
+## Git Workflow Guidelines
+
+**NEVER work directly on `main`.** Always create a feature branch for any changes:
+
+```bash
+git checkout -b feature/description-of-work
+# ... make changes ...
+git push -u origin feature/description-of-work
+# Create PR to merge into main
+```
+
+This applies to all work, no matter how small. Feature branches allow for:
+- Code review before merging
+- Easy rollback if needed
+- Clean commit history on main
+
+---
+
 ## IMPORTANT: This is a Git Worktree
 
 **This directory is a git worktree**, not the main repository.
