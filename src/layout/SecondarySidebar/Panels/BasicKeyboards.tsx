@@ -249,13 +249,13 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                         ))}
                     </select>
 
-                    {/* Modifiers */}
+                    {/* None button */}
                     <Button
                         type="button"
                         variant={activeModifiers.length === 0 ? "default" : "secondary"}
                         size="sm"
                         className={cn(
-                            "rounded-md px-2 py-1 h-7 transition-all text-xs font-medium border-none w-full",
+                            "rounded-md px-2 py-0.5 h-6 transition-all text-[10px] font-medium border-none w-full",
                             activeModifiers.length === 0 ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white"
                         )}
                         onClick={() => { setActiveModifiers([]); setModTapEnabled(false); setOneShotEnabled(false); }}
@@ -263,35 +263,39 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                     >
                         None
                     </Button>
-                    {modifierOptions.map((modifier) => {
-                        const isActive = activeModifiers.includes(modifier);
-                        const abbrev = modifier === "Shift" ? "⇧" : modifier === "Ctrl" ? "⌃" : modifier === "Alt" ? "⌥" : "⌘";
-                        return (
-                            <Button
-                                key={modifier}
-                                type="button"
-                                variant={isActive ? "default" : "secondary"}
-                                size="sm"
-                                className={cn(
-                                    "rounded-md px-2 py-1 h-7 transition-all text-xs font-medium border-none w-full",
-                                    isActive ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white"
-                                )}
-                                onClick={() => handleModifierToggle(modifier)}
-                                title={modifier}
-                            >
-                                {abbrev}
-                            </Button>
-                        );
-                    })}
+
+                    {/* Modifier 2x2 grid */}
+                    <div className="grid grid-cols-2 gap-0.5">
+                        {modifierOptions.map((modifier) => {
+                            const isActive = activeModifiers.includes(modifier);
+                            const abbrev = modifier === "Shift" ? "⇧" : modifier === "Ctrl" ? "⌃" : modifier === "Alt" ? "⌥" : "⌘";
+                            return (
+                                <Button
+                                    key={modifier}
+                                    type="button"
+                                    variant={isActive ? "default" : "secondary"}
+                                    size="sm"
+                                    className={cn(
+                                        "rounded-md px-1 py-0.5 h-6 transition-all text-[10px] font-medium border-none",
+                                        isActive ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white"
+                                    )}
+                                    onClick={() => handleModifierToggle(modifier)}
+                                    title={modifier}
+                                >
+                                    {abbrev}
+                                </Button>
+                            );
+                        })}
+                    </div>
 
                     {/* Mod-Tap / One-Shot toggles */}
-                    <div className="border-t border-gray-200 pt-1 mt-1 flex flex-col gap-1">
+                    <div className="border-t border-gray-200 pt-1 mt-1 flex flex-col gap-0.5">
                         <Button
                             type="button"
                             variant={modTapEnabled ? "default" : "secondary"}
                             size="sm"
                             className={cn(
-                                "rounded-md px-2 py-1 h-7 transition-all text-[10px] font-medium border-none w-full",
+                                "rounded-md px-1 py-0.5 h-6 transition-all text-[9px] font-medium border-none w-full",
                                 modTapEnabled ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white",
                                 activeModifiers.length === 0 && "opacity-50 cursor-not-allowed"
                             )}
@@ -306,7 +310,7 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                             variant={oneShotEnabled ? "default" : "secondary"}
                             size="sm"
                             className={cn(
-                                "rounded-md px-2 py-1 h-7 transition-all text-[10px] font-medium border-none w-full",
+                                "rounded-md px-1 py-0.5 h-6 transition-all text-[9px] font-medium border-none w-full",
                                 oneShotEnabled ? "bg-kb-sidebar-dark text-white shadow-sm" : "bg-kb-gray-medium text-slate-700 hover:bg-white",
                                 activeModifiers.length === 0 && "opacity-50 cursor-not-allowed"
                             )}
