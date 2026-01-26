@@ -273,6 +273,12 @@ src/layout/SecondarySidebar/Panels/QmkKeysPanel.tsx  # Replaced by new panel
 - Files affected: 5-6
 - Complexity: Low-medium (mostly UI composition)
 
+## TODO: Visual Polish
+
+- [ ] Clean up the L/R sliding toggle switch visuals (colors, sizing, alignment)
+- [ ] Review overall panel spacing and typography
+- [ ] Ensure consistent styling with other panels in the app
+
 ## Open Questions
 
 1. Should we keep the old panel as a "classic view" option?
