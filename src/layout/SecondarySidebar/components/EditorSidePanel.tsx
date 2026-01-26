@@ -8,7 +8,7 @@ import { FC } from "react";
 
 import { Keyboard, Piano, SquareDot } from "lucide-react";
 
-export type PickerMode = "keyboard" | "layers" | "macros" | "qmk" | "special" | "mouse";
+export type PickerMode = "keyboard" | "layers" | "macros" | "qmk" | "oneshot" | "special" | "mouse";
 
 const iconsToShow: { icon: React.ReactNode; panel: PickerMode; title: string }[] = [
     {
@@ -23,7 +23,7 @@ const iconsToShow: { icon: React.ReactNode; panel: PickerMode; title: string }[]
     },
     {
         icon: <SquareDot className="w-4 h-4" />,
-        panel: "qmk",
+        panel: "oneshot",
         title: "One-Shot",
     },
     {

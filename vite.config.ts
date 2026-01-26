@@ -20,6 +20,7 @@ function getPortForBranch(branch: string): number {
         "viable-protocol-migration": 5171,
         "feature/explore-layouts": 5172,
         "feature/layout-library-panel": 9876,
+        "feature/oneshot-composer": 5174,
     };
     return portMap[branch] ?? 5173; // Default fallback port
 }

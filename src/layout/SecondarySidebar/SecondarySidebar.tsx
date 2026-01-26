@@ -18,6 +18,7 @@ import MacrosPanel from "./Panels/MacrosPanel";
 import SpecialKeysPanel from "./Panels/SpecialKeysPanel/SpecialKeysPanel";
 import OverridesPanel from "./Panels/OverridesPanel";
 import PointingPanel from "./Panels/PointingPanel";
+import OneShotComposerPanel from "./Panels/OneShotComposerPanel";
 import QmkKeyPanel from "./Panels/QmkKeysPanel";
 import MousePanel from "./Panels/MousePanel";
 import QMKSettingsPanel from "./Panels/QMKSettingsPanel";
@@ -55,7 +56,8 @@ const getPanelTitle = (panel: string | null | undefined, menus?: CustomUIMenuIte
         layers: "Layer Keys",
         tapdances: "Tap Dances",
         macros: "Macros",
-        qmk: "One-Shot Modifiers",
+        qmk: "One-Shot (Legacy)",
+        oneshot: "One-Shot / Mod-Tap",
         special: "Special",
         mouse: "Mouse",
         combos: "Combos",
@@ -176,6 +178,7 @@ const SecondarySidebar = () => {
             case "layouts": return <LayoutsPanel />;
             case "pointing": return <PointingPanel />;
             case "qmk": return <QmkKeyPanel />;
+            case "oneshot": return <OneShotComposerPanel />;
             case "special": return <SpecialKeysPanel />;
             case "mouse": return <MousePanel />;
             case "qmksettings": return <QMKSettingsPanel />;
@@ -256,6 +259,7 @@ const SecondarySidebar = () => {
                     {pickerMode === "layers" && <LayersPanel isPicker />}
                     {pickerMode === "macros" && <MacrosPanel isPicker />}
                     {pickerMode === "qmk" && <QmkKeyPanel isPicker />}
+                    {pickerMode === "oneshot" && <OneShotComposerPanel isPicker />}
                     {pickerMode === "special" && <SpecialKeysPanel isPicker />}
                     {pickerMode === "mouse" && <MousePanel isPicker />}
                 </div>

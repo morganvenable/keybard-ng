@@ -14,6 +14,7 @@ import MacrosPanel from "../SecondarySidebar/Panels/MacrosPanel";
 import SpecialKeysPanel from "../SecondarySidebar/Panels/SpecialKeysPanel/SpecialKeysPanel";
 import OverridesPanel from "../SecondarySidebar/Panels/OverridesPanel";
 import PointingPanel from "../SecondarySidebar/Panels/PointingPanel";
+import OneShotComposerPanel from "../SecondarySidebar/Panels/OneShotComposerPanel";
 import QmkKeyPanel from "../SecondarySidebar/Panels/QmkKeysPanel";
 import MousePanel from "../SecondarySidebar/Panels/MousePanel";
 import QMKSettingsPanel from "../SecondarySidebar/Panels/QMKSettingsPanel";
@@ -53,6 +54,7 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ leftOffset, pickerMode }) => 
             case "layers": return <LayersPanel isPicker />;
             case "macros": return <MacrosPanel isPicker />;
             case "qmk": return <QmkKeyPanel isPicker />;
+            case "oneshot": return <OneShotComposerPanel isPicker />;
             case "special": return <SpecialKeysPanel isPicker />;
             case "mouse": return <MousePanel isPicker />;
             default: return <BasicKeyboards isPicker />;
@@ -95,6 +97,7 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ leftOffset, pickerMode }) => 
             case "layouts": return <LayoutsPanel />;
             case "pointing": return <PointingPanel />;
             case "qmk": return <QmkKeyPanel />;
+            case "oneshot": return <OneShotComposerPanel />;
             case "special": return <SpecialKeysPanel />;
             case "mouse": return <MousePanel />;
             case "qmksettings": return <QMKSettingsPanel />;

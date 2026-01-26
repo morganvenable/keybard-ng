@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import MainScreen from "./components/MainScreen";
 import PrintableKeymapWrapper from "./components/PrintableKeymapWrapper";
 import ExploreLayoutsPage from "./pages/ExploreLayoutsPage";
-import { ProofSheetPage } from "./pages/ProofSheet";
+// ProofSheet removed - not part of this branch
 import { ChangesProvider } from "./contexts/ChangesContext";
 import { DragProvider } from "./contexts/DragContext";
 import { KeyBindingProvider } from "./contexts/KeyBindingContext";
@@ -12,7 +12,7 @@ import { SettingsProvider } from "./contexts/SettingsContext";
 import { VialProvider, useVial } from "./contexts/VialContext";
 
 // Simple page navigation context
-type Page = "main" | "explore" | "proof-sheet";
+type Page = "main" | "explore";
 
 interface NavigationContextType {
     currentPage: Page;
@@ -67,10 +67,6 @@ function AppContent() {
             ) : currentPage === "explore" ? (
                 <DragProvider>
                     <ExploreLayoutsPage onBack={goBack} />
-                </DragProvider>
-            ) : currentPage === "proof-sheet" ? (
-                <DragProvider>
-                    <ProofSheetPage onBack={goBack} />
                 </DragProvider>
             ) : null}
         </>
