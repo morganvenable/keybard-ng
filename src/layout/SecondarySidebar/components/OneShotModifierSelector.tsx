@@ -68,13 +68,13 @@ const OneShotModifierSelector: FC<Props> = ({ value, onChange }) => {
     return (
         <div className="flex flex-col gap-2">
             <span className="text-sm font-medium text-slate-500">Modifiers</span>
-            <div className="flex flex-row items-start gap-2 flex-wrap min-h-[63px]">
+            <div className="flex flex-row items-start gap-1.5 min-h-[58px]">
                 {/* NONE Button */}
                 <Button
                     type="button"
                     variant={isNone ? "default" : "secondary"}
                     className={cn(
-                        "h-9 px-5 rounded-md font-medium transition-colors border-none min-w-[84px]",
+                        "h-8 px-3 rounded-md font-medium transition-colors border-none text-xs",
                         isNone
                             ? "bg-black text-white shadow-none"
                             : "bg-kb-gray-medium text-slate-700 hover:bg-white hover:text-black"
@@ -94,16 +94,16 @@ const OneShotModifierSelector: FC<Props> = ({ value, onChange }) => {
                         <div
                             key={group.label}
                             className={cn(
-                                "flex flex-col items-center rounded-md overflow-hidden min-w-[84px] transition-[height] duration-300 ease-in-out",
+                                "flex flex-col items-center rounded-md overflow-hidden min-w-[60px] transition-[height] duration-300 ease-in-out",
                                 anyActive
-                                    ? "bg-black text-white h-[63px]"
-                                    : "bg-kb-gray-medium text-slate-700 hover:bg-white hover:text-black h-9 delay-150"
+                                    ? "bg-black text-white h-[58px]"
+                                    : "bg-kb-gray-medium text-slate-700 hover:bg-white hover:text-black h-8 delay-150"
                             )}
                         >
                             {/* Main Label */}
                             <button
                                 type="button"
-                                className="w-full h-9 flex items-center justify-center text-sm font-medium shrink-0 outline-none"
+                                className="w-full h-8 flex items-center justify-center text-xs font-medium shrink-0 outline-none px-2"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     toggleGroup(group.lBit, group.rBit);
@@ -114,14 +114,14 @@ const OneShotModifierSelector: FC<Props> = ({ value, onChange }) => {
 
                             {/* L/R Toggles Container */}
                             <div className={cn(
-                                "flex flex-row items-center justify-center gap-1 w-full pb-1.5 transition-opacity duration-200",
+                                "flex flex-row items-center justify-center gap-0.5 w-full pb-1 transition-opacity duration-200",
                                 anyActive ? "opacity-100 delay-150" : "opacity-0 pointer-events-none duration-100"
                             )}>
                                 {/* Left Toggle */}
                                 <button
                                     type="button"
                                     className={cn(
-                                        "w-9 h-6 rounded-[6px] flex items-center justify-center text-[10px] font-bold transition-colors border outline-none hover:bg-white hover:text-black",
+                                        "w-7 h-5 rounded-[4px] flex items-center justify-center text-[10px] font-bold transition-colors border outline-none hover:bg-white hover:text-black",
                                         lActive
                                             ? "bg-black border-white text-white"
                                             : "bg-kb-gray-medium border-white text-black"
@@ -138,7 +138,7 @@ const OneShotModifierSelector: FC<Props> = ({ value, onChange }) => {
                                 <button
                                     type="button"
                                     className={cn(
-                                        "w-9 h-6 rounded-[6px] flex items-center justify-center text-[10px] font-bold transition-colors border outline-none hover:bg-white hover:text-black",
+                                        "w-7 h-5 rounded-[4px] flex items-center justify-center text-[10px] font-bold transition-colors border outline-none hover:bg-white hover:text-black",
                                         rActive
                                             ? "bg-black border-white text-white"
                                             : "bg-kb-gray-medium border-white text-black"

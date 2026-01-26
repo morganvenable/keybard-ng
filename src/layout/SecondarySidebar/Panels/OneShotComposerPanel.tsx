@@ -22,13 +22,19 @@ interface Props {
 
 type ModifierMode = "osm" | "modtap";
 
-// Preset bitmasks
-const PRESETS = {
-    meh: MOD_BITS.LCTRL | MOD_BITS.LSHIFT | MOD_BITS.LALT,
-    hyper: MOD_BITS.LCTRL | MOD_BITS.LSHIFT | MOD_BITS.LALT | MOD_BITS.LGUI,
-    rMeh: MOD_BITS.RCTRL | MOD_BITS.RSHIFT | MOD_BITS.RALT,
-    rHyper: MOD_BITS.RCTRL | MOD_BITS.RSHIFT | MOD_BITS.RALT | MOD_BITS.RGUI,
-};
+// Preset bitmasks for L/R variants
+const PRESET_GROUPS = [
+    {
+        label: "MEH",
+        lMask: MOD_BITS.LCTRL | MOD_BITS.LSHIFT | MOD_BITS.LALT,
+        rMask: MOD_BITS.RCTRL | MOD_BITS.RSHIFT | MOD_BITS.RALT,
+    },
+    {
+        label: "HYPER",
+        lMask: MOD_BITS.LCTRL | MOD_BITS.LSHIFT | MOD_BITS.LALT | MOD_BITS.LGUI,
+        rMask: MOD_BITS.RCTRL | MOD_BITS.RSHIFT | MOD_BITS.RALT | MOD_BITS.RGUI,
+    },
+] as const;
 
 const OneShotComposerPanel = ({ isPicker }: Props) => {
     const { keyboard } = useVial();
@@ -143,92 +149,152 @@ const OneShotComposerPanel = ({ isPicker }: Props) => {
         );
     }
 
+    // Check if a preset matches current modMask
+    const isPresetActive = (lMask: number, rMask: number) => {
+        return modMask === lMask || modMask === rMask;
+    };
+
+    const isPresetLeft = (lMask: number) => modMask === lMask;
+    const isPresetRight = (rMask: number) => modMask === rMask;
+
+    const togglePreset = (lMask: number, rMask: number) => {
+        if (modMask === lMask || modMask === rMask) {
+            // Turn off preset
+            setModMask(0);
+        } else {
+            // Turn on left by default
+            setModMask(lMask);
+        }
+    };
+
     // Sidebar layout (vertical)
     return (
-        <div className="flex flex-col gap-5 py-4 px-5">
+        <div className="flex flex-col gap-4 py-4 px-5">
             {isPicker && (
                 <div className="pb-1">
                     <span className="font-semibold text-xl text-slate-700">One-Shot / Mod-Tap</span>
                 </div>
             )}
 
-            {/* Mode toggle */}
-            <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-slate-500">Mode</span>
-                <div className="flex flex-row items-center gap-0.5 bg-gray-200/50 p-0.5 rounded-md border border-gray-400/50 w-fit">
-                    <ToggleButton active={mode === "osm"} onClick={() => setMode("osm")}>
-                        One-Shot
-                    </ToggleButton>
-                    <ToggleButton active={mode === "modtap"} onClick={() => setMode("modtap")}>
-                        Mod-Tap
-                    </ToggleButton>
+            {/* Top row: Preview key on left, Mode toggle on right */}
+            <div className="flex flex-row items-start gap-4">
+                {/* Preview key */}
+                <div className="flex flex-col items-center gap-1">
+                    <div className={cn(keySizeClass, !hasSelection && "opacity-40")}>
+                        <Key
+                            isRelative
+                            x={0} y={0} w={1} h={1} row={-1} col={-1}
+                            keycode={composedKeycode || "KC_NO"}
+                            label={modLabel || "---"}
+                            keyContents={getPreviewContents()}
+                            layerColor={hasSelection ? "sidebar" : undefined}
+                            headerClassName={hasSelection ? `bg-kb-sidebar-dark ${hoverHeaderClass}` : "bg-gray-300"}
+                            hoverBorderColor={hoverBorderColor}
+                            hoverBackgroundColor={hoverBackgroundColor}
+                            hoverLayerColor={layerColorName}
+                            variant={keyVariant}
+                            onClick={hasSelection ? handleAssign : undefined}
+                        />
+                    </div>
+                    {hasSelection && (
+                        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] text-gray-600">{composedKeycode}</code>
+                    )}
+                </div>
+
+                {/* Mode toggle */}
+                <div className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-slate-500">Mode</span>
+                    <div className="flex flex-row items-center gap-0.5 bg-gray-200/50 p-0.5 rounded-md border border-gray-400/50 w-fit">
+                        <ToggleButton active={mode === "osm"} onClick={() => setMode("osm")}>
+                            One-Shot
+                        </ToggleButton>
+                        <ToggleButton active={mode === "modtap"} onClick={() => setMode("modtap")}>
+                            Mod-Tap
+                        </ToggleButton>
+                    </div>
                 </div>
             </div>
+
+            {/* Instruction text */}
+            <span className="text-sm text-gray-400">Select modifiers below.</span>
 
             {/* Modifier selector with L/R drop-under buttons */}
             <OneShotModifierSelector value={modMask} onChange={setModMask} />
 
-            {/* Presets */}
+            {/* Presets with expandable L/R buttons */}
             <div className="flex flex-col gap-2">
                 <span className="text-sm font-medium text-slate-500">Presets</span>
-                <div className="flex flex-row gap-2 flex-wrap">
-                    <button
-                        type="button"
-                        onClick={() => setModMask(PRESETS.meh)}
-                        className="px-3 h-8 rounded-md text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
-                    >
-                        Meh (L)
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setModMask(PRESETS.hyper)}
-                        className="px-3 h-8 rounded-md text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
-                    >
-                        Hyper (L)
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setModMask(PRESETS.rMeh)}
-                        className="px-3 h-8 rounded-md text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
-                    >
-                        Meh (R)
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setModMask(PRESETS.rHyper)}
-                        className="px-3 h-8 rounded-md text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
-                    >
-                        Hyper (R)
-                    </button>
-                </div>
-            </div>
+                <div className="flex flex-row gap-1.5 min-h-[58px]">
+                    {PRESET_GROUPS.map((preset) => {
+                        const anyActive = isPresetActive(preset.lMask, preset.rMask);
+                        const lActive = isPresetLeft(preset.lMask);
+                        const rActive = isPresetRight(preset.rMask);
 
-            {/* Preview key */}
-            <div className="flex flex-col gap-3 pt-4 items-center">
-                <span className="text-sm font-medium text-slate-500">Preview</span>
-                <div className={cn(keySizeClass, !hasSelection && "opacity-40")}>
-                    <Key
-                        isRelative
-                        x={0} y={0} w={1} h={1} row={-1} col={-1}
-                        keycode={composedKeycode || "KC_NO"}
-                        label={modLabel || "---"}
-                        keyContents={getPreviewContents()}
-                        layerColor={hasSelection ? "sidebar" : undefined}
-                        headerClassName={hasSelection ? `bg-kb-sidebar-dark ${hoverHeaderClass}` : "bg-gray-300"}
-                        hoverBorderColor={hoverBorderColor}
-                        hoverBackgroundColor={hoverBackgroundColor}
-                        hoverLayerColor={layerColorName}
-                        variant={keyVariant}
-                        onClick={hasSelection ? handleAssign : undefined}
-                    />
+                        return (
+                            <div
+                                key={preset.label}
+                                className={cn(
+                                    "flex flex-col items-center rounded-md overflow-hidden min-w-[70px] transition-[height] duration-300 ease-in-out",
+                                    anyActive
+                                        ? "bg-black text-white h-[58px]"
+                                        : "bg-kb-gray-medium text-slate-700 hover:bg-white hover:text-black h-8 delay-150"
+                                )}
+                            >
+                                {/* Main Label */}
+                                <button
+                                    type="button"
+                                    className="w-full h-8 flex items-center justify-center text-xs font-medium shrink-0 outline-none px-3"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        togglePreset(preset.lMask, preset.rMask);
+                                    }}
+                                >
+                                    {preset.label}
+                                </button>
+
+                                {/* L/R Toggles Container */}
+                                <div className={cn(
+                                    "flex flex-row items-center justify-center gap-0.5 w-full pb-1 transition-opacity duration-200",
+                                    anyActive ? "opacity-100 delay-150" : "opacity-0 pointer-events-none duration-100"
+                                )}>
+                                    {/* Left Toggle */}
+                                    <button
+                                        type="button"
+                                        className={cn(
+                                            "w-7 h-5 rounded-[4px] flex items-center justify-center text-[10px] font-bold transition-colors border outline-none hover:bg-white hover:text-black",
+                                            lActive
+                                                ? "bg-black border-white text-white"
+                                                : "bg-kb-gray-medium border-white text-black"
+                                        )}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setModMask(preset.lMask);
+                                        }}
+                                    >
+                                        L
+                                    </button>
+
+                                    {/* Right Toggle */}
+                                    <button
+                                        type="button"
+                                        className={cn(
+                                            "w-7 h-5 rounded-[4px] flex items-center justify-center text-[10px] font-bold transition-colors border outline-none hover:bg-white hover:text-black",
+                                            rActive
+                                                ? "bg-black border-white text-white"
+                                                : "bg-kb-gray-medium border-white text-black"
+                                        )}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setModMask(preset.rMask);
+                                        }}
+                                    >
+                                        R
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
-                {hasSelection ? (
-                    <span className="text-sm text-gray-600">
-                        Click to assign: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{composedKeycode}</code>
-                    </span>
-                ) : (
-                    <span className="text-sm text-gray-400">Select modifiers above</span>
-                )}
             </div>
         </div>
     );
