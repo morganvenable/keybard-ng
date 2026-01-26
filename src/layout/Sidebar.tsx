@@ -1,4 +1,4 @@
-import { ArrowUpDown, Download, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Mouse, Piano, Repeat, Settings, SquareDot, Unplug, Upload, Zap } from "lucide-react";
+import { ArrowUpDown, Download, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Mouse, Piano, Repeat, Settings, Unplug, Upload, Zap } from "lucide-react";
 import LayoutsIcon from "@/components/icons/Layouts";
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -59,7 +59,6 @@ export type SidebarItem = {
 export const primarySidebarItems: SidebarItem[] = [
     { title: "Keyboard", url: "keyboard", icon: Keyboard },
     { title: "Special", url: "special", icon: Piano },
-    { title: "One-Shot", url: "qmk", icon: SquareDot },
     { title: "Layer Keys", url: "layers", icon: LayersDefaultIcon },
     { title: "Mouse", url: "mouse", icon: MouseIcon },
     { title: "Tap Dances", url: "tapdances", icon: TapdanceIcon },
