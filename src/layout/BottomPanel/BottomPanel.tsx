@@ -25,11 +25,13 @@ import { PickerMode } from "../SecondarySidebar/components/EditorSidePanel";
 import { usePanels } from "@/contexts/PanelsContext";
 import { cn } from "@/lib/utils";
 
-export const BOTTOM_PANEL_HEIGHT = 230;
+export const BOTTOM_PANEL_MIN_HEIGHT = 180;
+export const BOTTOM_PANEL_MAX_HEIGHT = 400;
 
 interface BottomPanelProps {
     leftOffset?: string;
     pickerMode?: PickerMode;
+    dynamicHeight?: number; // Calculated height to fill remaining space
 }
 
 /**
@@ -39,8 +41,13 @@ interface BottomPanelProps {
  *
  * When editing (itemToEdit !== null), shows key pickers controlled by pickerMode.
  */
-const BottomPanel: React.FC<BottomPanelProps> = ({ leftOffset, pickerMode }) => {
+const BottomPanel: React.FC<BottomPanelProps> = ({ leftOffset, pickerMode, dynamicHeight }) => {
     const { activePanel, state, itemToEdit } = usePanels();
+
+    // Calculate actual height - use dynamic if provided, otherwise use min height
+    const panelHeight = dynamicHeight
+        ? Math.max(BOTTOM_PANEL_MIN_HEIGHT, Math.min(dynamicHeight, BOTTOM_PANEL_MAX_HEIGHT))
+        : BOTTOM_PANEL_MIN_HEIGHT;
 
     // Check if we're in editor mode
     const isEditing = itemToEdit !== null &&
@@ -117,9 +124,9 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ leftOffset, pickerMode }) => 
                 isOpen ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 pointer-events-none"
             )}
             style={{
-                height: BOTTOM_PANEL_HEIGHT,
+                height: panelHeight,
                 left: leftOffset ? `calc(${leftOffset} + 8px)` : 0,
-                transition: "left 320ms cubic-bezier(0.22, 1, 0.36, 1), transform 300ms ease-in-out, opacity 300ms ease-in-out"
+                transition: "left 320ms cubic-bezier(0.22, 1, 0.36, 1), height 200ms ease-out, transform 300ms ease-in-out, opacity 300ms ease-in-out"
             }}
         >
             {/* Content area - allows both horizontal and vertical scrolling for wrapped content */}

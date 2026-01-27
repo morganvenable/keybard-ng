@@ -178,12 +178,28 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
             const fitsAt = (size: KeyVariant) =>
                 containerWidth >= widths[size] && containerHeight >= heights[size];
 
+            // In bottom bar mode with collapsed sidebar, prefer medium keys
+            // because we have extra horizontal space and the bottom panel can expand vertically
+            const currentMode = layoutModeRef.current;
+            const sidebarCollapsed = !primaryExpanded;
+            const preferMedium = currentMode === "bottombar" && sidebarCollapsed;
+
             let bestSize: KeyVariant = "small";
             if (fitsAt("default")) {
                 bestSize = "default";
             } else if (fitsAt("medium")) {
                 bestSize = "medium";
+            } else if (preferMedium && containerWidth >= widths.medium) {
+                // In bottom bar collapsed mode, prefer medium if width fits
+                // even if height is tight - the dynamic bottom panel will adjust
+                bestSize = "medium";
             }
+
+            // Override: in bottom bar mode with collapsed sidebar, upgrade small to medium if width allows
+            if (bestSize === "small" && preferMedium && containerWidth >= widths.medium) {
+                bestSize = "medium";
+            }
+
             setKeyVariantState(bestSize);
         }
 

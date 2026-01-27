@@ -164,31 +164,78 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [selectedTarget, selectedLayer, assignKeycode]);
 
-    const keyboardSize = useMemo(() => {
+    // Calculate keyboard extents and squeeze factor for tight spaces
+    const { keyboardSize, squeezeX } = useMemo(() => {
         let maxX = 0;
         let maxY = 0;
         let minY = Infinity; // Top edge of keyboard
+        let leftFingerMaxX = 0;  // Rightmost edge of left finger clusters
+        let rightFingerMinX = Infinity;  // Leftmost edge of right finger clusters
 
-        Object.values(keyboardLayout).forEach((key) => {
+        Object.entries(keyboardLayout).forEach(([matrixPos, key]) => {
+            const pos = Number(matrixPos);
+            // Determine row from layout or calculate
+            const row = typeof key.row === 'number' ? key.row : Math.floor(pos / matrixCols);
+
             // Only apply THUMB_OFFSET_U for hardcoded layout, not fragment-composed layouts
             const yPos = (!useFragmentLayout && key.y >= 6) ? key.y + THUMB_OFFSET_U : key.y;
             maxX = Math.max(maxX, key.x + key.w);
             maxY = Math.max(maxY, yPos + key.h);
             minY = Math.min(minY, yPos);
+
+            // Track finger cluster extents (rows 1-4 are left fingers, rows 6-9 are right fingers)
+            if (row >= 1 && row <= 4) {
+                leftFingerMaxX = Math.max(leftFingerMaxX, key.x + key.w);
+            } else if (row >= 6 && row <= 9) {
+                rightFingerMinX = Math.min(rightFingerMinX, key.x);
+            }
         });
+
+        // Calculate horizontal squeeze to fit in container
+        // Estimate available width more accurately
+        const viewportWidth = window.innerWidth;
+        // Account for: sidebar (~50px collapsed, ~200px expanded), padding, and some margin
+        const sidebarEl = document.querySelector('[class*="sidebar"]');
+        const sidebarWidth = sidebarEl?.getBoundingClientRect().width || 60;
+        const padding = 80; // Container padding + some safety margin
+        const availableWidth = viewportWidth - sidebarWidth - padding;
+        const naturalWidth = maxX * currentUnitSize;
+
+        // Calculate squeeze factor (how much to compress finger clusters horizontally)
+        // Only squeeze if natural width exceeds available space
+        let squeeze = 0;
+        if (naturalWidth > availableWidth && leftFingerMaxX > 0 && rightFingerMinX < Infinity) {
+            const overflow = naturalWidth - availableWidth;
+            // Convert overflow to key units and split between left and right
+            const overflowUnits = overflow / currentUnitSize;
+            // Maximum squeeze is 70% of the gap between finger clusters
+            const fingerGap = rightFingerMinX - leftFingerMaxX;
+            const maxSqueezeUnits = fingerGap * 0.7;
+            squeeze = Math.min(overflowUnits / 2, maxSqueezeUnits);
+            // Round up to ensure we have enough squeeze
+            squeeze = Math.ceil(squeeze * 10) / 10;
+        }
 
         // Badge position: horizontally centered, aligned with top keys (same Y level)
         const badgeCenterX = (maxX / 2) * currentUnitSize;
         // Position at the same Y level as the top keys (center of the top row)
         const badgeCenterY = (minY + 0.5) * currentUnitSize;
 
+        // Adjust width for squeeze - right keys move left by squeeze, so new width is (maxX - squeeze)
+        // We also need to shift the whole layout left if needed, but for now just reduce width
+        const adjustedWidth = (maxX - squeeze) * currentUnitSize;
+
         return {
-            width: maxX * currentUnitSize,
-            height: maxY * currentUnitSize + 20,
-            badgeCenterX,
-            badgeCenterY,
+            keyboardSize: {
+                width: adjustedWidth,
+                height: maxY * currentUnitSize + 20,
+                badgeCenterX: badgeCenterX - squeeze * currentUnitSize,
+                badgeCenterY,
+                midlineX: maxX / 2, // Store midline for squeeze calculation
+            },
+            squeezeX: squeeze,
         };
-    }, [keyboardLayout, currentUnitSize, useFragmentLayout]);
+    }, [keyboardLayout, currentUnitSize, useFragmentLayout, matrixCols]);
 
     return (
         <div className="p-4">
@@ -229,10 +276,24 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
                     // Only apply THUMB_OFFSET_U for hardcoded layout, not fragment-composed layouts
                     const yPos = (!useFragmentLayout && layout.y >= 6) ? layout.y + THUMB_OFFSET_U : layout.y;
 
+                    // Apply horizontal squeeze to finger clusters only (not thumbs)
+                    // Rows 0, 5 are thumbs - don't squeeze
+                    // Rows 1-4 are left fingers - shift right (add squeeze)
+                    // Rows 6-9 are right fingers - shift left (subtract squeeze)
+                    let xPos = layout.x;
+                    if (squeezeX > 0) {
+                        if (row >= 1 && row <= 4) {
+                            xPos = layout.x + squeezeX; // Left fingers move right
+                        } else if (row >= 6 && row <= 9) {
+                            xPos = layout.x - squeezeX; // Right fingers move left
+                        }
+                        // Thumb rows (0, 5) stay at original position
+                    }
+
                     return (
                         <Key
                             key={`${row}-${col}`}
-                            x={layout.x}
+                            x={xPos}
                             y={yPos}
                             w={layout.w}
                             h={layout.h}
