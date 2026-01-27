@@ -118,7 +118,7 @@ const LayersPanel = ({ isPicker }: Props) => {
                                 layerColor="sidebar"
                                 headerClassName={`bg-kb-sidebar-dark ${hoverHeaderClass}`}
                                 isRelative
-                                variant="small"
+                                variant="medium"
                                 hoverBorderColor={hoverBorderColor}
                                 hoverBackgroundColor={hoverBackgroundColor}
                                 hoverLayerColor={layerColorName}

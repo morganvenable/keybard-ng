@@ -131,7 +131,7 @@ const MousePanel: React.FC<Props> = ({ isPicker }) => {
                                 layerColor="sidebar"
                                 headerClassName={`bg-kb-sidebar-dark ${hoverStyles.hoverHeaderClass}`}
                                 isRelative
-                                variant="small"
+                                variant="medium"
                                 hoverBorderColor={hoverStyles.hoverBorderColor}
                                 hoverBackgroundColor={hoverStyles.hoverBackgroundColor}
                                 hoverLayerColor={hoverStyles.layerColorName}
