@@ -184,20 +184,13 @@ export class FragmentComposerService {
      * This keeps the internal cluster structure intact while centering thumbs properly.
      *
      * @param layout - The composed layout to correct
-     * @param kbinfo - Keyboard info (used to check if Svalboard)
+     * @param _kbinfo - Keyboard info (unused, kept for API compatibility)
      * @returns Corrected layout with thumb clusters in the right positions
      */
     applyPlacementCorrections(
         layout: Record<number, ComposedKeyLayout>,
-        kbinfo: KeyboardInfo
+        _kbinfo: KeyboardInfo
     ): Record<number, ComposedKeyLayout> {
-        // Only apply corrections for Svalboard
-        const isSvalboard = kbinfo.name?.toLowerCase().includes('svalboard') ||
-                           kbinfo.cosmetic?.name?.toLowerCase().includes('svalboard');
-        if (!isSvalboard) {
-            return layout;
-        }
-
         // Cluster row definitions for Svalboard
         const leftThumbRow = 0;
         const rightThumbRow = 5;
