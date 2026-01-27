@@ -74,44 +74,63 @@ export const LayerCard: FC<LayerCardProps> = ({
         ? colorClasses[layer.layerColor] || "bg-kb-primary"
         : "bg-kb-primary";
 
-    // Compact mode for horizontal/bottom bar layout
+    // Compact mode for horizontal/bottom bar layout - full height card
     if (compact) {
         return (
             <div
                 onClick={handleClick}
                 className={cn(
                     "border rounded-lg p-2 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow",
-                    "border-gray-200 dark:border-gray-700 w-[180px] flex-shrink-0",
+                    "border-gray-200 dark:border-gray-700 w-[140px] h-full flex-shrink-0 flex flex-col",
                     onClick && "cursor-pointer",
                     className
                 )}
             >
                 {/* Header */}
-                <div className="flex items-center gap-1.5 mb-1">
+                <div className="flex items-center gap-1 mb-1">
                     <div
                         className={cn(
-                            "w-2.5 h-2.5 rounded-full flex-shrink-0",
+                            "w-2 h-2 rounded-full flex-shrink-0",
                             layerColorClass
                         )}
                     />
-                    <h3 className="font-semibold text-xs text-gray-900 dark:text-gray-100 truncate flex-1">
+                    <h3 className="font-semibold text-[11px] text-gray-900 dark:text-gray-100 truncate flex-1">
                         {layer.name}
                     </h3>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                        {layer.keyCount}
-                    </span>
                 </div>
 
-                {/* Description - one line */}
-                <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate mb-2">
+                {/* Key count */}
+                <span className="text-[9px] px-1 py-0.5 rounded font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 w-fit mb-1">
+                    {layer.keyCount} keys
+                </span>
+
+                {/* Description - multi-line, fills space */}
+                <p className="text-[9px] text-gray-500 dark:text-gray-400 line-clamp-3 flex-1">
                     {layer.description || "No description"}
                 </p>
 
-                {/* Copy button */}
+                {/* Tags - compact */}
+                {layer.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-0.5 mb-1.5">
+                        {layer.tags.slice(0, 2).map(tag => (
+                            <span
+                                key={tag}
+                                className="text-[8px] px-1 py-0.5 bg-gray-50 text-gray-500 rounded"
+                            >
+                                {tag}
+                            </span>
+                        ))}
+                        {layer.tags.length > 2 && (
+                            <span className="text-[8px] text-gray-400">+{layer.tags.length - 2}</span>
+                        )}
+                    </div>
+                )}
+
+                {/* Copy button - at bottom */}
                 <Button
                     variant={justCopied ? "default" : error ? "destructive" : "outline"}
                     size="sm"
-                    className="w-full h-6 text-[10px]"
+                    className="w-full h-6 text-[10px] mt-auto"
                     onClick={handleCopy}
                     disabled={isLoading}
                 >

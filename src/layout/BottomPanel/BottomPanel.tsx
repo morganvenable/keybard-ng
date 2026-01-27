@@ -118,7 +118,7 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ leftOffset, pickerMode }) => 
             )}
             style={{
                 height: BOTTOM_PANEL_HEIGHT,
-                left: leftOffset || 0,
+                left: leftOffset ? `calc(${leftOffset} + 8px)` : 0,
                 transition: "left 320ms cubic-bezier(0.22, 1, 0.36, 1), transform 300ms ease-in-out, opacity 300ms ease-in-out"
             }}
         >
