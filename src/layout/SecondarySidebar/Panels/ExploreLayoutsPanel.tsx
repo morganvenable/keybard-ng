@@ -3,7 +3,8 @@
  */
 
 import type { FC } from "react";
-import { RefreshCw, Search, X } from "lucide-react";
+import { useState } from "react";
+import { ChevronLeft, ChevronRight, Filter, RefreshCw, Search, X } from "lucide-react";
 
 import { useLayerLibrary } from "@/contexts/LayoutLibraryContext";
 import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
@@ -14,6 +15,7 @@ import type { LayerEntry } from "@/types/layer-library";
 import { cn } from "@/lib/utils";
 
 const ExploreLayoutsPanel: FC = () => {
+    const [filtersExpanded, setFiltersExpanded] = useState(false);
     const {
         layers,
         isLoading,
@@ -56,79 +58,109 @@ const ExploreLayoutsPanel: FC = () => {
     // HORIZONTAL LAYOUT (Bottom Bar Mode)
     // ==========================================
     if (isHorizontal) {
+        const hasActiveFilters = searchQuery || selectedTags.length > 0;
+
         return (
-            <section className="h-full flex flex-row gap-3 px-2 py-2 overflow-hidden">
-                {/* Left column: Search + Tags + Refresh */}
-                <div className="flex flex-col gap-2 w-[200px] flex-shrink-0">
-                    {/* Search Bar */}
-                    <div className="relative">
-                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
-                        <Input
-                            type="text"
-                            placeholder="Search..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-7 pr-6 h-7 text-xs"
-                        />
-                        {searchQuery && (
-                            <button
-                                onClick={() => setSearchQuery('')}
-                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                            >
-                                <X className="w-3 h-3" />
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Tag Filters */}
-                    {availableTags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                            {availableTags.slice(0, 6).map(tag => (
-                                <button
-                                    key={tag}
-                                    onClick={() => toggleTag(tag)}
-                                    className={cn(
-                                        "text-[10px] px-1.5 py-0.5 rounded-full transition-colors",
-                                        selectedTags.includes(tag)
-                                            ? "bg-gray-900 text-white"
-                                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                                    )}
-                                >
-                                    {tag}
-                                </button>
-                            ))}
-                            {selectedTags.length > 0 && (
-                                <button
-                                    onClick={() => setSelectedTags([])}
-                                    className="text-[10px] px-1.5 py-0.5 text-gray-500 hover:text-gray-700"
-                                >
-                                    Clear
-                                </button>
-                            )}
-                        </div>
+            <section className="h-full flex flex-row gap-0 overflow-hidden">
+                {/* Collapsible Filter Panel */}
+                <div
+                    className={cn(
+                        "flex flex-col gap-1.5 flex-shrink-0 border-r border-gray-200 transition-all duration-200 overflow-hidden",
+                        filtersExpanded ? "w-[160px] px-2 py-1.5" : "w-8 px-1 py-1.5"
                     )}
-
-                    {/* Refresh Button */}
+                >
+                    {/* Toggle Button */}
                     <button
-                        onClick={refreshLayers}
-                        disabled={isLoading}
-                        className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                        onClick={() => setFiltersExpanded(!filtersExpanded)}
+                        className={cn(
+                            "flex items-center justify-center gap-1 p-1 rounded hover:bg-gray-100 transition-colors",
+                            hasActiveFilters && !filtersExpanded && "text-blue-600"
+                        )}
+                        title={filtersExpanded ? "Collapse filters" : "Expand filters"}
                     >
-                        <RefreshCw className={cn("w-3 h-3", isLoading && "animate-spin")} />
-                        Refresh
+                        {filtersExpanded ? (
+                            <ChevronLeft className="w-4 h-4" />
+                        ) : (
+                            <>
+                                <Filter className="w-3.5 h-3.5" />
+                                {hasActiveFilters && <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+                            </>
+                        )}
                     </button>
 
-                    {/* Error State */}
-                    {error && (
-                        <div className="bg-red-50 text-red-600 p-2 rounded-md text-xs">
-                            {error}
-                        </div>
+                    {/* Expanded Filter Content */}
+                    {filtersExpanded && (
+                        <>
+                            {/* Search Bar */}
+                            <div className="relative">
+                                <Search className="absolute left-1.5 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                                <Input
+                                    type="text"
+                                    placeholder="Search..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-6 pr-5 h-6 text-[11px]"
+                                />
+                                {searchQuery && (
+                                    <button
+                                        onClick={() => setSearchQuery('')}
+                                        className="absolute right-1.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                        <X className="w-2.5 h-2.5" />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Tag Filters */}
+                            {availableTags.length > 0 && (
+                                <div className="flex flex-wrap gap-0.5">
+                                    {availableTags.slice(0, 6).map(tag => (
+                                        <button
+                                            key={tag}
+                                            onClick={() => toggleTag(tag)}
+                                            className={cn(
+                                                "text-[9px] px-1 py-0.5 rounded transition-colors",
+                                                selectedTags.includes(tag)
+                                                    ? "bg-gray-900 text-white"
+                                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                            )}
+                                        >
+                                            {tag}
+                                        </button>
+                                    ))}
+                                    {selectedTags.length > 0 && (
+                                        <button
+                                            onClick={() => setSelectedTags([])}
+                                            className="text-[9px] px-1 py-0.5 text-gray-500 hover:text-gray-700"
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Refresh */}
+                            <button
+                                onClick={refreshLayers}
+                                disabled={isLoading}
+                                className="text-[10px] text-gray-500 hover:text-gray-700 flex items-center gap-1 mt-auto"
+                            >
+                                <RefreshCw className={cn("w-2.5 h-2.5", isLoading && "animate-spin")} />
+                                Refresh
+                            </button>
+
+                            {error && (
+                                <div className="bg-red-50 text-red-600 p-1 rounded text-[9px]">
+                                    {error}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
 
-                {/* Layer Cards - Horizontal scrolling flex grid */}
-                <div className="flex-1 overflow-x-auto overflow-y-hidden">
-                    <div className="flex flex-row gap-2 h-full items-start">
+                {/* Layer Cards - Full height horizontal scroll */}
+                <div className="flex-1 overflow-x-auto overflow-y-hidden px-2 py-1">
+                    <div className="flex flex-row gap-2 h-full">
                         {layers.map(layer => (
                             <LayerCard
                                 key={layer.id}
@@ -141,18 +173,18 @@ const ExploreLayoutsPanel: FC = () => {
 
                         {/* Empty State */}
                         {!isLoading && layers.length === 0 && !error && (
-                            <div className="flex items-center justify-center text-gray-500 text-sm px-4">
-                                <p>No layers found. {searchQuery || selectedTags.length > 0 ? "Try adjusting filters." : ""}</p>
+                            <div className="flex items-center justify-center text-gray-400 text-xs h-full">
+                                {searchQuery || selectedTags.length > 0 ? "No matches" : "No layers"}
                             </div>
                         )}
 
                         {/* Loading State */}
                         {isLoading && layers.length === 0 && (
-                            <div className="flex gap-2">
-                                {[1, 2, 3].map(i => (
+                            <div className="flex gap-2 h-full">
+                                {[1, 2, 3, 4].map(i => (
                                     <div
                                         key={i}
-                                        className="border rounded-lg p-2 bg-gray-50 animate-pulse w-[180px] h-[100px] flex-shrink-0"
+                                        className="border rounded-lg bg-gray-50 animate-pulse w-[140px] h-full flex-shrink-0"
                                     />
                                 ))}
                             </div>
