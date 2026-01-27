@@ -9,9 +9,10 @@ import { hoverBackgroundClasses, hoverBorderClasses, hoverHeaderClasses } from "
 
 interface Props {
     compact?: boolean;
+    variant?: "small" | "medium" | "default";
 }
 
-const StenoKeys = ({ compact }: Props) => {
+const StenoKeys = ({ compact, variant: variantOverride }: Props) => {
     const { assignKeycode } = useKeyBinding();
     const { keyboard } = useVial();
     const { selectedLayer } = useLayer();
@@ -22,8 +23,8 @@ const StenoKeys = ({ compact }: Props) => {
     const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
     const hoverHeaderClass = hoverHeaderClasses[layerColorName] || hoverHeaderClasses["primary"];
 
-    // Use small size in compact mode, otherwise use keyVariant
-    const effectiveVariant = compact ? 'small' : keyVariant;
+    // Use variant override, then compact check, then user preference
+    const effectiveVariant = variantOverride || (compact ? 'small' : keyVariant);
     const keySizeClass = effectiveVariant === 'small' ? 'h-[30px] w-[30px]' : effectiveVariant === 'medium' ? 'h-[45px] w-[45px]' : 'h-[60px] w-[60px]';
 
     const group1Keys = [
@@ -102,8 +103,8 @@ const StenoKeys = ({ compact }: Props) => {
                             layerColor="sidebar"
                             headerClassName={`bg-kb-sidebar-dark ${hoverHeaderClass}`}
                             isRelative
-                            variant="small"
-                            className="h-[30px] w-[30px]"
+                            variant={effectiveVariant}
+                            className={keySizeClass}
                             hoverBorderColor={hoverBorderColor}
                             hoverBackgroundColor={hoverBackgroundColor}
                             hoverLayerColor={layerColorName}

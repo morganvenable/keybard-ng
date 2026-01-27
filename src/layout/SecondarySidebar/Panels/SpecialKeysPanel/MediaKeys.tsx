@@ -9,9 +9,10 @@ import { hoverBackgroundClasses, hoverBorderClasses, hoverHeaderClasses } from "
 
 interface Props {
     compact?: boolean;
+    variant?: "small" | "medium" | "default";
 }
 
-const MediaKeys = ({ compact }: Props) => {
+const MediaKeys = ({ compact, variant: variantOverride }: Props) => {
     const { assignKeycode } = useKeyBinding();
     const { keyboard } = useVial();
     const { selectedLayer } = useLayer();
@@ -21,7 +22,8 @@ const MediaKeys = ({ compact }: Props) => {
     const hoverBorderColor = hoverBorderClasses[layerColorName] || hoverBorderClasses["primary"];
     const hoverBackgroundColor = hoverBackgroundClasses[layerColorName] || hoverBackgroundClasses["primary"];
     const hoverHeaderClass = hoverHeaderClasses[layerColorName] || hoverHeaderClasses["primary"];
-    const keySizeClass = keyVariant === 'small' ? 'h-[30px] w-[30px]' : keyVariant === 'medium' ? 'h-[45px] w-[45px]' : 'h-[60px] w-[60px]';
+    const effectiveVariant = variantOverride || (compact ? "small" : keyVariant);
+    const keySizeClass = effectiveVariant === 'small' ? 'h-[30px] w-[30px]' : effectiveVariant === 'medium' ? 'h-[45px] w-[45px]' : 'h-[60px] w-[60px]';
 
     const keys = [
         { keycode: "KC_AGIN", label: "Again" },
@@ -91,8 +93,8 @@ const MediaKeys = ({ compact }: Props) => {
                             layerColor="sidebar"
                             headerClassName={`bg-kb-sidebar-dark ${hoverHeaderClass}`}
                             isRelative
-                            variant={compact ? "small" : keyVariant}
-                            className={compact ? "h-[30px] w-[30px]" : keySizeClass}
+                            variant={effectiveVariant}
+                            className={keySizeClass}
                             hoverBorderColor={hoverBorderColor}
                             hoverBackgroundColor={hoverBackgroundColor}
                             hoverLayerColor={layerColorName}

@@ -1,7 +1,9 @@
 import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import AudioKeys from "./AudioKeys";
 import BacklightsKeys from "./BacklightsKeys";
+import ExtraFunctionKeys from "./ExtraFunctionKeys";
 import MediaKeys from "./MediaKeys";
+import OtherKeys from "./OtherKeys";
 import StenoKeys from "./StenoKeys";
 
 interface Props {
@@ -15,10 +17,12 @@ const SpecialKeysPanel = ({ isPicker }: Props) => {
     if (isHorizontal) {
         return (
             <div className="flex flex-row gap-3 h-full items-start flex-wrap content-start">
-                <MediaKeys compact />
-                <AudioKeys compact />
-                <StenoKeys compact />
-                <BacklightsKeys compact />
+                <OtherKeys variant="medium" />
+                <ExtraFunctionKeys variant="medium" />
+                <MediaKeys variant="medium" />
+                <AudioKeys variant="medium" />
+                <StenoKeys variant="medium" />
+                <BacklightsKeys variant="medium" />
             </div>
         );
     }
@@ -30,6 +34,8 @@ const SpecialKeysPanel = ({ isPicker }: Props) => {
                     <span className="font-semibold text-xl text-slate-700">Special Keys</span>
                 </div>
             )}
+            <OtherKeys />
+            <ExtraFunctionKeys />
             <MediaKeys />
             <AudioKeys />
             <StenoKeys />

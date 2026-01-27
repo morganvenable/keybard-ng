@@ -18,6 +18,8 @@ interface LayerCardProps {
     onDelete?: (layer: LayerEntry) => void | Promise<void>;
     onClick?: (layer: LayerEntry) => void;
     className?: string;
+    /** Compact mode for horizontal/bottom bar layout */
+    compact?: boolean;
 }
 
 export const LayerCard: FC<LayerCardProps> = ({
@@ -26,6 +28,7 @@ export const LayerCard: FC<LayerCardProps> = ({
     onDelete,
     onClick,
     className,
+    compact = false,
 }) => {
     const [justCopied, setJustCopied] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -70,6 +73,67 @@ export const LayerCard: FC<LayerCardProps> = ({
     const layerColorClass = layer.layerColor
         ? colorClasses[layer.layerColor] || "bg-kb-primary"
         : "bg-kb-primary";
+
+    // Compact mode for horizontal/bottom bar layout
+    if (compact) {
+        return (
+            <div
+                onClick={handleClick}
+                className={cn(
+                    "border rounded-lg p-2 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow",
+                    "border-gray-200 dark:border-gray-700 w-[180px] flex-shrink-0",
+                    onClick && "cursor-pointer",
+                    className
+                )}
+            >
+                {/* Header */}
+                <div className="flex items-center gap-1.5 mb-1">
+                    <div
+                        className={cn(
+                            "w-2.5 h-2.5 rounded-full flex-shrink-0",
+                            layerColorClass
+                        )}
+                    />
+                    <h3 className="font-semibold text-xs text-gray-900 dark:text-gray-100 truncate flex-1">
+                        {layer.name}
+                    </h3>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                        {layer.keyCount}
+                    </span>
+                </div>
+
+                {/* Description - one line */}
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate mb-2">
+                    {layer.description || "No description"}
+                </p>
+
+                {/* Copy button */}
+                <Button
+                    variant={justCopied ? "default" : error ? "destructive" : "outline"}
+                    size="sm"
+                    className="w-full h-6 text-[10px]"
+                    onClick={handleCopy}
+                    disabled={isLoading}
+                >
+                    {isLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : justCopied ? (
+                        <>
+                            <Check className="w-3 h-3 mr-1" />
+                            Copied
+                        </>
+                    ) : error ? (
+                        "Error"
+                    ) : (
+                        <>
+                            <Copy className="w-3 h-3 mr-1" />
+                            Copy
+                        </>
+                    )}
+                </Button>
+            </div>
+        );
+    }
 
     return (
         <div

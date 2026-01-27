@@ -163,7 +163,7 @@ const BasicKeyboards = ({ isPicker }: Props) => {
 
     const numpadKeys = [
         { keycode: "KC_PSCR", label: "PrtSc" }, { keycode: "KC_SLCK", label: "ScrLk" }, { keycode: "KC_PAUS", label: "Pause" },
-        { keycode: "KC_NLCK", label: "Lock" }, { keycode: "KC_PEQL", label: "=" }, { keycode: "KC_KP_SLASH", label: "/" }, { keycode: "KC_KP_ASTERISK", label: "*" },
+        { keycode: "KC_NLCK", label: "NumLk" }, { keycode: "KC_PEQL", label: "=" }, { keycode: "KC_KP_SLASH", label: "/" }, { keycode: "KC_KP_ASTERISK", label: "*" },
 
         { keycode: "KC_INS", label: "Ins" }, { keycode: "KC_HOME", label: "Home" }, { keycode: "KC_PGUP", label: "PgUp" },
         { keycode: "KC_KP_7", label: "7" }, { keycode: "KC_KP_8", label: "8" }, { keycode: "KC_KP_9", label: "9" }, { keycode: "KC_KP_MINUS", label: "-" },
@@ -184,25 +184,20 @@ const BasicKeyboards = ({ isPicker }: Props) => {
         { keycode: "KC_TRNS", label: "▽" },
     ];
 
-    const otherKeys = [
-        { keycode: "QK_REPEAT_KEY", label: "Repeat" },
-        { keycode: "QK_ALT_REPEAT_KEY", label: "Alt-Repeat" },
-        { keycode: "QK_LAYER_LOCK", label: "Lyr Lock" },
-        { keycode: "QK_LEADER", label: "Leader" },
-    ];
+    const numpadGridCols = 'grid-cols-[repeat(7,45px)]'; // Always medium for sidebar numpad
 
-    // Size for blank placeholder keys based on variant
-    const blankKeySize = keyVariant === 'small' ? 'w-[30px] h-[30px]' : keyVariant === 'medium' ? 'w-[45px] h-[45px]' : 'w-[60px] h-[60px]';
-    const numpadGridCols = keyVariant === 'small' ? 'grid-cols-[repeat(7,30px)]' : keyVariant === 'medium' ? 'grid-cols-[repeat(7,45px)]' : 'grid-cols-[repeat(7,60px)]';
-
-    const renderKeyGrid = (keys: { keycode: string, label: string }[], gridCols?: string) => (
+    const renderKeyGrid = (keys: { keycode: string, label: string, useServiceLabel?: boolean }[], gridCols?: string, variantOverride?: "small" | "medium" | "default") => {
+        const effectiveVariant = variantOverride || keyVariant;
+        const blankSize = effectiveVariant === 'small' ? 'w-[30px] h-[30px]' : effectiveVariant === 'medium' ? 'w-[45px] h-[45px]' : 'w-[60px] h-[60px]';
+        return (
         <div className={cn("gap-1", gridCols ? `grid ${gridCols}` : "flex flex-wrap")}>
             {keys.map((k, i) => {
                 if (k.keycode === "BLANK") {
-                    return <div key={`blank-${i}`} className={blankKeySize} />;
+                    return <div key={`blank-${i}`} className={blankSize} />;
                 }
                 const keyContents = keyboard ? getKeyContents(keyboard, k.keycode) : undefined;
-                const displayLabel = keyService.define(k.keycode)?.str || k.label || k.keycode;
+                // Use custom label for numpad keys, otherwise fall back to keyService
+                const displayLabel = k.useServiceLabel ? (keyService.define(k.keycode)?.str || k.label || k.keycode) : (k.label || k.keycode);
                 const isDoubleHeight = k.keycode === "KC_KP_ENTER";
 
                 return (
@@ -215,7 +210,7 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                         layerColor="sidebar"
                         headerClassName={`bg-kb-sidebar-dark ${hoverHeaderClass}`}
                         isRelative
-                        variant={keyVariant}
+                        variant={effectiveVariant}
                         className={cn(
                             isDoubleHeight ? "row-span-2" : ""
                         )}
@@ -228,6 +223,7 @@ const BasicKeyboards = ({ isPicker }: Props) => {
             })}
         </div>
     );
+    };
 
     // Compact horizontal layout for bottom panel
     if (isHorizontal) {
@@ -354,6 +350,37 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                         })}
                     </div>
                 </div>
+
+                {/* Numpad section - compact grid */}
+                <div className="flex flex-col gap-1 flex-shrink-0">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Numpad</span>
+                    <div className="grid grid-cols-7 gap-0.5">
+                        {numpadKeys.map((k, i) => {
+                            if (k.keycode === "BLANK") {
+                                return <div key={`blank-${i}`} className="w-[30px] h-[30px]" />;
+                            }
+                            const keyContents = keyboard ? getKeyContents(keyboard, k.keycode) : undefined;
+                            const displayLabel = k.label || k.keycode;
+                            return (
+                                <Key
+                                    key={`${k.keycode}-${i}`}
+                                    x={0} y={0} w={1} h={1} row={0} col={0}
+                                    keycode={k.keycode}
+                                    label={displayLabel}
+                                    keyContents={keyContents as KeyContent | undefined}
+                                    layerColor="sidebar"
+                                    headerClassName={`bg-kb-sidebar-dark ${hoverHeaderClass}`}
+                                    isRelative
+                                    variant="small"
+                                    hoverBorderColor={hoverBorderColor}
+                                    hoverBackgroundColor={hoverBackgroundColor}
+                                    hoverLayerColor={layerColorName}
+                                    onClick={() => handleKeyClick(k.keycode)}
+                                />
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
         );
     }
@@ -442,22 +469,11 @@ const BasicKeyboards = ({ isPicker }: Props) => {
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
                     <span className="font-semibold text-lg text-slate-700">Blank and Transparent</span>
-                    {renderKeyGrid(blankKeys)}
+                    {renderKeyGrid(blankKeys, undefined, "medium")}
                 </div>
                 <div className="flex flex-col gap-2">
                     <span className="font-semibold text-lg text-slate-700">Numpad</span>
-                    {renderKeyGrid(numpadKeys, numpadGridCols)}
-                </div>
-                <div className="flex flex-col gap-2">
-                    <span className="font-semibold text-lg text-slate-700">Others</span>
-                    {renderKeyGrid(otherKeys)}
-                </div>
-                <div className="flex flex-col gap-2">
-                    <span className="font-semibold text-lg text-slate-700">Extra Function Keys</span>
-                    {renderKeyGrid(Array.from({ length: 12 }, (_, i) => ({
-                        keycode: `KC_F${i + 13}`,
-                        label: `F${i + 13}`
-                    })))}
+                    {renderKeyGrid(numpadKeys, numpadGridCols, "medium")}
                 </div>
             </div>
         </div>
