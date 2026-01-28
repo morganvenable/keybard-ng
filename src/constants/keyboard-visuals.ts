@@ -27,6 +27,13 @@ export const THUMB_OFFSET_U = 0.3;
  */
 export const FRAGMENT_THUMB_GAP_REDUCTION_U = 0.0;
 
+/**
+ * Maximum finger cluster squeeze per side in key units.
+ * With 2.3u typical gap, squeezing 0.9u per side leaves 0.5u total gap.
+ * Applied dynamically when keyboard doesn't fit at current size.
+ */
+export const MAX_FINGER_CLUSTER_SQUEEZE_U = 0.9;
+
 export const CLUSTER_BACKGROUNDS_DATA: ClusterBackground[] = [
     // Left Cluster
     { x: 8.1, y: 4.9, w: 1.2, h: 1.2, label: "Outer Top" }, // "1" - Narrowed

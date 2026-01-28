@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode, useMemo } from "react";
+import { MAX_FINGER_CLUSTER_SQUEEZE_U } from "@/constants/keyboard-visuals";
 
 export type KeyVariant = "default" | "medium" | "small";
 export type LayoutMode = "sidebar" | "bottombar";
@@ -29,6 +30,8 @@ interface MeasuredDimensions {
     containerHeight: number;
     keyboardWidths: { default: number; medium: number; small: number };
     keyboardHeights: { default: number; medium: number; small: number };
+    // Raw widths without squeeze reduction - used for squeeze calculation
+    rawKeyboardWidths?: { default: number; medium: number; small: number };
 }
 
 interface LayoutSettingsContextType {
@@ -48,6 +51,8 @@ interface LayoutSettingsContextType {
     registerPrimarySidebarControl: (collapse: () => void, expand: () => void) => void;
     // Allow EditorLayout to provide actual measured dimensions for more accurate auto-sizing
     setMeasuredDimensions: (dimensions: MeasuredDimensions) => void;
+    // Dynamic finger cluster squeeze: amount to shift each side toward center (in key units)
+    fingerClusterSqueeze: number;
 }
 
 const LayoutSettingsContext = createContext<LayoutSettingsContextType | undefined>(undefined);
@@ -78,6 +83,35 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
         measuredDimensionsRef.current = dimensions;
         setMeasuredDimensionsState(dimensions);
     }, []);
+
+    // Calculate finger cluster squeeze: how much to shift each side toward center
+    // This allows medium keys to fit in narrower containers by reducing the gap between halves
+    const fingerClusterSqueeze = useMemo(() => {
+        if (!measuredDimensions) return 0;
+
+        const { containerWidth, keyboardWidths, rawKeyboardWidths } = measuredDimensions;
+
+        // Use raw widths for overflow calculation (squeeze-aware widths are for auto-sizing)
+        const widthsForCalculation = rawKeyboardWidths ?? keyboardWidths;
+
+        // Get current keyboard width based on variant (using raw/uncompressed width)
+        const currentWidth = keyVariant === 'small'
+            ? widthsForCalculation.small
+            : keyVariant === 'medium'
+                ? widthsForCalculation.medium
+                : widthsForCalculation.default;
+
+        // Calculate overflow
+        const overflow = currentWidth - containerWidth;
+        if (overflow <= 0) return 0;
+
+        // Convert overflow to key units and divide by 2 (squeeze both sides)
+        const unitSize = keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : 60;
+        const squeezePerSide = overflow / unitSize / 2;
+
+        // Cap at max squeeze (50% of the ~2.3u gap between halves)
+        return Math.min(squeezePerSide, MAX_FINGER_CLUSTER_SQUEEZE_U);
+    }, [measuredDimensions, keyVariant]);
 
     const setSecondarySidebarOpen = useCallback((open: boolean) => {
         if (secondarySidebarOpenRef.current !== open) {
@@ -365,6 +399,7 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
             setPrimarySidebarExpanded,
             registerPrimarySidebarControl,
             setMeasuredDimensions,
+            fingerClusterSqueeze,
         }}>
             {children}
         </LayoutSettingsContext.Provider>

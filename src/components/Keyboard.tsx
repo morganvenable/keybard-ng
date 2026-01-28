@@ -65,7 +65,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
     // Use keyboard's cols if available, otherwise fallback to constant
     const matrixCols = keyboard.cols || MATRIX_COLS;
 
-    const { internationalLayout, keyVariant } = useLayoutSettings();
+    const { internationalLayout, keyVariant, fingerClusterSqueeze } = useLayoutSettings();
     const isTransmitting = useMemo(() =>
         itemToEdit !== null && ["tapdances", "combos", "macros", "overrides"].includes(activePanel || ""),
         [itemToEdit, activePanel]
@@ -75,6 +75,15 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
         keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : UNIT_SIZE,
         [keyVariant]
     );
+
+    // Calculate layout midline for squeeze positioning (center X of the keyboard)
+    const layoutMidline = useMemo(() => {
+        let maxX = 0;
+        Object.values(keyboardLayout).forEach((key) => {
+            maxX = Math.max(maxX, key.x + key.w);
+        });
+        return maxX / 2;
+    }, [keyboardLayout]);
 
     // Ref to store the selection before entering transmitting mode
     const savedSelection = useRef<{ layer: number; row: number; col: number } | null>(null);
@@ -177,18 +186,21 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
             minY = Math.min(minY, yPos);
         });
 
+        // Adjust width for squeeze (both sides squeezed toward center)
+        const adjustedMaxX = maxX - (2 * fingerClusterSqueeze);
+
         // Badge position: horizontally centered, aligned with top keys (same Y level)
-        const badgeCenterX = (maxX / 2) * currentUnitSize;
+        const badgeCenterX = (adjustedMaxX / 2) * currentUnitSize;
         // Position at the same Y level as the top keys (center of the top row)
         const badgeCenterY = (minY + 0.5) * currentUnitSize;
 
         return {
-            width: maxX * currentUnitSize,
+            width: adjustedMaxX * currentUnitSize,
             height: maxY * currentUnitSize + 20,
             badgeCenterX,
             badgeCenterY,
         };
-    }, [keyboardLayout, currentUnitSize, useFragmentLayout]);
+    }, [keyboardLayout, currentUnitSize, useFragmentLayout, fingerClusterSqueeze]);
 
     return (
         <div className="p-4">
@@ -229,10 +241,30 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
                     // Only apply THUMB_OFFSET_U for hardcoded layout, not fragment-composed layouts
                     const yPos = (!useFragmentLayout && layout.y >= 6) ? layout.y + THUMB_OFFSET_U : layout.y;
 
+                    // Apply finger cluster squeeze: shift keys toward center based on side
+                    // Only squeeze finger cluster keys (y < 5), not thumb clusters (y >= 5)
+                    let xPos = layout.x;
+                    const isThumbCluster = layout.y >= 5;
+                    if (fingerClusterSqueeze > 0) {
+                        if (!isThumbCluster) {
+                            const keyCenterX = layout.x + layout.w / 2;
+                            if (keyCenterX < layoutMidline) {
+                                // Left side: shift right (toward center)
+                                xPos = layout.x + fingerClusterSqueeze;
+                            } else {
+                                // Right side: shift left (toward center)
+                                xPos = layout.x - fingerClusterSqueeze;
+                            }
+                        }
+                        // Offset ALL keys left to keep keyboard left-aligned
+                        // (compensates for left finger cluster shifting right)
+                        xPos -= fingerClusterSqueeze;
+                    }
+
                     return (
                         <Key
                             key={`${row}-${col}`}
-                            x={layout.x}
+                            x={xPos}
                             y={yPos}
                             w={layout.w}
                             h={layout.h}

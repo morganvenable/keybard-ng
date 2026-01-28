@@ -20,7 +20,7 @@ import { PasteLayerDialog } from "@/components/PasteLayerDialog";
 
 import { LayoutSettingsProvider, useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { UNIT_SIZE, SVALBOARD_LAYOUT } from "@/constants/svalboard-layout";
-import { THUMB_OFFSET_U } from "@/constants/keyboard-visuals";
+import { THUMB_OFFSET_U, MAX_FINGER_CLUSTER_SQUEEZE_U } from "@/constants/keyboard-visuals";
 
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -108,12 +108,21 @@ const EditorLayoutInner = () => {
     const [containerHeight, setContainerHeight] = React.useState(0);
 
 
-    // Calculate keyboard widths at each size (for auto-sizing)
-    const keyboardWidths = React.useMemo(() => ({
+    // Raw keyboard widths without squeeze (used for squeeze calculation)
+    const rawKeyboardWidths = React.useMemo(() => ({
         default: keyboardExtents.maxX * UNIT_SIZE + 32, // +32 for padding
         medium: keyboardExtents.maxX * 45 + 32,
         small: keyboardExtents.maxX * 30 + 32,
     }), [keyboardExtents]);
+
+    // Calculate keyboard widths at each size (for auto-sizing)
+    // Account for max squeeze capability - both sides can squeeze toward center
+    const squeezeReduction = 2 * MAX_FINGER_CLUSTER_SQUEEZE_U;
+    const keyboardWidths = React.useMemo(() => ({
+        default: rawKeyboardWidths.default, // no squeeze at default
+        medium: (keyboardExtents.maxX - squeezeReduction) * 45 + 32, // squeeze enabled
+        small: rawKeyboardWidths.small, // no squeeze at small (already compact)
+    }), [keyboardExtents, squeezeReduction, rawKeyboardWidths]);
 
     // Calculate keyboard heights at each size (for auto-sizing)
     const keyboardHeights = React.useMemo(() => ({
@@ -140,6 +149,7 @@ const EditorLayoutInner = () => {
                 containerHeight: height,
                 keyboardWidths,
                 keyboardHeights,
+                rawKeyboardWidths,
             });
         };
 
@@ -151,7 +161,7 @@ const EditorLayoutInner = () => {
         resizeObserver.observe(container);
 
         return () => resizeObserver.disconnect();
-    }, [keyboardWidths, keyboardHeights, setMeasuredDimensions]);
+    }, [keyboardWidths, keyboardHeights, rawKeyboardWidths, setMeasuredDimensions]);
 
     const { getSetting, updateSetting } = useSettings();
     const { getPendingCount, commit, setInstant, clearAll, queue } = useChanges();
