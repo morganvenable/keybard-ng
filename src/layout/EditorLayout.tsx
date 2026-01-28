@@ -374,16 +374,6 @@ const EditorLayoutInner = () => {
     }, [registerPrimarySidebarControl]);
 
     const contentOffset = showDetailsSidebar ? `calc(${primaryOffset ?? "0px"} + ${DETAIL_SIDEBAR_WIDTH})` : primaryOffset ?? undefined;
-    const contentStyle = React.useMemo<React.CSSProperties>(
-        () => ({
-            marginLeft: contentOffset,
-            transition: "margin-left 320ms cubic-bezier(0.22, 1, 0.36, 1), padding-bottom 300ms ease-in-out",
-            willChange: "margin-left, padding-bottom",
-            // Add bottom padding when bottom panel is shown
-            paddingBottom: showBottomPanel ? BOTTOM_PANEL_HEIGHT : 0,
-        }),
-        [contentOffset, showBottomPanel]
-    );
 
     // Calculate dynamic top padding for keyboard
     // Ideal: 1 key height gap between layer selector and keyboard
@@ -416,6 +406,39 @@ const EditorLayoutInner = () => {
             return minGap;
         }
     }, [currentUnitSize, containerHeight, keyboardHeights, keyVariant, showEditorOverlay, showBottomPanel]);
+
+    // Calculate dynamic bottom panel height to fill remaining vertical space
+    const dynamicBottomPanelHeight = React.useMemo(() => {
+        if (!showBottomPanel) return BOTTOM_PANEL_HEIGHT;
+
+        const MIN_HEIGHT = 150;
+        const MAX_HEIGHT = 400;
+        const layerSelectorHeight = 80;
+        const topPadding = dynamicTopPadding;
+
+        // Get current keyboard height based on variant
+        const kbHeight = keyVariant === 'small'
+            ? keyboardHeights.small
+            : keyVariant === 'medium'
+                ? keyboardHeights.medium
+                : keyboardHeights.default;
+
+        // Available = container - layerSelector - topPadding - keyboard
+        const available = containerHeight - layerSelectorHeight - topPadding - kbHeight;
+
+        return Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, available));
+    }, [showBottomPanel, containerHeight, keyboardHeights, keyVariant, dynamicTopPadding]);
+
+    const contentStyle = React.useMemo<React.CSSProperties>(
+        () => ({
+            marginLeft: contentOffset,
+            transition: "margin-left 320ms cubic-bezier(0.22, 1, 0.36, 1), padding-bottom 300ms ease-in-out",
+            willChange: "margin-left, padding-bottom",
+            // Add bottom padding when bottom panel is shown
+            paddingBottom: showBottomPanel ? dynamicBottomPanelHeight : 0,
+        }),
+        [contentOffset, showBottomPanel, dynamicBottomPanelHeight]
+    );
 
     return (
         <div className={cn("flex flex-1 h-screen max-w-screen min-w-[850px] p-0", showDetailsSidebar && "bg-white")}>
@@ -811,7 +834,7 @@ const EditorLayoutInner = () => {
                 )}
             </div>
             {/* Render BottomPanel at root level so it spans full width */}
-            {useBottomLayout && <BottomPanel leftOffset={primaryOffset} pickerMode={pickerMode} />}
+            {useBottomLayout && <BottomPanel leftOffset={primaryOffset} pickerMode={pickerMode} height={dynamicBottomPanelHeight} />}
 
             {/* Paste Layer Dialog */}
             <PasteLayerDialog

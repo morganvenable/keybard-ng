@@ -31,6 +31,7 @@ export const BOTTOM_PANEL_HEIGHT = 230;
 interface BottomPanelProps {
     leftOffset?: string;
     pickerMode?: PickerMode;
+    height?: number;
 }
 
 /**
@@ -40,8 +41,9 @@ interface BottomPanelProps {
  *
  * When editing (itemToEdit !== null), shows key pickers controlled by pickerMode.
  */
-const BottomPanel: React.FC<BottomPanelProps> = ({ leftOffset, pickerMode }) => {
+const BottomPanel: React.FC<BottomPanelProps> = ({ leftOffset, pickerMode, height }) => {
     const { activePanel, state, itemToEdit } = usePanels();
+    const panelHeight = height ?? BOTTOM_PANEL_HEIGHT;
 
     // Check if we're in editor mode
     const isEditing = itemToEdit !== null &&
@@ -120,9 +122,9 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ leftOffset, pickerMode }) => 
                 isOpen ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 pointer-events-none"
             )}
             style={{
-                height: BOTTOM_PANEL_HEIGHT,
+                height: panelHeight,
                 left: leftOffset ? `calc(${leftOffset} + 8px)` : 0,
-                transition: "left 320ms cubic-bezier(0.22, 1, 0.36, 1), transform 300ms ease-in-out, opacity 300ms ease-in-out"
+                transition: "left 320ms cubic-bezier(0.22, 1, 0.36, 1), transform 300ms ease-in-out, opacity 300ms ease-in-out, height 200ms ease-in-out"
             }}
         >
             {/* Content area - allows both horizontal and vertical scrolling for wrapped content */}
