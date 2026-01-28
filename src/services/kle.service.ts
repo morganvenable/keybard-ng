@@ -189,7 +189,10 @@ export class KleService {
 
 
                 this.calcRenderData(key);
-                (keylayout as any)[row * kbinfo.cols + col] = Object.assign({}, meta, key);
+                (keylayout as any)[row * kbinfo.cols + col] = Object.assign({}, meta, key, {
+                    w: key.width,
+                    h: key.height,
+                });
             }
         }
         return keylayout;
