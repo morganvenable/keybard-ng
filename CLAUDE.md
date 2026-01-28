@@ -223,6 +223,61 @@ Files to update for new panels:
 - `src/layout/SecondarySidebar/SecondarySidebar.tsx` - Sidebar panel registration
 - `src/layout/BottomPanel/BottomPanel.tsx` - Bottom bar panel registration
 
+## Dynamic Finger Cluster Squeeze
+
+The keyboard layout dynamically squeezes finger clusters toward the center when the keyboard doesn't fit in the available container width. This enables medium-sized keys (45px) to fit in half-screen view (~960px).
+
+### How It Works
+
+1. **LayoutSettingsContext** calculates `fingerClusterSqueeze` based on overflow
+2. **Keyboard.tsx** applies the squeeze at render time (not stored in keylayout)
+3. Only **finger clusters** (y < 5) are squeezed; **thumb clusters** (y >= 5) stay fixed
+4. A global left offset keeps the keyboard left-aligned after squeeze
+
+### Key Constants
+
+```typescript
+// src/constants/keyboard-visuals.ts
+export const MAX_FINGER_CLUSTER_SQUEEZE_U = 0.9;  // Max squeeze per side in key units
+```
+
+With a typical 2.3u gap between left/right halves, squeezing 0.9u per side leaves ~0.5u total gap.
+
+### Dual Width Approach
+
+EditorLayout passes **two sets of widths** to the context:
+- `keyboardWidths` - Squeeze-aware widths (used for auto-sizing decisions)
+- `rawKeyboardWidths` - Original widths without squeeze (used to calculate squeeze amount)
+
+This avoids a chicken-and-egg problem: auto-sizing needs to know medium keys CAN fit (with squeeze), but squeeze calculation needs to know the actual overflow.
+
+### Key Files
+
+| File | Role |
+|------|------|
+| `src/constants/keyboard-visuals.ts` | `MAX_FINGER_CLUSTER_SQUEEZE_U` constant |
+| `src/contexts/LayoutSettingsContext.tsx` | Squeeze calculation, exposes `fingerClusterSqueeze` |
+| `src/layout/EditorLayout.tsx` | Passes raw and squeeze-aware widths |
+| `src/components/Keyboard.tsx` | Applies squeeze to key X positions |
+
+### Squeeze Logic in Keyboard.tsx
+
+```typescript
+const isThumbCluster = layout.y >= 5;
+if (fingerClusterSqueeze > 0) {
+    if (!isThumbCluster) {
+        const keyCenterX = layout.x + layout.w / 2;
+        if (keyCenterX < layoutMidline) {
+            xPos = layout.x + fingerClusterSqueeze;  // Left side: shift right
+        } else {
+            xPos = layout.x - fingerClusterSqueeze;  // Right side: shift left
+        }
+    }
+    // Offset ALL keys left to keep keyboard left-aligned
+    xPos -= fingerClusterSqueeze;
+}
+```
+
 ## Documentation
 
 Comprehensive docs in `/docs/`:
