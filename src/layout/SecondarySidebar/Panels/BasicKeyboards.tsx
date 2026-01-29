@@ -147,8 +147,15 @@ const BasicKeyboards = ({ isPicker }: Props) => {
 
         // Ensure we translate names like 'SV_...' to actual keycodes if needed
         const mappedKeycode = getKeyCodeForButton(keyboard, keycode) || keycode;
-        const finalKeycode = applyModifiers(mappedKeycode, activeModifiers, modTapEnabled);
+        // Blank and Transparent keys are never modified
+        const isBlank = keycode === "KC_NO" || keycode === "KC_TRNS";
+        const finalKeycode = isBlank ? mappedKeycode : applyModifiers(mappedKeycode, activeModifiers, modTapEnabled);
         assignKeycode(finalKeycode);
+        // Clear modifiers after placing a key so they don't persist unexpectedly
+        if (activeModifiers.length > 0 || modTapEnabled) {
+            setActiveModifiers([]);
+            setModTapEnabled(false);
+        }
     };
 
     const handleKeyboardInput = (button: string) => {
@@ -166,10 +173,10 @@ const BasicKeyboards = ({ isPicker }: Props) => {
         { keycode: "KC_DEL", label: "Del" }, { keycode: "KC_END", label: "End" }, { keycode: "KC_PGDN", label: "PgDn" },
         { keycode: "KC_KP_4", label: "4" }, { keycode: "KC_KP_5", label: "5" }, { keycode: "KC_KP_6", label: "6" }, { keycode: "KC_KP_PLUS", label: "+" },
 
-        { keycode: "BLANK", label: "" }, { keycode: "KC_UP", label: "↑" }, { keycode: "BLANK", label: "" },
+        { keycode: "BLANK", label: "" }, { keycode: "KC_UP", label: "Up" }, { keycode: "BLANK", label: "" },
         { keycode: "KC_KP_1", label: "1" }, { keycode: "KC_KP_2", label: "2" }, { keycode: "KC_KP_3", label: "3" }, { keycode: "KC_KP_ENTER", label: "Enter" },
 
-        { keycode: "KC_LEFT", label: "←" }, { keycode: "KC_DOWN", label: "↓" }, { keycode: "KC_RGHT", label: "→" },
+        { keycode: "KC_LEFT", label: "Left" }, { keycode: "KC_DOWN", label: "Down" }, { keycode: "KC_RGHT", label: "Right" },
         { keycode: "KC_KP_0", label: "0" }, { keycode: "KC_KP_DOT", label: "." },
     ];
 
@@ -450,7 +457,7 @@ const BasicKeyboards = ({ isPicker }: Props) => {
                     })}
 
                     {/* Mod-Tap / One-Shot toggles */}
-                    <div className="border-l border-gray-300 pl-2 ml-2 flex gap-1">
+                    <div className="border-l border-gray-300 pl-2 ml-2 flex items-center gap-1">
                         <Button
                             type="button"
                             variant={modTapEnabled ? "default" : "secondary"}

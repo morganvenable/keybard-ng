@@ -216,7 +216,8 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     let finalKeycodeValue = keycodeValue;
 
                     // If subsection is "inner", compose new keycode preserving the hold/mask portion
-                    if (keyboardSubsection === "inner" && previousValue !== undefined) {
+                    // Exception: KC_NO (0) and KC_TRNS (1) clear the entire key
+                    if (keyboardSubsection === "inner" && previousValue !== undefined && keycodeValue > 1) {
                         const prevKeycode = typeof previousValue === "number" ? previousValue : keyService.parse(previousValue);
                         const prevKeyStr = keyService.stringify(prevKeycode);
 

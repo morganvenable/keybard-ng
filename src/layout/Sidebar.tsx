@@ -1,4 +1,4 @@
-import { ArrowUpDown, Download, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Mouse, Piano, Repeat, Settings, Unplug, Upload, Zap } from "lucide-react";
+import { Download, HelpCircle, Keyboard, LayoutGrid, ListOrdered, LucideIcon, Mouse, Piano, Repeat, Settings, Unplug, Upload, Zap } from "lucide-react";
 import LayoutsIcon from "@/components/icons/Layouts";
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -410,49 +410,28 @@ const AppSidebar = () => {
                             </button>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
-                    {/* Import/Export - expanded view */}
-                    {!isCollapsed && (
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild size="nav" className="text-slate-600 transition-colors">
-                                <div className="flex w-full items-center justify-start pr-2">
-                                    <div className={cn(getIconGutterWidth(isCollapsed), "h-4 flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
-                                        <ArrowUpDown className="h-4 w-4 shrink-0" />
-                                    </div>
-                                    <button type="button" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }} className="text-xs font-medium hover:text-slate-900">
-                                        Import
-                                    </button>
-                                    <span className="text-slate-300 mx-1">|</span>
-                                    <button type="button" onClick={(e) => { e.stopPropagation(); setIsExportOpen(true); }} className="text-xs font-medium hover:text-slate-900 disabled:opacity-50" disabled={!keyboard}>
-                                        Export
-                                    </button>
+                    {/* Import */}
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild size="nav" tooltip={isCollapsed ? "Import" : undefined} sidebarName="primary-nav" className="text-slate-600 transition-colors">
+                            <button type="button" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }} className={cn("flex w-full items-center", isCollapsed ? "justify-center" : "justify-start pr-2")}>
+                                <div className={cn(getIconGutterWidth(isCollapsed), "h-4 flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
+                                    <Download className="h-4 w-4 shrink-0" />
                                 </div>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    )}
-                    {/* Import - collapsed view */}
-                    {isCollapsed && (
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild size="nav" tooltip="Import" sidebarName="primary-nav" className="text-slate-600 transition-colors">
-                                <button type="button" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }} className="flex w-full items-center justify-center">
-                                    <div className={cn(getIconGutterWidth(isCollapsed), "h-4 flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
-                                        <Download className="h-4 w-4 shrink-0" />
-                                    </div>
-                                </button>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    )}
-                    {/* Export - collapsed view */}
-                    {isCollapsed && (
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild size="nav" tooltip="Export" sidebarName="primary-nav" className="text-slate-600 transition-colors">
-                                <button type="button" onClick={(e) => { e.stopPropagation(); setIsExportOpen(true); }} className="flex w-full items-center justify-center disabled:opacity-50" disabled={!keyboard}>
-                                    <div className={cn(getIconGutterWidth(isCollapsed), "h-4 flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
-                                        <Upload className="h-4 w-4 shrink-0" />
-                                    </div>
-                                </button>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    )}
+                                {!isCollapsed && <span className="text-xs font-medium">Import</span>}
+                            </button>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    {/* Export */}
+                    <SidebarMenuItem>
+                        <SidebarMenuButton asChild size="nav" tooltip={isCollapsed ? "Export" : undefined} sidebarName="primary-nav" className="text-slate-600 transition-colors">
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setIsExportOpen(true); }} className={cn("flex w-full items-center disabled:opacity-50", isCollapsed ? "justify-center" : "justify-start pr-2")} disabled={!keyboard}>
+                                <div className={cn(getIconGutterWidth(isCollapsed), "h-4 flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
+                                    <Upload className="h-4 w-4 shrink-0" />
+                                </div>
+                                {!isCollapsed && <span className="text-xs font-medium">Export</span>}
+                            </button>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
                 </SidebarMenu>
 
                 {/* Main navigation - vertically centered in available space */}
