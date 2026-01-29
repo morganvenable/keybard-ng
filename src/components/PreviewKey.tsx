@@ -20,13 +20,15 @@ export interface PreviewKeyProps {
     keyContents?: KeyContent;
     layerColor?: string;
     unitSize?: number;
+    /** Use tiny text for very small previews */
+    tiny?: boolean;
 }
 
 // Full-size key for hover popup
 const POPUP_UNIT_SIZE = 60;
 
 export const PreviewKey: React.FC<PreviewKeyProps> = ({
-    x, y, w, h, keycode, label, keyContents, layerColor = "primary", unitSize = 30,
+    x, y, w, h, keycode, label, keyContents, layerColor = "primary", unitSize = 30, tiny = false,
 }) => {
     const [isHovered, setIsHovered] = useState(false);
     const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
@@ -94,30 +96,33 @@ export const PreviewKey: React.FC<PreviewKeyProps> = ({
     };
 
     // Render the key content (shared between mini and popup)
-    const renderKeyContent = (size: "small" | "large") => {
-        const isSmall = size === "small";
+    const renderKeyContent = (size: "small" | "large" | "tiny") => {
+        const isTiny = size === "tiny";
+        const isSmall = size === "small" || isTiny;
         const headerClass = cn(
             "whitespace-nowrap w-full text-center font-semibold py-0 text-white bg-black/30",
+            isTiny ? "text-[4px] leading-[6px] rounded-t-[2px]" :
             isSmall ? "text-[8px] rounded-t-[4px]" : "text-sm rounded-t-sm"
         );
 
         return (
             <>
                 {keyData.topLabel && (
-                    <span className={cn(headerClass, "flex items-center justify-center", isSmall ? "min-h-[10px]" : "min-h-[1.2rem]")}>
-                        {keyData.topLabel}
+                    <span className={cn(headerClass, "flex items-center justify-center", isTiny ? "min-h-[6px]" : isSmall ? "min-h-[10px]" : "min-h-[1.2rem]")}>
+                        {isTiny ? null : keyData.topLabel}
                     </span>
                 )}
-                {keyContents && getTypeIcon(keyContents.type || "", isSmall ? "small" : "default")}
+                {!isTiny && keyContents && getTypeIcon(keyContents.type || "", isSmall ? "small" : "default")}
                 <div className={cn(
-                    "text-center w-full h-full justify-center items-center flex font-semibold",
+                    "text-center w-full h-full justify-center items-center flex font-semibold overflow-hidden",
+                    isTiny ? "text-[6px] leading-[8px] px-0" :
                     isSmall ? "text-[10px] px-0.5" : "text-[15px]"
                 )}>
                     {keyData.centerContent}
                 </div>
                 {keyData.bottomStr && (
-                    <span className={cn(headerClass, "flex items-center justify-center", isSmall ? "min-h-[10px] rounded-b-[4px]" : "min-h-5 rounded-b-sm")}>
-                        {keyData.bottomStr}
+                    <span className={cn(headerClass, "flex items-center justify-center", isTiny ? "min-h-[6px] rounded-b-[2px]" : isSmall ? "min-h-[10px] rounded-b-[4px]" : "min-h-5 rounded-b-sm")}>
+                        {isTiny ? null : keyData.bottomStr}
                     </span>
                 )}
             </>
@@ -143,11 +148,17 @@ export const PreviewKey: React.FC<PreviewKeyProps> = ({
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
                 >
-                    <span className="whitespace-nowrap w-full text-center font-semibold py-0 text-white bg-black/30 text-[8px] rounded-t-[4px]">
-                        {keyContents?.layertext}
+                    <span className={cn(
+                        "whitespace-nowrap w-full text-center font-semibold py-0 text-white bg-black/30",
+                        tiny ? "text-[4px] leading-[6px] rounded-t-[2px]" : "text-[8px] rounded-t-[4px]"
+                    )}>
+                        {tiny ? null : keyContents?.layertext}
                     </span>
                     <div className="flex flex-row h-full w-full items-center justify-center gap-1">
-                        <div className="text-center justify-center items-center flex font-semibold text-[13px]">
+                        <div className={cn(
+                            "text-center justify-center items-center flex font-semibold",
+                            tiny ? "text-[6px] leading-[8px]" : "text-[13px]"
+                        )}>
                             {targetLayer}
                         </div>
                         {getTypeIcon("layer", "small")}
@@ -208,7 +219,7 @@ export const PreviewKey: React.FC<PreviewKeyProps> = ({
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
             >
-                {renderKeyContent("small")}
+                {renderKeyContent(tiny ? "tiny" : "small")}
             </div>
 
             {/* Full-size popup on hover */}

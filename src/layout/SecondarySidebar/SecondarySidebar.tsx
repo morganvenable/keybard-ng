@@ -9,7 +9,6 @@ import AltRepeatPanel from "./Panels/AltRepeatPanel";
 import BasicKeyboards from "./Panels/BasicKeyboards";
 import CombosPanel from "./Panels/CombosPanel";
 import DynamicMenuPanel from "./Panels/DynamicMenuPanel";
-import ExploreLayoutsPanel from "./Panels/ExploreLayoutsPanel";
 import FragmentsPanel from "./Panels/FragmentsPanel";
 import LayoutsPanel from "./Panels/LayoutsPanel";
 import LeadersPanel from "./Panels/LeadersPanel";
@@ -63,7 +62,6 @@ const getPanelTitle = (panel: string | null | undefined, menus?: CustomUIMenuIte
         altrepeat: "Alt-Repeat Keys",
         leaders: "Leader Sequences",
         fragments: "Fragment Selections",
-        explore: "Layer Library",
         layouts: "Layouts",
         pointing: "Pointing Devices",
         qmksettings: "QMK Settings",
@@ -172,7 +170,6 @@ const SecondarySidebar = () => {
             case "altrepeat": return <AltRepeatPanel />;
             case "leaders": return <LeadersPanel />;
             case "fragments": return <FragmentsPanel />;
-            case "explore": return <ExploreLayoutsPanel />;
             case "layouts": return <LayoutsPanel />;
             case "pointing": return <PointingPanel />;
             case "qmk": return <QmkKeyPanel />;

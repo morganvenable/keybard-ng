@@ -12,21 +12,31 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, Filter, Plus, Search, Upload, X } from "lucide-react";
 
 import { LayoutGroupCard } from "@/components/LayoutGroupCard";
+import { LayerCard } from "@/components/LayoutCard";
+import { LayerPreviewModal } from "@/components/LayerPreviewModal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useLayoutLibrary } from "@/contexts/LayoutLibraryContext";
 import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
-import { useVial } from "@/contexts/VialContext";
 import { layerLibraryService } from "@/services/layer-library.service";
-import type { LayoutGroup, ImportedLayer } from "@/types/layer-library";
+import type { LayoutGroup, ImportedLayer, LayerEntry } from "@/types/layer-library";
 import { cn } from "@/lib/utils";
 
 const LayoutsPanel: FC = () => {
     const { layoutMode } = useLayoutSettings();
     const isHorizontal = layoutMode === "bottombar";
     const [filtersExpanded, setFiltersExpanded] = useState(false);
-    const { keyboard } = useVial();
-    const { copyLayer, openPasteDialog } = useLayoutLibrary();
+    const {
+        copyLayer,
+        openPasteDialog,
+        layers: publishedLayers,
+        isLoading: isPublishedLoading,
+        deleteLayer,
+        previewLayer,
+        isPreviewOpen,
+        openPreview,
+        closePreview,
+    } = useLayoutLibrary();
 
     const [searchQuery, setSearchQuery] = useState("");
     const [importedLayouts, setImportedLayouts] = useState<LayoutGroup[]>([]);
@@ -41,11 +51,6 @@ const LayoutsPanel: FC = () => {
     useEffect(() => {
         setImportedLayouts(layerLibraryService.getImportedLayouts());
     }, []);
-
-    // Get current keyboard as a layout group
-    const currentKeyboardGroup: LayoutGroup | null = keyboard
-        ? layerLibraryService.getCurrentKeyboardGroup(keyboard)
-        : null;
 
     // Handle file import
     const handleFileImport = useCallback(async (file: File) => {
@@ -127,6 +132,13 @@ const LayoutsPanel: FC = () => {
         setTimeout(() => openPasteDialog(), 0);
     };
 
+    // Handle copy published layer
+    const handleCopyPublished = async (layer: LayerEntry) => {
+        await navigator.clipboard.writeText(JSON.stringify(layer.keymap));
+        copyLayer(layer);
+        setTimeout(() => openPasteDialog(), 0);
+    };
+
     // Filter layouts based on search query
     const hasMatchingLayers = (group: LayoutGroup | null) => {
         if (!group) return false;
@@ -135,6 +147,11 @@ const LayoutsPanel: FC = () => {
             l.name.toLowerCase().includes(searchQuery.toLowerCase())
         ) || group.name.toLowerCase().includes(searchQuery.toLowerCase());
     };
+
+    // Filter published layers
+    const filteredPublishedLayers = publishedLayers.filter(l =>
+        !searchQuery || l.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     // ==========================================
     // HORIZONTAL LAYOUT (Bottom Bar Mode)
@@ -247,17 +264,6 @@ const LayoutsPanel: FC = () => {
                 {/* Layout Groups - Horizontal scroll */}
                 <div className="flex-1 overflow-x-auto overflow-y-hidden px-2 py-1">
                     <div className="flex flex-row gap-2 h-full">
-                        {/* Current Keyboard */}
-                        {currentKeyboardGroup && hasMatchingLayers(currentKeyboardGroup) && (
-                            <LayoutGroupCard
-                                group={currentKeyboardGroup}
-                                defaultExpanded={true}
-                                onPlaceLayer={handlePlaceLayer}
-                                searchQuery={searchQuery}
-                                compact
-                            />
-                        )}
-
                         {/* Imported Layouts */}
                         {importedLayouts
                             .filter(hasMatchingLayers)
@@ -274,22 +280,42 @@ const LayoutsPanel: FC = () => {
                             ))
                         }
 
+                        {/* Published Layers */}
+                        {filteredPublishedLayers.map(layer => (
+                            <LayerCard
+                                key={layer.id}
+                                layer={layer}
+                                onCopy={handleCopyPublished}
+                                onClick={openPreview}
+                                onDelete={() => { deleteLayer(layer.id); }}
+                                compact
+                            />
+                        ))}
+
                         {/* Empty State */}
-                        {!currentKeyboardGroup && importedLayouts.length === 0 && (
+                        {importedLayouts.length === 0 && publishedLayers.length === 0 && (
                             <div className="flex items-center justify-center text-gray-400 text-xs h-full px-4">
-                                <span>Import a .viable file or connect keyboard</span>
+                                <span>Import a .viable file or publish layers to get started</span>
                             </div>
                         )}
 
                         {/* Loading */}
-                        {isImporting && (
+                        {(isImporting || isPublishedLoading) && (
                             <div className="flex items-center gap-2 text-gray-500 text-xs px-2">
                                 <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
-                                Importing...
+                                {isImporting ? "Importing..." : "Loading..."}
                             </div>
                         )}
                     </div>
                 </div>
+
+                {/* Layer Preview Modal */}
+                <LayerPreviewModal
+                    layer={previewLayer}
+                    isOpen={isPreviewOpen}
+                    onClose={closePreview}
+                    onCopy={handleCopyPublished}
+                />
             </section>
         );
     }
@@ -379,16 +405,6 @@ const LayoutsPanel: FC = () => {
 
             {/* Layout List */}
             <div className="flex-1 overflow-auto px-3 pb-3 space-y-3 scrollbar-thin">
-                {/* Current Keyboard */}
-                {currentKeyboardGroup && hasMatchingLayers(currentKeyboardGroup) && (
-                    <LayoutGroupCard
-                        group={currentKeyboardGroup}
-                        defaultExpanded={true}
-                        onPlaceLayer={handlePlaceLayer}
-                        searchQuery={searchQuery}
-                    />
-                )}
-
                 {/* Imported Layouts */}
                 {importedLayouts
                     .filter(hasMatchingLayers)
@@ -404,13 +420,33 @@ const LayoutsPanel: FC = () => {
                     ))
                 }
 
+                {/* Published Layers */}
+                {filteredPublishedLayers.length > 0 && (
+                    <>
+                        {importedLayouts.length > 0 && (
+                            <div className="text-xs font-medium text-gray-400 uppercase tracking-wider pt-2">
+                                Published Layers
+                            </div>
+                        )}
+                        {filteredPublishedLayers.map(layer => (
+                            <LayerCard
+                                key={layer.id}
+                                layer={layer}
+                                onCopy={handleCopyPublished}
+                                onClick={openPreview}
+                                onDelete={() => { deleteLayer(layer.id); }}
+                            />
+                        ))}
+                    </>
+                )}
+
                 {/* Empty State */}
-                {!currentKeyboardGroup && importedLayouts.length === 0 && (
+                {importedLayouts.length === 0 && publishedLayers.length === 0 && (
                     <div className="text-center text-gray-500 mt-10">
                         <Upload className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                         <p className="mb-2">No layouts loaded</p>
                         <p className="text-sm">
-                            Connect a keyboard or import a .viable file to get started
+                            Import a .viable file or publish layers to get started
                         </p>
                         <Button
                             variant="outline"
@@ -425,7 +461,7 @@ const LayoutsPanel: FC = () => {
                 )}
 
                 {/* No search results */}
-                {searchQuery && !hasMatchingLayers(currentKeyboardGroup!) && importedLayouts.filter(hasMatchingLayers).length === 0 && (
+                {searchQuery && importedLayouts.filter(hasMatchingLayers).length === 0 && filteredPublishedLayers.length === 0 && (
                     <div className="text-center text-gray-500 mt-10">
                         <p className="mb-2">No layers match "{searchQuery}"</p>
                         <button
@@ -438,10 +474,10 @@ const LayoutsPanel: FC = () => {
                 )}
 
                 {/* Loading State */}
-                {isImporting && (
+                {(isImporting || isPublishedLoading) && (
                     <div className="text-center text-gray-500 py-4">
                         <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-2" />
-                        <p className="text-sm">Importing layout...</p>
+                        <p className="text-sm">{isImporting ? "Importing layout..." : "Loading..."}</p>
                     </div>
                 )}
             </div>
@@ -450,6 +486,14 @@ const LayoutsPanel: FC = () => {
             <div className="px-3 pb-2 text-xs text-gray-400 text-center">
                 Click Place to apply a layer to the currently selected layer
             </div>
+
+            {/* Layer Preview Modal */}
+            <LayerPreviewModal
+                layer={previewLayer}
+                isOpen={isPreviewOpen}
+                onClose={closePreview}
+                onCopy={handleCopyPublished}
+            />
         </section>
     );
 };
