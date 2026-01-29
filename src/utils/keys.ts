@@ -189,10 +189,20 @@ export function getKeyContents(KBINFO: KeyboardInfo, keystr: any) {
 
     m = keystr.match(/^OSM\((.*)\)$/);
     if (m) {
+        const rawMods = m[1].replace(/MOD_/g, "");
+        const parts = rawMods.split("|");
+        // For multiple modifiers, abbreviate: LCTL|LALT → "LCA", RSFT|RGUI → "RSG"
+        let osmStr = rawMods;
+        if (parts.length > 1) {
+            const side = parts[0]?.[0] || ""; // "L" or "R"
+            const abbrevMap: Record<string, string> = { CTL: "C", SFT: "S", ALT: "A", GUI: "G" };
+            const letters = parts.map((p: string) => abbrevMap[p.slice(1)] || p.slice(1, 2)).join("");
+            osmStr = side + letters;
+        }
         return {
             type: "OSM",
             top: "OSM",
-            str: m[1].replace(/MOD_/g, ""),
+            str: osmStr,
             title: keystr,
         };
     }
