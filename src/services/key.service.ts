@@ -97,6 +97,11 @@ export class KeyService {
    * Convert a keynum to a string. e.g: 0x0004 -> 'KC_A', 0x0104 -> "LCTRL(KC_A)"
    */
   stringify(keynum: number): string {
+    // Check full keycode first (handles OSM, special keycodes that aren't mod+key combos)
+    if (keynum in CODEMAP) {
+      return CODEMAP[keynum] as string;
+    }
+
     const modmask = keynum & 0xff00;
     const keyid = keynum & 0x00ff;
 
@@ -110,16 +115,12 @@ export class KeyService {
         return maskstr.replace(/\(kc\)/, '(' + kcstr + ')');
       } else if (keyid === 0) {
         return maskstr;
-      } else if (keynum in CODEMAP) {
-        return CODEMAP[keynum] as string;
       } else {
         return '0x' + keynum.toString(16).padStart(4, '0');
       }
-    } else if (keynum in CODEMAP) {
-      return CODEMAP[keynum] as string;
-    } else {
-      return `0x${keynum.toString(16)}`;
     }
+
+    return `0x${keynum.toString(16)}`;
   }
 
   /**
@@ -149,6 +150,9 @@ export class KeyService {
         let keyPart = match[2];
         if (keyPart === 'kc') {
           keyPart = 'KC_NO';
+        }
+        if (keyPart in KEYALIASES) {
+          keyPart = KEYALIASES[keyPart] as string;
         }
         if (keyPart in KEYMAP) {
           const keymask = KEYMAP[keyPart].code;

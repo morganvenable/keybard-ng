@@ -439,6 +439,7 @@ This section tracks progress toward full feature parity with viable-gui.
 7. **VIA3 Dynamic Menus** - See implementation plan above
 8. **Layer State Commands** - Protocol 0x16/0x17
 9. **Undo/Redo** - Deferred (large lift)
+10. **One-Shot Modifier display cleanup** - OSM keys currently render showing only the modifier (e.g., "LCTL") without indicating they're placed over another key. Unclear if this matches actual QMK behavior (where OSM is a standalone key, not a mod-tap). Investigate whether OSM in QMK is always a single key (just the modifier, applied once to the next keypress) or if it wraps another keycode. If standalone, the display may be correct but should visually distinguish from regular modifiers. See `Key.tsx` type="OSM" rendering and `keys.ts:190` OSM parsing.
 
 ### Key Files Reference
 
