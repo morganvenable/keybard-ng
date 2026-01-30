@@ -66,9 +66,9 @@ export const Key: React.FC<KeyProps> = (props) => {
             const keysArr = keyContents.str?.split("\n") || [];
             const keyStr = keysArr[0] || "";
 
-            // Show the key in center
+            // Show the key in center (blank if no base key)
             if (keyStr === "" || keyStr === "KC_NO") {
-                displayLabel = "(kc)";
+                displayLabel = "";
             } else {
                 displayLabel = keyStr;
             }
@@ -82,7 +82,7 @@ export const Key: React.FC<KeyProps> = (props) => {
             const keyStr = keysArr[0] || "";
 
             if (keyStr === "" || keyStr === "KC_NO") {
-                displayLabel = "(kc)";
+                displayLabel = "";
             } else {
                 displayLabel = keyStr;
             }

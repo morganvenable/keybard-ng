@@ -1,8 +1,10 @@
 import React, { useRef, useState, useMemo, useCallback } from "react";
 import { DragItem, useDrag } from "@/contexts/DragContext";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
+import { useVial } from "@/contexts/VialContext";
 import { KeyContent } from "@/types/vial.types";
-import { UNIT_SIZE } from "@/constants/svalboard-layout";
+import { CODEMAP } from "@/constants/keygen";
+import { UNIT_SIZE, MATRIX_COLS } from "@/constants/svalboard-layout";
 
 export interface UseKeyDragProps {
     uniqueId: string;
@@ -32,6 +34,7 @@ export const useKeyDrag = (props: UseKeyDragProps) => {
 
     const { startDrag, dragSourceId, isDragging, draggedItem, markDropConsumed } = useDrag();
     const { assignKeycode, selectKeyboardKey, swapKeys, setHoveredKey, clearSelection } = useKeyBinding();
+    const { keyboard } = useVial();
 
     const startPosRef = useRef<{ x: number; y: number } | null>(null);
     const [isDragHover, setIsDragHover] = useState(false);
@@ -132,12 +135,36 @@ export const useKeyDrag = (props: UseKeyDragProps) => {
                     );
                 }
             } else {
-                assignKeycode(draggedItem.keycode);
+                // Check if the dragged item is a modifier wrapping KC_NO — if so,
+                // combine with the drop target's existing base keycode
+                const dragKc = draggedItem.keycode;
+                const modWrapMatch = typeof dragKc === "string" && dragKc.match(/^(\w+)\(KC_NO\)$/);
+                if (modWrapMatch && keyboard?.keymap && layerIndex !== undefined) {
+                    const modPrefix = modWrapMatch[1];
+                    const matrixCols = keyboard.cols || MATRIX_COLS;
+                    const matrixPos = row * matrixCols + col;
+                    const existingNumeric = keyboard.keymap[layerIndex]?.[matrixPos];
+                    if (existingNumeric !== undefined && existingNumeric > 0) {
+                        // Get the base keycode (strip existing modifiers if any)
+                        let baseCode = existingNumeric;
+                        if (existingNumeric >= 0x2000 && existingNumeric <= 0x3FFF) {
+                            baseCode = existingNumeric & 0xFF; // mod-tap inner
+                        } else if (existingNumeric >= 0x0100 && existingNumeric <= 0x1FFF) {
+                            baseCode = existingNumeric & 0xFF; // modmask inner
+                        }
+                        const baseStr = baseCode in CODEMAP ? (CODEMAP[baseCode] as string) : "KC_NO";
+                        assignKeycode(`${modPrefix}(${baseStr})`);
+                    } else {
+                        assignKeycode(dragKc);
+                    }
+                } else {
+                    assignKeycode(dragKc);
+                }
             }
 
             setIsDragHover(false);
         }
-    }, [canDrop, isDragHover, draggedItem, markDropConsumed, row, col, layerIndex, swapKeys, assignKeycode]);
+    }, [canDrop, isDragHover, draggedItem, markDropConsumed, row, col, layerIndex, swapKeys, assignKeycode, keyboard]);
 
     return {
         isDragSource,

@@ -46,7 +46,7 @@ interface KeyBindingContextType {
     selectAltRepeatKey: (altRepeatId: number, slot: "keycode" | "alt_keycode") => void;
     selectLeaderKey: (leaderId: number, slot: "sequence" | "output", seqIndex?: number) => void;
     assignKeycode: (keycode: number | string) => void;
-    assignKeycodeTo: (target: BindingTarget, keycode: number | string) => void;
+    assignKeycodeTo: (target: BindingTarget, keycode: number | string, options?: { skipAdvance?: boolean }) => void;
     swapKeys: (target1: BindingTarget, target2: BindingTarget) => void;
     clearSelection: () => void;
     isBinding: boolean;
@@ -193,7 +193,7 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }, [keyboard, getSetting, clearSelection, selectKeyboardKey]);
 
     const assignKeycodeTo = useCallback(
-        (target: BindingTarget, keycode: number | string) => {
+        (target: BindingTarget, keycode: number | string, options?: { skipAdvance?: boolean }) => {
             if (!target || !keyboard) return;
             const updatedKeyboard = JSON.parse(JSON.stringify(keyboard));
             console.log("assignKeycodeTo called with", keycode, "for target", target);
@@ -565,8 +565,8 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
             setKeyboard(updatedKeyboard);
 
-            // Auto-advance to next slot after assignment
-            if (target === selectedTargetRef.current) {
+            // Auto-advance to next slot after assignment (unless skipAdvance is set)
+            if (!options?.skipAdvance && target === selectedTargetRef.current) {
                 if (target.type === 'keyboard') {
                     selectNextKey();
                 } else if (target.type === 'combo' && target.comboSlot !== undefined && target.comboSlot < 4) {
