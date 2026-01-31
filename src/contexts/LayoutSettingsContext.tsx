@@ -66,16 +66,16 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
     const [isAutoKeySize, setIsAutoKeySize] = useState<boolean>(true);
     const [manualKeyVariant, setManualKeyVariant] = useState<KeyVariant>("default");
     const [secondarySidebarOpen, setSecondarySidebarOpenState] = useState<boolean>(false);
-    const [primarySidebarExpanded, setPrimarySidebarExpandedState] = useState<boolean>(false);
+    const [primarySidebarExpanded, setPrimarySidebarExpandedState] = useState<boolean>(true);
     const [collapsePrimarySidebar, setCollapsePrimarySidebar] = useState<(() => void) | null>(null);
     const [expandPrimarySidebar, setExpandPrimarySidebar] = useState<(() => void) | null>(null);
-    const [userManuallyCollapsedSidebar, setUserManuallyCollapsedSidebar] = useState<boolean>(true);
+    const [userManuallyCollapsedSidebar, setUserManuallyCollapsedSidebar] = useState<boolean>(false);
     const [measuredDimensions, setMeasuredDimensionsState] = useState<MeasuredDimensions | null>(null);
 
     // Use refs to track current values without triggering re-renders during calculation
     const secondarySidebarOpenRef = useRef(false);
-    const primarySidebarExpandedRef = useRef(false);
-    const userManuallyCollapsedRef = useRef(true);
+    const primarySidebarExpandedRef = useRef(true);
+    const userManuallyCollapsedRef = useRef(false);
     const measuredDimensionsRef = useRef<MeasuredDimensions | null>(null);
     const layoutModeRef = useRef<LayoutMode>("sidebar");
 
