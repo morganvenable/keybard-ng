@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Ellipsis, Settings, Upload } from "lucide-react";
+import { Ellipsis, Settings } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,16 +23,17 @@ import { PublishLayerDialog } from "@/components/PublishLayerDialog";
 
 interface LayerNameBadgeProps {
     selectedLayer: number;
-    /** Position in pixels from top-left of keyboard layout */
-    x: number;
-    y: number;
+    /** Position in pixels from top-left of keyboard layout. If omitted, renders relatively. */
+    x?: number;
+    y?: number;
+    className?: string;
 }
 
 /**
  * Centered layer name badge with color picker.
  * Positioned between thumb clusters in the keyboard layout.
  */
-export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({ selectedLayer, x, y }) => {
+export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({ selectedLayer, x, y, className }) => {
     const { keyboard, setKeyboard, isConnected, updateKey } = useVial();
     const { queue } = useChanges();
     const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
@@ -235,15 +236,23 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({ selectedLayer, x
         batchWipeKeys(KC_TRNS, (v) => v === KC_NO);
     };
 
+    const style: React.CSSProperties = (x !== undefined && y !== undefined) ? {
+        left: `${x}px`,
+        top: `${y}px`,
+        transform: "translate(-50%, -50%)",
+        position: 'absolute'
+    } : {
+        position: 'relative'
+    };
+
     return (
         <>
             <div
-                className="absolute flex items-center gap-2 z-10"
-                style={{
-                    left: `${x}px`,
-                    top: `${y}px`,
-                    transform: "translate(-50%, -50%)",
-                }}
+                className={cn(
+                    "flex items-center gap-2 z-50",
+                    className
+                )}
+                style={style}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Color Dot with Picker */}
@@ -263,7 +272,7 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({ selectedLayer, x
                     </Tooltip>
 
                     {isColorPickerOpen && (
-                        <div className="absolute top-[calc(100%+4px)] left-1/2 -translate-x-1/2 z-50 bg-[#EEEEEE] rounded-2xl p-2 flex flex-row items-center gap-1.5 shadow-xl border border-gray-200">
+                        <div className="absolute top-[calc(100%+4px)] left-1/2 -translate-x-1/2 z-[100] bg-[#EEEEEE] rounded-3xl p-2 flex flex-col items-center gap-2 shadow-xl border border-gray-200 min-w-[40px]">
                             {allColors.map((color) => (
                                 <button
                                     key={color.name}
@@ -304,7 +313,7 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({ selectedLayer, x
                     />
                 ) : (
                     <span
-                        className="text-sm font-bold text-black cursor-pointer hover:underline whitespace-nowrap"
+                        className="text-base font-medium text-black cursor-pointer hover:underline whitespace-nowrap"
                         onClick={handleStartEditing}
                         title="Click to rename layer"
                     >
@@ -338,7 +347,6 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({ selectedLayer, x
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={() => setIsPublishDialogOpen(true)}>
-                            <Upload className="w-4 h-4 mr-2" />
                             Publish Layer...
                         </DropdownMenuItem>
                     </DropdownMenuContent>

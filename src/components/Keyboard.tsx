@@ -19,7 +19,7 @@ import {
 import { InfoIcon } from "./icons/InfoIcon";
 import { usePanels } from "@/contexts/PanelsContext";
 import { useChanges } from "@/hooks/useChanges";
-import { LayerNameBadge } from "./LayerNameBadge";
+
 
 interface KeyboardProps {
     keyboard: KeyboardInfo;
@@ -208,12 +208,6 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
                 className="keyboard-layout relative"
                 style={{ width: `${keyboardSize.width}px`, height: `${keyboardSize.height}px` }}
             >
-                {/* Layer Name Badge - centered between thumb clusters */}
-                <LayerNameBadge
-                    selectedLayer={selectedLayer}
-                    x={keyboardSize.badgeCenterX}
-                    y={keyboardSize.badgeCenterY}
-                />
 
                 {/* Keys */}
                 {Object.entries(keyboardLayout).map(([matrixPos, layout]) => {
@@ -290,59 +284,10 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
                 })}
             </div>
 
-            {/* Key Information Panel */}
-            <div className="absolute bottom-5 right-5 z-50 flex items-end justify-end">
-                <div
-                    className={`bg-white text-black shadow-lg transition-all duration-300 ease-in-out relative flex flex-col overflow-hidden ${showInfoPanel
-                            ? "w-[250px] h-[100px] rounded-2xl p-4 cursor-default"
-                            : "w-12 h-12 rounded-2xl cursor-pointer hover:bg-gray-50 bg-white"
-                        }`}
-                    onClick={() => !showInfoPanel && setShowInfoPanel(true)}
-                >
-                    <div className={`w-full transition-opacity duration-200 delay-100 ${showInfoPanel ? "opacity-100" : "opacity-0 invisible h-0"
-                        }`}>
-                        {useMemo(() => {
-                            const target = hoveredKey || selectedTarget;
-                            if (!target) {
-                                return (
-                                    <div className="flex items-center justify-center h-[68px] pr-8">
-                                        <p className="text-gray-300 italic text-sm text-center">No key selected</p>
-                                    </div>
-                                );
-                            }
 
-                            const pos = (typeof target.row === 'number' && typeof target.col === 'number')
-                                ? (target.row * matrixCols + target.col)
-                                : null;
 
-                            const keycode = target.keycode || (pos !== null ? getKeycodeName(layerKeymap[pos] || 0) : "?");
 
-                            return (
-                                <div className="text-sm space-y-1">
-                                    <p><span className="font-bold">Keycode:</span> {keycode}</p>
-                                    {pos !== null && (
-                                        <>
-                                            <p><span className="font-bold">Position:</span> Row {target.row}, Col {target.col}</p>
-                                            <p><span className="font-bold">Matrix:</span> {pos}</p>
-                                        </>
-                                    )}
-                                </div>
-                            );
-                        }, [hoveredKey, selectedTarget, layerKeymap, matrixCols])}
-                    </div>
 
-                    <button
-                        className="absolute bottom-0 right-0 p-4 focus:outline-none text-black hover:text-gray-600 transition-colors"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setShowInfoPanel(!showInfoPanel);
-                        }}
-                        title={showInfoPanel ? "Close Info" : "Show Key Info"}
-                    >
-                        <InfoIcon />
-                    </button>
-                </div>
-            </div>
         </div>
     );
 };

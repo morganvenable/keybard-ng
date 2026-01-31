@@ -55,5 +55,19 @@ function TooltipContent({
     </TooltipPrimitive.Portal>
   )
 }
+/**
+ * DelayedTooltip - A tooltip that appears after a longer hover time.
+ * Useful for buttons where the tooltip might be distracting if it appears immediately.
+ */
+function DelayedTooltip({
+  delayDuration = 700,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Root> & { delayDuration?: number }) {
+  return (
+    <TooltipPrimitive.Provider delayDuration={delayDuration}>
+      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+    </TooltipPrimitive.Provider>
+  )
+}
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, DelayedTooltip }

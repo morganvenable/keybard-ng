@@ -1,13 +1,32 @@
 import LayersActiveIcon from "@/components/icons/LayersActive";
 import LayersDefaultIcon from "@/components/icons/LayersDefault";
-import { ChevronDown, Unplug, Zap } from "lucide-react";
+import { LayoutImport } from "@/components/icons/LayoutImport";
+import { LayoutExport } from "@/components/icons/LayoutExport";
+import MatrixTesterIcon from "@/components/icons/MatrixTesterSvg";
+import { LayerNameBadge } from "@/components/LayerNameBadge";
+import { ArrowLeft, ChevronDown, Unplug, Zap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { useVial } from "@/contexts/VialContext";
 import { useChanges } from "@/contexts/ChangesContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import { MATRIX_COLS } from "@/constants/svalboard-layout";
 import { cn } from "@/lib/utils";
 import { svalService } from "@/services/sval.service";
+import { fileService } from "@/services/file.service";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+
 import { vialService } from "@/services/vial.service";
 import { FC, useState, useEffect, useRef } from "react";
 import {
@@ -31,9 +50,101 @@ interface LayerSelectorProps {
  * Displays a horizontal bar of layer tabs with a filter toggle for hiding blank layers.
  */
 const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer }) => {
-    const { keyboard, setKeyboard, updateKey } = useVial();
+    const { keyboard, setKeyboard, updateKey, isConnected, connect } = useVial();
     const { clearSelection } = useKeyBinding();
-    const { queue } = useChanges();
+    const { queue, commit } = useChanges();
+    const { getSetting, updateSetting } = useSettings();
+
+    const liveUpdating = getSetting("live-updating") === true;
+
+    // Import/Export / Connect state
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isExportOpen, setIsExportOpen] = useState(false);
+    const [exportFormat, setExportFormat] = useState<"viable" | "vil">("viable");
+    const [includeMacros, setIncludeMacros] = useState(true);
+
+    const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            try {
+                const newKbInfo = await fileService.uploadFile(file);
+                if (newKbInfo) {
+                    // Start sync if connected
+                    if (keyboard && isConnected) {
+                        const { importService } = await import('@/services/import.service');
+                        const { vialService } = await import('@/services/vial.service');
+
+                        await importService.syncWithKeyboard(
+                            newKbInfo,
+                            keyboard,
+                            queue,
+                            { vialService }
+                        );
+
+                        // Merge fragment definitions and state from connected keyboard
+                        if (keyboard.fragments) {
+                            newKbInfo.fragments = keyboard.fragments;
+                        }
+                        if (keyboard.composition) {
+                            newKbInfo.composition = keyboard.composition;
+                        }
+                        // Merge hardware detection/EEPROM from connected keyboard with user selections from file
+                        const ensureMap = <K, V>(obj: Map<K, V> | Record<string, V> | undefined): Map<K, V> => {
+                            if (!obj) return new Map();
+                            if (obj instanceof Map) return obj;
+                            return new Map(Object.entries(obj)) as unknown as Map<K, V>;
+                        };
+
+                        if (keyboard.fragmentState) {
+                            const importedUserSelections = ensureMap<string, string>(newKbInfo.fragmentState?.userSelections);
+                            newKbInfo.fragmentState = {
+                                hwDetection: ensureMap<number, number>(keyboard.fragmentState.hwDetection),
+                                eepromSelections: ensureMap<number, number>(keyboard.fragmentState.eepromSelections),
+                                userSelections: importedUserSelections,
+                            };
+                        }
+
+                        // Recompose layout with fragment selections
+                        const fragmentComposer = vialService.getFragmentComposer();
+                        if (fragmentComposer.hasFragments(newKbInfo)) {
+                            const composedLayout = fragmentComposer.composeLayout(newKbInfo);
+                            if (Object.keys(composedLayout).length > 0) {
+                                newKbInfo.keylayout = composedLayout;
+                                console.log("Fragment layout recomposed after import:", Object.keys(composedLayout).length, "keys");
+                            }
+                        }
+                    }
+
+                    setKeyboard(newKbInfo);
+                    console.log("Import successful", newKbInfo);
+                }
+            } catch (err) {
+                console.error("Upload failed", err);
+            }
+        }
+        // Reset input so same file can be selected again
+        if (event.target) {
+            event.target.value = '';
+        }
+    };
+
+    const handleExport = async () => {
+        if (!keyboard) {
+            console.error("No keyboard loaded");
+            return;
+        }
+
+        try {
+            if (exportFormat === "viable") {
+                await fileService.downloadViable(keyboard, includeMacros);
+            } else {
+                await fileService.downloadVIL(keyboard, includeMacros);
+            }
+            setIsExportOpen(false);
+        } catch (err) {
+            console.error("Export failed", err);
+        }
+    };
 
     // User preference for showing all layers
     const [showAllLayers, setShowAllLayers] = useState(true);
@@ -86,7 +197,6 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
     };
 
     // Layer Actions
-    const { isConnected, connect } = useVial();
 
 
 
@@ -240,34 +350,7 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
         batchWipeKeys(KC_TRNS, (currentValue) => currentValue === KC_NO);
     };
 
-    const { activePanel } = usePanels();
-
-    if (activePanel === "matrixtester") {
-        return (
-            <div className="w-full flex data-[state=collapsed] flex-col pt-4" onClick={(e) => e.stopPropagation()}>
-                <div className="flex flex-col justify-start items-start px-5 py-2 relative mt-3">
-                    <span className="font-bold text-lg text-black">Matrix Tester</span>
-                    {!isConnected ? (
-                        <button
-                            onClick={() => connect()}
-                            className="mt-2 bg-black text-white px-4 py-1 rounded-full text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2"
-                        >
-                            <Unplug className="h-4 w-4" />
-                            Connect Keyboard
-                        </button>
-                    ) : (
-                        <button
-                            onClick={() => connect()}
-                            className="mt-2 bg-white text-black px-4 py-1 rounded-full text-sm font-medium hover:bg-gray-100 transition-colors flex items-center gap-2"
-                        >
-                            <Zap className="h-4 w-4 fill-black text-black" />
-                            Keyboard Connected
-                        </button>
-                    )}
-                </div>
-            </div>
-        )
-    }
+    const { activePanel, setActivePanel, setOpen, setItemToEdit, setPanelToGoBack } = usePanels();
 
     // Render a layer tab with context menu for right-click actions
     const renderLayerTab = (i: number) => {
@@ -327,8 +410,8 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
         <div
             ref={containerRef}
             className={cn(
-                "w-full flex-shrink-0 overflow-hidden transition-all duration-200",
-                showFullBar ? "pt-4" : "pt-0"
+                "w-full flex-shrink-0 relative z-20 transition-all duration-200",
+                showFullBar ? "pt-[22px]" : "pt-0"
             )}
             onClick={(e) => e.stopPropagation()}
             onMouseEnter={() => setIsHovered(true)}
@@ -343,31 +426,204 @@ const LayerSelector: FC<LayerSelectorProps> = ({ selectedLayer, setSelectedLayer
 
             {/* Full layer tabs - shown when not constrained or when hovered */}
             {showFullBar && (
-                <div className="flex items-center gap-2 pl-5 py-2 whitespace-nowrap">
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                onClick={toggleShowLayers}
-                                disabled={isNarrow}
-                                className={cn(
-                                    "p-1.5 rounded-md transition-colors flex-shrink-0",
-                                    isNarrow
-                                        ? "text-gray-400 cursor-not-allowed"
-                                        : "text-black hover:bg-gray-200"
-                                )}
-                                aria-label={isNarrow ? "Blank layers auto-hidden" : (showAllLayers ? "Hide Blank Layers" : "Show All Layers")}
-                            >
-                                {(isNarrow || !showAllLayers) ? <LayersActiveIcon className="h-5 w-5" /> : <LayersDefaultIcon className="h-5 w-5" />}
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                            {isNarrow ? "Blank layers auto-hidden (narrow)" : (showAllLayers ? "Hide Blank Layers" : "Show All Layers")}
-                        </TooltipContent>
-                    </Tooltip>
+                <div className="flex flex-col w-full">
+                    {/* Top Row: Connect/Import/Export + Live Controls + Tab Icon + Tabs */}
+                    <div className="flex items-center gap-2 pl-5 py-2 whitespace-nowrap">
 
-                    {/* Layer tabs - single line */}
-                    <div className="flex items-center gap-1">
-                        {Array.from({ length: keyboard.layers || 16 }, (_, i) => renderLayerTab(i))}
+                        {/* File Input (Hidden) */}
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".viable,.vil,.json"
+                            className="hidden"
+                            onChange={handleFileImport}
+                        />
+
+                        {/* Export Dialog */}
+                        <Dialog open={isExportOpen} onOpenChange={setIsExportOpen}>
+                            <DialogContent className="sm:max-w-[425px]">
+                                <DialogHeader>
+                                    <DialogTitle>Export Keyboard Configuration</DialogTitle>
+                                    <DialogDescription>
+                                        Choose the format and options for exporting your keyboard configuration.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="format" className="text-right">Format</Label>
+                                        <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as "viable" | "vil")}>
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue placeholder="Select format" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="viable">.viable (Recommended)</SelectItem>
+                                                <SelectItem value="vil">.vil (Vial compatible)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="macros" className="text-right">Include Macros</Label>
+                                        <Switch
+                                            id="macros"
+                                            checked={includeMacros}
+                                            onCheckedChange={setIncludeMacros}
+                                        />
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button variant="outline" onClick={() => setIsExportOpen(false)}>Cancel</Button>
+                                    <Button onClick={handleExport}>Export</Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+
+                        {/* Connect / Update Button Group */}
+                        {!isConnected ? (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); connect(); }}
+                                className="flex items-center gap-2 text-sm font-medium cursor-pointer transition-all bg-black text-gray-200 hover:bg-gray-800 px-5 py-1.5 rounded-full mr-2"
+                                title="Click to Connect"
+                            >
+                                <Unplug className="h-4 w-4 text-gray-200" />
+                                <span>Connect</span>
+                            </button>
+                        ) : (
+                            <div className="flex items-center gap-1 mr-2">
+                                {/* Mode Switch Button (Zap) */}
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                updateSetting("live-updating", !liveUpdating);
+                                            }}
+                                            className="p-2 rounded-full transition-all cursor-pointer hover:bg-gray-100"
+                                            aria-label={liveUpdating ? "Switch to Manual Updates" : "Switch to Live Updating"}
+                                        >
+                                            <Zap className="h-4 w-4 fill-black text-black" />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                        {liveUpdating ? "Switch to Manual Updates" : "Switch to Live Updating"}
+                                    </TooltipContent>
+                                </Tooltip>
+
+                                {/* Main Action Button */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (!liveUpdating) {
+                                            commit();
+                                        }
+                                    }}
+                                    disabled={liveUpdating}
+                                    className="flex items-center gap-2 text-sm font-medium transition-all px-5 py-1.5 rounded-full border border-black bg-black text-gray-200 cursor-pointer"
+                                    title={liveUpdating ? "Live Updating Active" : "Push Changes to Keyboard"}
+                                >
+                                    {liveUpdating && <Zap className="h-4 w-4 text-gray-200 fill-gray-200" />}
+                                    <span>{liveUpdating ? "Live Updating" : "Update Now"}</span>
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Divider */}
+                        <div className="h-4 w-[1px] bg-slate-400 mx-2 flex-shrink-0" />
+
+                        {/* Matrix Tester Button */}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (activePanel === "matrixtester") {
+                                    // If already in matrix tester mode, exit it
+                                    setActivePanel(null);
+                                } else {
+                                    // Enter matrix tester mode
+                                    setOpen(false);
+                                    setActivePanel("matrixtester");
+                                    setPanelToGoBack(null);
+                                    setItemToEdit(null);
+                                }
+                            }}
+                            className={cn(
+                                "group flex items-center text-sm font-medium cursor-pointer transition-opacity mr-2",
+                                activePanel === "matrixtester" ? "opacity-100" : "opacity-100"
+                            )}
+                        >
+                            <MatrixTesterIcon className="h-5 w-5 text-black" />
+                            <span className="max-w-0 opacity-0 group-hover:max-w-[120px] group-hover:opacity-100 group-hover:ml-2 transition-all duration-300 overflow-hidden whitespace-nowrap">
+                                {activePanel === "matrixtester" ? "Exit Matrix Tester" : "Matrix Tester"}
+                            </span>
+                        </button>
+
+                        {/* Import Button */}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                            className="group flex items-center text-sm font-medium cursor-pointer transition-opacity opacity-100 mr-2"
+                        >
+                            <LayoutImport className="h-5 w-5 text-black" />
+                            <span className="max-w-0 opacity-0 group-hover:max-w-[60px] group-hover:opacity-100 group-hover:ml-2 transition-all duration-300 overflow-hidden whitespace-nowrap">
+                                Import
+                            </span>
+                        </button>
+
+                        {/* Export Button */}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setIsExportOpen(true); }}
+                            className="group flex items-center text-sm font-medium cursor-pointer transition-opacity opacity-100"
+                            disabled={!keyboard}
+                        >
+                            <LayoutExport className="h-5 w-5 text-black" />
+                            <span className="max-w-0 opacity-0 group-hover:max-w-[60px] group-hover:opacity-100 group-hover:ml-2 transition-all duration-300 overflow-hidden whitespace-nowrap">
+                                Export
+                            </span>
+                        </button>
+
+                        {/* Divider */}
+                        <div className="h-4 w-[1px] bg-slate-400 mx-2 flex-shrink-0" />
+
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={toggleShowLayers}
+                                    disabled={isNarrow}
+                                    className={cn(
+                                        "p-1.5 rounded-md transition-colors flex-shrink-0",
+                                        isNarrow
+                                            ? "text-gray-400 cursor-not-allowed"
+                                            : "text-black hover:bg-gray-200"
+                                    )}
+                                    aria-label={isNarrow ? "Blank layers auto-hidden" : (showAllLayers ? "Hide Blank Layers" : "Show All Layers")}
+                                >
+                                    {(isNarrow || !showAllLayers) ? <LayersActiveIcon className="h-5 w-5" /> : <LayersDefaultIcon className="h-5 w-5" />}
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                                {isNarrow ? "Blank layers auto-hidden (narrow)" : (showAllLayers ? "Hide Blank Layers" : "Show All Layers")}
+                            </TooltipContent>
+                        </Tooltip>
+
+                        {/* Layer tabs - single line */}
+                        <div className="flex items-center gap-1">
+                            {Array.from({ length: keyboard.layers || 16 }, (_, i) => renderLayerTab(i))}
+                        </div>
+                    </div>
+
+                    {/* Bottom Row: Layer Name Badge or Matrix Tester Title */}
+                    <div className="pl-[27px] pt-[7px] pb-2">
+                        {activePanel === "matrixtester" ? (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setActivePanel(null)}
+                                    className="p-1 rounded-full hover:bg-gray-200 transition-colors"
+                                    title="Return to layer view"
+                                >
+                                    <ArrowLeft className="h-5 w-5 text-black" />
+                                </button>
+                                <span className="font-bold text-lg text-black">Matrix Tester</span>
+                            </div>
+                        ) : (
+                            <LayerNameBadge selectedLayer={selectedLayer} />
+                        )}
                     </div>
                 </div>
             )}
