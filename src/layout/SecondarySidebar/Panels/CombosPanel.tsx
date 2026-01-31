@@ -14,7 +14,7 @@ import { vialService } from "@/services/vial.service";
 import { hoverBackgroundClasses, hoverBorderClasses, hoverHeaderClasses } from "@/utils/colors";
 import { getKeyContents } from "@/utils/keys";
 import { Key } from "@/components/Key";
-import { KeyContent } from "@/types/vial.types";
+import { KeyContent, ComboOptions } from "@/types/vial.types";
 import { cn } from "@/lib/utils";
 
 const CombosPanel: React.FC = () => {
@@ -39,7 +39,8 @@ const CombosPanel: React.FC = () => {
         updatedCombos[index] = {
             ...updatedCombos[index],
             keys: ["KC_NO", "KC_NO", "KC_NO", "KC_NO"],
-            output: "KC_NO"
+            output: "KC_NO",
+            options: ComboOptions.ENABLED,
         };
         const updatedKeyboard = { ...keyboard, combos: updatedCombos };
         setKeyboard(updatedKeyboard);
@@ -107,6 +108,31 @@ const CombosPanel: React.FC = () => {
         setAlternativeHeader(true);
     };
 
+    const isEnabled = (options: number) => {
+        return (options & ComboOptions.ENABLED) !== 0;
+    };
+
+    const handleToggleEnabled = async (index: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!keyboard.combos) return;
+
+        const entry = keyboard.combos[index];
+        const newOptions = entry.options ^ ComboOptions.ENABLED;
+
+        const updatedCombos = [...keyboard.combos];
+        updatedCombos[index] = { ...entry, options: newOptions };
+
+        const updatedKeyboard = { ...keyboard, combos: updatedCombos };
+        setKeyboard(updatedKeyboard);
+
+        try {
+            await vialService.updateCombo(updatedKeyboard, index);
+            await vialService.saveViable();
+        } catch (err) {
+            console.error("Failed to toggle combo enabled:", err);
+        }
+    };
+
     const isKeyAssigned = (content: KeyContent | undefined) => {
         if (!content) return false;
         const top = content.top;
@@ -152,10 +178,15 @@ const CombosPanel: React.FC = () => {
 
                     if (!hasAssignment) return null;
 
+                    const enabled = isEnabled(combo.options);
+
                     return (
                         <div
                             key={i}
-                            className="relative flex flex-col bg-gray-50 rounded-lg p-2 cursor-pointer hover:bg-gray-100 transition-colors min-w-[100px] group"
+                            className={cn(
+                                "relative flex flex-col bg-gray-50 rounded-lg p-2 cursor-pointer hover:bg-gray-100 transition-colors min-w-[100px] group",
+                                !enabled && "opacity-50"
+                            )}
                             onClick={() => handleEdit(i)}
                         >
                             {/* Delete button */}
@@ -175,6 +206,29 @@ const CombosPanel: React.FC = () => {
                                     <ComboIcon />
                                 </div>
                                 <span className="text-xs font-bold text-slate-600">Combo {i}</span>
+                                <div
+                                    className="ml-auto flex flex-row items-center gap-0.5 bg-gray-200/50 p-0.5 rounded-md border border-gray-300/50"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <button
+                                        onClick={(e) => { if (!enabled) handleToggleEnabled(i, e); }}
+                                        className={cn(
+                                            "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[3px] transition-all font-bold border",
+                                            enabled
+                                                ? "bg-black text-white shadow-sm border-black"
+                                                : "text-gray-400 border-transparent hover:text-gray-600"
+                                        )}
+                                    >ON</button>
+                                    <button
+                                        onClick={(e) => { if (enabled) handleToggleEnabled(i, e); }}
+                                        className={cn(
+                                            "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[3px] transition-all font-bold border",
+                                            !enabled
+                                                ? "bg-black text-white shadow-sm border-black"
+                                                : "text-gray-400 border-transparent hover:text-gray-600"
+                                        )}
+                                    >OFF</button>
+                                </div>
                             </div>
                             <div className="flex flex-row items-center justify-center gap-1 flex-wrap">
                                 {inputs.map((input, idx) => (
@@ -253,8 +307,10 @@ const CombosPanel: React.FC = () => {
                     const result = getKeyContents(keyboard, resultKeycode || "KC_NO") as KeyContent;
                     const hasAssignment = inputs.length > 0 || isKeyAssigned(result);
 
+                    const enabled = isEnabled(combo.options);
+
                     const rowChildren = hasAssignment ? (
-                        <div className="flex flex-row items-center gap-1 ml-4 overflow-hidden">
+                        <div className="flex flex-row items-center gap-1 ml-4 overflow-hidden w-full">
                             {inputs.map((input, idx) => (
                                 <React.Fragment key={input.id}>
                                     {idx > 0 && <Plus className="w-3 h-3 text-black" />}
@@ -263,6 +319,29 @@ const CombosPanel: React.FC = () => {
                             ))}
                             <ArrowRight className="w-3 h-3 text-black mx-1" />
                             {renderSmallKey(result, 4, i)}
+                            <div
+                                className="ml-auto mr-2 flex flex-row items-center gap-0.5 bg-gray-200/50 p-0.5 rounded-md border border-gray-300/50"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <button
+                                    onClick={(e) => { if (!enabled) handleToggleEnabled(i, e); }}
+                                    className={cn(
+                                        "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[3px] transition-all font-bold border",
+                                        enabled
+                                            ? "bg-black text-white shadow-sm border-black"
+                                            : "text-gray-400 border-transparent hover:text-gray-600"
+                                    )}
+                                >ON</button>
+                                <button
+                                    onClick={(e) => { if (enabled) handleToggleEnabled(i, e); }}
+                                    className={cn(
+                                        "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[3px] transition-all font-bold border",
+                                        !enabled
+                                            ? "bg-black text-white shadow-sm border-black"
+                                            : "text-gray-400 border-transparent hover:text-gray-600"
+                                    )}
+                                >OFF</button>
+                            </div>
                         </div>
                     ) : undefined;
 
@@ -283,7 +362,7 @@ const CombosPanel: React.FC = () => {
                             hoverLayerColor={layerColorName}
                             hoverHeaderClass={hoverHeaderClass}
                             showPreviewKey={false}
-                            className="py-4"
+                            className={cn("py-4", !enabled && "opacity-50")}
                         >
                             {rowChildren}
                         </SidebarItemRow>

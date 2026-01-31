@@ -19,7 +19,7 @@ export class ComboService {
                 { uint8: true }
             ) as Uint8Array;
 
-            // Response: [cmd_echo][index][key0:2][key1:2][key2:2][key3:2][output:2]
+            // Response: [cmd_echo][index][key0:2][key1:2][key2:2][key3:2][output:2][custom_combo_term:2]
             const dv = new DataView(data.buffer);
             kbinfo.combos.push({
                 cmbid: i,
@@ -30,6 +30,7 @@ export class ComboService {
                     keyService.stringify(dv.getUint16(8, true)),
                 ].map(k => k === "KC_NO" ? "KC_NO" : k),
                 output: keyService.stringify(dv.getUint16(10, true)),
+                options: dv.getUint16(12, true),
             });
         }
     }
@@ -50,6 +51,7 @@ export class ComboService {
             ...this.LE16(keyService.parse(keys[2])),
             ...this.LE16(keyService.parse(keys[3])),
             ...this.LE16(keyService.parse(combo.output)),
+            ...this.LE16(combo.options ?? 0),
         ], {});
     }
 

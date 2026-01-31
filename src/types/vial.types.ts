@@ -109,7 +109,13 @@ export interface ComboEntry {
     cmbid: number;
     keys: string[];
     output: string;
+    options: number;    // custom_combo_term uint16, bit 15 = enabled
 }
+
+// Combo option bits
+export const ComboOptions = {
+    ENABLED: 1 << 15,
+} as const;
 
 
 export interface TapdanceEntry {
