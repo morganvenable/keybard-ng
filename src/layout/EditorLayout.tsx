@@ -10,7 +10,7 @@ import BindingEditorContainer from "./SecondarySidebar/components/BindingEditor/
 
 import { Keyboard } from "@/components/Keyboard";
 import { useVial } from "@/contexts/VialContext";
-import { InfoIcon } from "@/components/icons/InfoIcon";
+// import { InfoIcon } from "@/components/icons/InfoIcon";
 import { cn } from "@/lib/utils";
 import LayerSelector from "./LayerSelector";
 import AppSidebar from "./Sidebar";
@@ -24,13 +24,16 @@ import { UNIT_SIZE, SVALBOARD_LAYOUT } from "@/constants/svalboard-layout";
 import { THUMB_OFFSET_U, MAX_FINGER_CLUSTER_SQUEEZE_U } from "@/constants/keyboard-visuals";
 
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
-import { keyService } from "@/services/key.service";
+// import { keyService } from "@/services/key.service";
 
 import { useChanges } from "@/hooks/useChanges";
-import { PanelBottom, PanelRight, X } from "lucide-react";
+// import { PanelBottom, PanelRight, X } from "lucide-react";
+import { X } from "lucide-react";
 import { MatrixTester } from "@/components/MatrixTester";
 import { MATRIX_COLS } from "@/constants/svalboard-layout";
 import EditorSidePanel, { PickerMode } from "./SecondarySidebar/components/EditorSidePanel";
+import { InfoPanelWidget } from "@/components/InfoPanelWidget";
+import { EditorControls } from "./EditorControls";
 
 const EditorLayout = () => {
     const { assignKeycodeTo } = useKeyBinding();
@@ -64,10 +67,10 @@ const EditorLayout = () => {
 };
 
 const EditorLayoutInner = () => {
-    const { keyboard, setKeyboard, updateKey, resetToOriginal } = useVial();
+    const { keyboard, setKeyboard, updateKey /*, resetToOriginal*/ } = useVial();
     const { selectedLayer, setSelectedLayer } = useLayer();
     const { clearSelection } = useKeyBinding();
-    const { keyVariant, setKeyVariant, layoutMode, setLayoutMode, isAutoLayoutMode, setIsAutoLayoutMode, isAutoKeySize, setIsAutoKeySize, setSecondarySidebarOpen, setPrimarySidebarExpanded, registerPrimarySidebarControl, setMeasuredDimensions } = useLayoutSettings();
+    const { keyVariant, layoutMode, setSecondarySidebarOpen, setPrimarySidebarExpanded, registerPrimarySidebarControl, setMeasuredDimensions } = useLayoutSettings();
     const { layerClipboard, copyLayer, openPasteDialog } = useLayoutLibrary();
     const { isDragging, draggedItem, markDropConsumed } = useDrag();
 
@@ -166,7 +169,7 @@ const EditorLayoutInner = () => {
     }, [keyboardWidths, keyboardHeights, rawKeyboardWidths, setMeasuredDimensions]);
 
 
-    const { queue, getPendingCount, commit, clearAll } = useChanges();
+    const { queue } = useChanges();
 
     // Ctrl+V handler for pasting layers
     React.useEffect(() => {
@@ -536,131 +539,11 @@ const EditorLayoutInner = () => {
 
                     {/* Controls - bottom left corner for bottom bar mode (same style as sidebar mode) */}
                     {useBottomLayout && !showEditorOverlay && (
-                        <div className="absolute bottom-4 left-4 flex items-center gap-6 z-10">
-                            {/* Push Changes and Revert buttons - only show when there are pending changes */}
-                            {getPendingCount() > 0 && (
-                                <div className="flex flex-row items-center gap-2">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            commit();
-                                        }}
-                                        className="px-3 py-1 text-xs font-medium rounded-full bg-gray-800 text-white hover:bg-gray-700 transition-all"
-                                        title="Push all pending changes to keyboard"
-                                    >
-                                        Push Changes ({getPendingCount()})
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            clearAll();
-                                            resetToOriginal();
-                                        }}
-                                        className="px-3 py-1 text-xs font-medium rounded-full bg-red-500 text-white hover:bg-red-600 transition-all"
-                                        title="Revert all pending changes"
-                                    >
-                                        Revert
-                                    </button>
-                                </div>
-                            )}
-
-                            <div className="flex flex-row items-center gap-0.5 bg-gray-200/50 p-0.5 rounded-md border border-gray-300/50 w-fit">
-                                {(['default', 'medium', 'small'] as const).map((variant) => (
-                                    <button
-                                        key={variant}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setKeyVariant(variant);
-                                        }}
-                                        className={cn(
-                                            "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-semibold border",
-                                            keyVariant === variant && !isAutoKeySize
-                                                ? "bg-black text-white shadow-sm border-black"
-                                                : keyVariant === variant && isAutoKeySize
-                                                    ? "bg-gray-400 text-white border-gray-400"
-                                                    : "text-gray-500 border-transparent hover:text-gray-900 hover:bg-gray-300/50"
-                                        )}
-                                        title={`Set key size to ${variant}`}
-                                    >
-                                        {variant === 'default' ? 'Normal' : variant}
-                                    </button>
-                                ))}
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsAutoKeySize(true);
-                                    }}
-                                    className={cn(
-                                        "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-semibold border",
-                                        isAutoKeySize
-                                            ? "bg-black text-white shadow-sm border-black"
-                                            : "text-gray-500 border-transparent hover:text-gray-900 hover:bg-gray-300/50"
-                                    )}
-                                    title="Auto size based on window"
-                                >
-                                    Auto
-                                </button>
-                            </div>
-                            <div className="flex flex-row items-center gap-0.5 bg-gray-200/50 p-0.5 rounded-md border border-gray-300/50 w-fit">
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsAutoLayoutMode(false);
-                                        setLayoutMode("sidebar");
-                                    }}
-                                    className="p-1 rounded-[4px] transition-all text-gray-500 border-transparent hover:text-gray-900 hover:bg-gray-300/50 border"
-                                    title="Sidebar layout"
-                                >
-                                    <PanelRight className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsAutoLayoutMode(false);
-                                        setLayoutMode("bottombar");
-                                    }}
-                                    className={cn(
-                                        "p-1 rounded-[4px] transition-all border",
-                                        !isAutoLayoutMode
-                                            ? "bg-black text-white shadow-sm border-black"
-                                            : "bg-gray-400 text-white border-gray-400"
-                                    )}
-                                    title="Bottom bar layout"
-                                >
-                                    <PanelBottom className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsAutoLayoutMode(true);
-                                    }}
-                                    className={cn(
-                                        "px-1.5 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-semibold border",
-                                        isAutoLayoutMode
-                                            ? "bg-black text-white shadow-sm border-black"
-                                            : "text-gray-500 border-transparent hover:text-gray-900 hover:bg-gray-300/50"
-                                    )}
-                                    title="Auto-switch layout based on window size"
-                                >
-                                    Auto
-                                </button>
-                            </div>
-                            {/* Key Information Panel Button */}
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowInfoPanel(!showInfoPanel);
-                                }}
-                                className={cn(
-                                    "p-1 rounded-[4px] transition-all border",
-                                    showInfoPanel
-                                        ? "bg-black text-white shadow-sm border-black"
-                                        : "text-gray-500 border-transparent hover:text-gray-900 hover:bg-gray-300/50"
-                                )}
-                                title={showInfoPanel ? "Hide Key Info" : "Show Key Info"}
-                            >
-                                <InfoIcon className="h-3.5 w-3.5" />
-                            </button>
+                        <div className="absolute bottom-4 left-4 z-10">
+                            <EditorControls
+                                showInfoPanel={showInfoPanel}
+                                setShowInfoPanel={setShowInfoPanel}
+                            />
                         </div>
                     )}
                 </div>
@@ -669,202 +552,16 @@ const EditorLayoutInner = () => {
                 {!useBottomLayout && (
                     <>
                         <div className="absolute bottom-9 left-[37px] z-50">
-                            {/* Key Information Panel (Expandable Widget) */}
-                            {/* Container anchors the icon position - icon button stays fixed here */}
-                            <div className="relative w-12 h-12">
-                                {/* Expanding panel - grows to the right from behind the icon */}
-                                <div
-                                    className={cn(
-                                        "absolute bottom-0 left-0 bg-white text-black shadow-lg transition-all duration-300 ease-in-out overflow-hidden",
-                                        showInfoPanel
-                                            ? "w-[350px] h-12 rounded-xl"
-                                            : "w-12 h-12 rounded-xl border border-gray-200"
-                                    )}
-                                    onClick={() => !showInfoPanel && setShowInfoPanel(true)}
-                                >
-                                    {/* Content area - only visible when open */}
-                                    <div className={cn(
-                                        "absolute top-0 left-12 right-0 bottom-0 flex items-center px-3 overflow-hidden transition-opacity duration-200",
-                                        showInfoPanel ? "opacity-100 delay-100" : "opacity-0 pointer-events-none"
-                                    )}>
-                                        {(() => {
-                                            const { hoveredKey, selectedTarget } = useKeyBinding();
-                                            const { keyboard } = useVial();
-
-                                            // Priority: hoveredKey with keycode > selectedTarget
-                                            // For selectedTarget keyboard keys, we need to look up the keycode from keyboard data
-                                            let keycodeName: string | null = null;
-
-                                            if (hoveredKey?.keycode) {
-                                                // Hovered key has keycode directly
-                                                keycodeName = String(hoveredKey.keycode);
-                                            } else if (selectedTarget?.type === "keyboard" && keyboard?.keymap) {
-                                                // Selected keyboard key - look up keycode from keymap
-                                                const { layer, row, col } = selectedTarget;
-                                                if (layer !== undefined && row !== undefined && col !== undefined) {
-                                                    const matrixCols = keyboard.cols || MATRIX_COLS;
-                                                    const pos = row * matrixCols + col;
-                                                    const keycode = keyboard.keymap[layer]?.[pos];
-                                                    if (keycode !== undefined && keycode !== null) {
-                                                        // Convert numeric keycode to string name
-                                                        keycodeName = typeof keycode === "string"
-                                                            ? keycode
-                                                            : keyService.stringify(keycode);
-                                                    }
-                                                }
-                                            }
-
-                                            if (!keycodeName) {
-                                                return (
-                                                    <p className="text-gray-300 italic text-sm select-none">No key selected</p>
-                                                );
-                                            }
-
-                                            return (
-                                                <div className="flex items-center gap-2 select-none min-w-0">
-                                                    <span className="font-bold text-gray-500 text-[10px] uppercase tracking-wider shrink-0">Keycode:</span>
-                                                    <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-xs truncate">{keycodeName}</span>
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                </div>
-
-                                {/* Icon button - positioned on top, stays fixed in place */}
-                                <button
-                                    className={cn(
-                                        "absolute bottom-0 left-0 w-12 h-12 flex items-center justify-center transition-colors z-10",
-                                        showInfoPanel
-                                            ? "text-black hover:text-gray-600"
-                                            : "text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-xl"
-                                    )}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowInfoPanel(!showInfoPanel);
-                                    }}
-                                    title={showInfoPanel ? "Close Info" : "Show Key Info"}
-                                >
-                                    <InfoIcon className="h-5 w-5" />
-                                </button>
-                            </div>
+                            <InfoPanelWidget showInfoPanel={showInfoPanel} setShowInfoPanel={setShowInfoPanel} />
                         </div>
 
                         <div className="absolute bottom-9 right-[37px] flex flex-col items-end gap-1 pointer-events-none">
-                            <div className="flex items-center gap-6 pointer-events-auto">
-                                {/* Push Changes and Revert buttons - only show when there are pending changes */}
-                                {getPendingCount() > 0 && (
-                                    <div className="flex flex-row items-center gap-2">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                commit();
-                                            }}
-                                            className="px-3 py-1 text-xs font-medium rounded-full bg-gray-800 text-white hover:bg-gray-700 transition-all"
-                                            title="Push all pending changes to keyboard"
-                                        >
-                                            Push Changes ({getPendingCount()})
-                                        </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                clearAll();
-                                                resetToOriginal();
-                                            }}
-                                            className="px-3 py-1 text-xs font-medium rounded-full bg-red-500 text-white hover:bg-red-600 transition-all"
-                                            title="Revert all pending changes"
-                                        >
-                                            Revert
-                                        </button>
-                                    </div>
-                                )}
-                                <div className="flex flex-row items-center gap-0.5 bg-gray-200/50 p-0.5 rounded-md border border-gray-300/50 w-fit">
-                                    {(['default', 'medium', 'small'] as const).map((variant) => (
-                                        <button
-                                            key={variant}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setKeyVariant(variant);
-                                            }}
-                                            className={cn(
-                                                "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-semibold border",
-                                                keyVariant === variant && !isAutoKeySize
-                                                    ? "bg-black text-white shadow-sm border-black"
-                                                    : keyVariant === variant && isAutoKeySize
-                                                        ? "bg-gray-400 text-white border-gray-400"
-                                                        : "text-gray-500 border-transparent hover:text-gray-900 hover:bg-gray-300/50"
-                                            )}
-                                            title={`Set key size to ${variant}`}
-                                        >
-                                            {variant === 'default' ? 'Normal' : variant}
-                                        </button>
-                                    ))}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsAutoKeySize(true);
-                                        }}
-                                        className={cn(
-                                            "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-semibold border",
-                                            isAutoKeySize
-                                                ? "bg-black text-white shadow-sm border-black"
-                                                : "text-gray-500 border-transparent hover:text-gray-900 hover:bg-gray-300/50"
-                                        )}
-                                        title="Auto size based on window"
-                                    >
-                                        Auto
-                                    </button>
-                                </div>
-
-                                {/* Layout mode toggle */}
-                                <div className="flex flex-row items-center gap-0.5 bg-gray-200/50 p-0.5 rounded-md border border-gray-300/50 w-fit">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsAutoLayoutMode(false);
-                                            setLayoutMode("sidebar");
-                                        }}
-                                        className={cn(
-                                            "p-1 rounded-[4px] transition-all border",
-                                            // In sidebar mode, this button is active
-                                            !isAutoLayoutMode
-                                                ? "bg-black text-white shadow-sm border-black"
-                                                : "bg-gray-400 text-white border-gray-400"
-                                        )}
-                                        title="Sidebar layout (panel on right)"
-                                    >
-                                        <PanelRight className="h-3.5 w-3.5" />
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsAutoLayoutMode(false);
-                                            setLayoutMode("bottombar");
-                                        }}
-                                        className={cn(
-                                            "p-1 rounded-[4px] transition-all border",
-                                            // In sidebar mode, bottombar button is never active
-                                            "text-gray-500 border-transparent hover:text-gray-900 hover:bg-gray-300/50"
-                                        )}
-                                        title="Bottom bar layout (panel on bottom)"
-                                    >
-                                        <PanelBottom className="h-3.5 w-3.5" />
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsAutoLayoutMode(true);
-                                        }}
-                                        className={cn(
-                                            "px-1.5 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-semibold border",
-                                            isAutoLayoutMode
-                                                ? "bg-black text-white shadow-sm border-black"
-                                                : "text-gray-500 border-transparent hover:text-gray-900 hover:bg-gray-300/50"
-                                        )}
-                                        title="Auto-switch layout based on window size"
-                                    >
-                                        Auto
-                                    </button>
-                                </div>
+                            <div className="pointer-events-auto">
+                                <EditorControls
+                                    showInfoPanel={showInfoPanel}
+                                    setShowInfoPanel={setShowInfoPanel}
+                                    showInfoToggle={false}
+                                />
                             </div>
                             {import.meta.env.DEV && (
                                 <div className="text-[10px] font-medium text-slate-400 select-none px-1 pointer-events-auto">

@@ -1,7 +1,7 @@
 import "./Keyboard.css";
 
 import { getKeyLabel, getKeycodeName } from "@/utils/layers";
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useEffect, useRef } from "react";
 import { MATRIX_COLS, SVALBOARD_LAYOUT, UNIT_SIZE } from "../constants/svalboard-layout";
 import { THUMB_OFFSET_U } from "../constants/keyboard-visuals";
 
@@ -16,7 +16,7 @@ import {
     hoverBackgroundClasses,
     hoverBorderClasses
 } from "@/utils/colors";
-import { InfoIcon } from "./icons/InfoIcon";
+// import { InfoIcon } from "./icons/InfoIcon";
 import { usePanels } from "@/contexts/PanelsContext";
 import { useChanges } from "@/hooks/useChanges";
 
@@ -38,13 +38,11 @@ export const Keyboard: React.FC<KeyboardProps> = ({ keyboard, selectedLayer }) =
         selectKeyboardKeyWithSubsection,
         selectedTarget,
         clearSelection,
-        hoveredKey,
         assignKeycode
     } = useKeyBinding();
 
     const { activePanel, itemToEdit } = usePanels();
     const { hasPendingChangeForKey } = useChanges();
-    const [showInfoPanel, setShowInfoPanel] = useState(false);
 
     // Use dynamic keylayout from fragments if available, otherwise fallback to hardcoded layout
     const { keyboardLayout, useFragmentLayout } = useMemo(() => {

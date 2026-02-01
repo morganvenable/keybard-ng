@@ -12,7 +12,7 @@ import { useChanges } from "@/contexts/ChangesContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { MATRIX_COLS } from "@/constants/svalboard-layout";
 import { cn } from "@/lib/utils";
-import { activeBackgroundClasses, activeTextClasses } from "@/utils/colors";
+// import { activeBackgroundClasses, activeTextClasses } from "@/utils/colors";
 import { svalService } from "@/services/sval.service";
 import { fileService } from "@/services/file.service";
 import {
