@@ -74,7 +74,7 @@ const LayerSelector: FC<LayerSelectorProps> = ({
     layerSpacingAdjust,
     onLayerSpacingChange
 }) => {
-    const { keyboard, isConnected, connect, resetToOriginal, setIsImporting, activeLayerIndex } = useVial();
+    const { keyboard, setKeyboard, isConnected, connect, resetToOriginal, setIsImporting, activeLayerIndex } = useVial();
     const { queue, commit, getPendingCount, clearAll } = useChanges();
     const { getSetting, updateSetting } = useSettings();
     const { is3DMode, setIs3DMode, isThumb3DOffsetActive, setIsThumb3DOffsetActive, backdropOpacity, setBackdropOpacity } = useLayoutSettings();
@@ -294,401 +294,401 @@ const LayerSelector: FC<LayerSelectorProps> = ({
                         {/* Top Row: Connect/Import/Export + Live Controls + Tab Icon + Tabs */}
                         <div className="flex items-center gap-2 pl-5 py-2 whitespace-nowrap bg-transparent">
 
-                        {/* File Input (Hidden) */}
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".viable,.vil,.json"
-                            className="hidden"
-                            onChange={handleFileImport}
-                        />
+                            {/* File Input (Hidden) */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".viable,.vil,.json"
+                                className="hidden"
+                                onChange={handleFileImport}
+                            />
 
-                        {/* Export Dialog */}
-                        <Dialog open={isExportOpen} onOpenChange={setIsExportOpen}>
-                            <DialogContent className="sm:max-w-[425px]">
-                                <DialogHeader>
-                                    <DialogTitle>Export Keyboard Configuration</DialogTitle>
-                                    <DialogDescription>
-                                        Choose the format and options for exporting your keyboard configuration.
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <div className="grid gap-4 py-4">
-                                    <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="format" className="text-right">Format</Label>
-                                        <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as "viable" | "vil")}>
-                                            <SelectTrigger className="col-span-3">
-                                                <SelectValue placeholder="Select format" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="viable">.viable (Recommended)</SelectItem>
-                                                <SelectItem value="vil">.vil (Vial compatible)</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                            {/* Export Dialog */}
+                            <Dialog open={isExportOpen} onOpenChange={setIsExportOpen}>
+                                <DialogContent className="sm:max-w-[425px]">
+                                    <DialogHeader>
+                                        <DialogTitle>Export Keyboard Configuration</DialogTitle>
+                                        <DialogDescription>
+                                            Choose the format and options for exporting your keyboard configuration.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="grid gap-4 py-4">
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="format" className="text-right">Format</Label>
+                                            <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as "viable" | "vil")}>
+                                                <SelectTrigger className="col-span-3">
+                                                    <SelectValue placeholder="Select format" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="viable">.viable (Recommended)</SelectItem>
+                                                    <SelectItem value="vil">.vil (Vial compatible)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="macros" className="text-right">Include Macros</Label>
+                                            <Switch
+                                                id="macros"
+                                                checked={includeMacros}
+                                                onCheckedChange={setIncludeMacros}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="macros" className="text-right">Include Macros</Label>
-                                        <Switch
-                                            id="macros"
-                                            checked={includeMacros}
-                                            onCheckedChange={setIncludeMacros}
-                                        />
-                                    </div>
-                                </div>
-                                <DialogFooter>
-                                    <Button variant="outline" onClick={() => setIsExportOpen(false)}>Cancel</Button>
-                                    <Button onClick={handleExport}>Export</Button>
-                                </DialogFooter>
-                            </DialogContent>
-                        </Dialog>
+                                    <DialogFooter>
+                                        <Button variant="outline" onClick={() => setIsExportOpen(false)}>Cancel</Button>
+                                        <Button onClick={handleExport}>Export</Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
 
-                        {/* Connect / Update Button Group */}
-                        {!isConnected ? (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); connect(); }}
-                                className="flex items-center gap-2 text-sm font-medium cursor-pointer transition-all bg-black text-gray-200 hover:bg-gray-800 px-5 py-1.5 rounded-full mr-2"
-                                title="Click to Connect"
-                            >
-                                <Unplug className="h-4 w-4 text-gray-200" />
-                                <span className="select-none">Connect</span>
-                            </button>
-                        ) : (
-                            <div className="flex items-center gap-1">
+                            {/* Connect / Update Button Group */}
+                            {!isConnected ? (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); connect(); }}
+                                    className="flex items-center gap-2 text-sm font-medium cursor-pointer transition-all bg-black text-gray-200 hover:bg-gray-800 px-5 py-1.5 rounded-full mr-2"
+                                    title="Click to Connect"
+                                >
+                                    <Unplug className="h-4 w-4 text-gray-200" />
+                                    <span className="select-none">Connect</span>
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-1">
 
-                                {/* Mode Switch Button (Zap) - Only show when NOT live updating (to switch TO live) */}
-                                {!liveUpdating && (
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    commit();
-                                                    updateSetting("live-updating", true);
-                                                }}
-                                                className="p-2 rounded-full transition-all cursor-pointer hover:bg-gray-100"
-                                                aria-label="Switch to Live Updating"
-                                            >
-                                                <Zap className="h-4 w-4 fill-black text-black" />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">
-                                            Switch to Live Updating
-                                        </TooltipContent>
-                                    </Tooltip>
-                                )}
-                                {/* Main Action Button */}
-                                {liveUpdating ? (
-                                    <>
-                                        {/* Zap button to switch to Manual/Update Now mode - inverted colors */}
+                                    {/* Mode Switch Button (Zap) - Only show when NOT live updating (to switch TO live) */}
+                                    {!liveUpdating && (
                                         <Tooltip>
                                             <TooltipTrigger asChild>
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        updateSetting("live-updating", false);
+                                                        commit();
+                                                        updateSetting("live-updating", true);
                                                     }}
-                                                    className="p-2 rounded-full transition-all cursor-pointer bg-black hover:bg-gray-800"
-                                                    aria-label="Switch to Manual Updates"
+                                                    className="p-2 rounded-full transition-all cursor-pointer hover:bg-gray-100"
+                                                    aria-label="Switch to Live Updating"
                                                 >
-                                                    <Zap className="h-4 w-4 fill-kb-gray text-kb-gray" />
+                                                    <Zap className="h-4 w-4 fill-black text-black" />
                                                 </button>
                                             </TooltipTrigger>
                                             <TooltipContent side="top">
-                                                Switch to Manual Updates
+                                                Switch to Live Updating
                                             </TooltipContent>
                                         </Tooltip>
-                                        {/* Live Updating button - black text on transparent background */}
-                                        <button
-                                            disabled={true}
-                                            className="flex items-center text-sm font-medium pl-2 pr-5 py-1.5 rounded-full bg-transparent text-black border border-transparent cursor-default"
-                                        >
-                                            <span className="select-none">Live Updating</span>
-                                        </button>
-                                    </>
-                                ) : (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIgnoreHover(true);
-                                            // Handle "Update Changes"
-                                            commit();
-                                        }}
-                                        onMouseLeave={() => setIgnoreHover(false)}
-                                        disabled={getPendingCount() === 0}
-                                        className={cn(
-                                            "flex items-center gap-2 text-sm font-medium transition-all px-5 py-1.5 rounded-full border",
-                                            // Disabled state
-                                            getPendingCount() === 0
-                                                ? "bg-gray-200 text-black border-gray-200 cursor-not-allowed"
-                                                : "bg-black text-gray-200 cursor-pointer",
-                                            // Hover logic - Manual Mode: Red (only when enabled)
-                                            getPendingCount() > 0 && (!ignoreHover) && "hover:bg-red-500 hover:text-white hover:border-red-500",
-
-                                            // Pending Changes Ring (Manual Mode only)
-                                            getPendingCount() > 0
-                                                ? `border-transparent ring-[3px] ring-red-500 ring-offset-2 ring-offset-kb-gray ${!ignoreHover ? "hover:ring-black" : ""}`
-                                                : "", // No ring when disabled
-
-                                            // Active state (click) - only when enabled
-                                            getPendingCount() > 0 && "active:bg-red-500 active:text-white"
-                                        )}
-                                    >
-                                        <span className="select-none">
-                                            {getPendingCount() > 0
-                                                ? `Update ${getPendingCount()} Change${getPendingCount() === 1 ? '' : 's'} `
-                                                : 'Update Changes'}
-                                        </span>
-                                    </button>
-                                )}
-
-                                {!liveUpdating && (
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
+                                    )}
+                                    {/* Main Action Button */}
+                                    {liveUpdating ? (
+                                        <>
+                                            {/* Zap button to switch to Manual/Update Now mode - inverted colors */}
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            updateSetting("live-updating", false);
+                                                        }}
+                                                        className="p-2 rounded-full transition-all cursor-pointer bg-black hover:bg-gray-800"
+                                                        aria-label="Switch to Manual Updates"
+                                                    >
+                                                        <Zap className="h-4 w-4 fill-kb-gray text-kb-gray" />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="top">
+                                                    Switch to Manual Updates
+                                                </TooltipContent>
+                                            </Tooltip>
+                                            {/* Live Updating button - black text on transparent background */}
                                             <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (getPendingCount() > 0) {
-                                                        clearAll();
-                                                        resetToOriginal();
-                                                    }
-                                                }}
-                                                disabled={getPendingCount() === 0}
-                                                className={cn(
-                                                    "p-2 rounded-full transition-all text-black ml-0",
-                                                    getPendingCount() > 0 ? "cursor-pointer hover:bg-gray-100" : "opacity-30 cursor-not-allowed"
-                                                )}
+                                                disabled={true}
+                                                className="flex items-center text-sm font-medium pl-2 pr-5 py-1.5 rounded-full bg-transparent text-black border border-transparent cursor-default"
                                             >
-                                                <Undo2 className="h-4 w-4" />
+                                                <span className="select-none">Live Updating</span>
                                             </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">
-                                            Revert
-                                        </TooltipContent>
-                                    </Tooltip>
-                                )}
-                            </div>
-                        )}
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIgnoreHover(true);
+                                                // Handle "Update Changes"
+                                                commit();
+                                            }}
+                                            onMouseLeave={() => setIgnoreHover(false)}
+                                            disabled={getPendingCount() === 0}
+                                            className={cn(
+                                                "flex items-center gap-2 text-sm font-medium transition-all px-5 py-1.5 rounded-full border",
+                                                // Disabled state
+                                                getPendingCount() === 0
+                                                    ? "bg-gray-200 text-black border-gray-200 cursor-not-allowed"
+                                                    : "bg-black text-gray-200 cursor-pointer",
+                                                // Hover logic - Manual Mode: Red (only when enabled)
+                                                getPendingCount() > 0 && (!ignoreHover) && "hover:bg-red-500 hover:text-white hover:border-red-500",
 
-                        {/* Divider */}
-                        <div className="h-4 w-[1px] bg-slate-400 mx-0 flex-shrink-0" />
+                                                // Pending Changes Ring (Manual Mode only)
+                                                getPendingCount() > 0
+                                                    ? `border-transparent ring-[3px] ring-red-500 ring-offset-2 ring-offset-kb-gray ${!ignoreHover ? "hover:ring-black" : ""}`
+                                                    : "", // No ring when disabled
 
-                        <div className="flex items-center gap-1">
-                            {/* Import Button */}
-                            <Tooltip delayDuration={500}>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                                        className="p-2 rounded-full transition-all cursor-pointer hover:bg-gray-200"
-                                        aria-label="Import Layout"
-                                    >
-                                        <LayoutImport className="h-5 w-5 text-black" />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                    Import Layout
-                                </TooltipContent>
-                            </Tooltip>
+                                                // Active state (click) - only when enabled
+                                                getPendingCount() > 0 && "active:bg-red-500 active:text-white"
+                                            )}
+                                        >
+                                            <span className="select-none">
+                                                {getPendingCount() > 0
+                                                    ? `Update ${getPendingCount()} Change${getPendingCount() === 1 ? '' : 's'} `
+                                                    : 'Update Changes'}
+                                            </span>
+                                        </button>
+                                    )}
 
-                            {/* Export Button */}
-                            <Tooltip delayDuration={500}>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setIsExportOpen(true); }}
-                                        className="p-2 rounded-full transition-all cursor-pointer hover:bg-gray-200"
-                                        disabled={!keyboard}
-                                        aria-label="Export Layout"
-                                    >
-                                        <LayoutExport className="h-5 w-5 text-black" />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                    Export Layout
-                                </TooltipContent>
-                            </Tooltip>
-
-                            {/* Matrix Tester Button */}
-                            <Tooltip delayDuration={500}>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (activePanel === "matrixtester") {
-                                                // If already in matrix tester mode, exit it
-                                                setActivePanel(null);
-                                            } else {
-                                                // Enter matrix tester mode
-                                                setOpen(false);
-                                                setActivePanel("matrixtester");
-                                                setPanelToGoBack(null);
-                                                setItemToEdit(null);
-                                            }
-                                        }}
-                                        className={cn(
-                                            "p-2 rounded-full transition-all cursor-pointer",
-                                            activePanel === "matrixtester"
-                                                ? "bg-black hover:bg-gray-800"
-                                                : "hover:bg-gray-200"
-                                        )}
-                                        aria-label={activePanel === "matrixtester" ? "Exit Matrix Tester" : "Matrix Tester"}
-                                    >
-                                        <MatrixTesterIcon className={cn(
-                                            "h-5 w-5",
-                                            activePanel === "matrixtester" ? "text-kb-gray" : "text-black"
-                                        )} />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                    {activePanel === "matrixtester" ? "Exit Matrix Tester" : "Matrix Tester"}
-                                </TooltipContent>
-                            </Tooltip>
+                                    {!liveUpdating && (
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (getPendingCount() > 0) {
+                                                            clearAll();
+                                                            resetToOriginal();
+                                                        }
+                                                    }}
+                                                    disabled={getPendingCount() === 0}
+                                                    className={cn(
+                                                        "p-2 rounded-full transition-all text-black ml-0",
+                                                        getPendingCount() > 0 ? "cursor-pointer hover:bg-gray-100" : "opacity-30 cursor-not-allowed"
+                                                    )}
+                                                >
+                                                    <Undo2 className="h-4 w-4" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">
+                                                Revert
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Divider */}
-                            <div className="h-4 w-[1px] bg-slate-400 ml-2 mr-2 flex-shrink-0" />
+                            <div className="h-4 w-[1px] bg-slate-400 mx-0 flex-shrink-0" />
 
-                            {/* Multi Layers Button */}
-                            <Tooltip delayDuration={500}>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (activePanel === "matrixtester") {
-                                                setActivePanel(null);
-                                            }
-                                            onToggleMultiLayers();
-                                        }}
-                                        className={cn(
-                                            "p-2 rounded-full transition-all cursor-pointer",
-                                            isMultiLayersActive
-                                                ? "bg-black hover:bg-gray-800"
-                                                : "hover:bg-gray-200"
-                                        )}
-                                        aria-label={isMultiLayersActive ? "Show Single Layer" : "Show Multiple Layers"}
-                                    >
-                                        <LayoutMultiLayersIcon className={cn(
-                                            "h-5 w-5",
-                                            isMultiLayersActive ? "text-kb-gray" : "text-black"
-                                        )} />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                    {isMultiLayersActive ? "Show Single Layer" : "Show Multiple Layers"}
-                                </TooltipContent>
-                            </Tooltip>
+                            <div className="flex items-center gap-1">
+                                {/* Import Button */}
+                                <Tooltip delayDuration={500}>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                                            className="p-2 rounded-full transition-all cursor-pointer hover:bg-gray-200"
+                                            aria-label="Import Layout"
+                                        >
+                                            <LayoutImport className="h-5 w-5 text-black" />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                        Import Layout
+                                    </TooltipContent>
+                                </Tooltip>
 
-                            {/* 3D View Toggle Button */}
-                            <Tooltip delayDuration={500}>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIs3DMode(!is3DMode);
-                                        }}
-                                        className={cn(
-                                            "p-2 rounded-full transition-all cursor-pointer",
-                                            is3DMode
-                                                ? "bg-black hover:bg-gray-800"
-                                                : "hover:bg-gray-200"
-                                        )}
-                                        aria-label={is3DMode ? "Exit 3D View" : "3D View"}
-                                    >
-                                        <BoxIcon className={cn(
-                                            "h-5 w-5",
-                                            is3DMode ? "text-kb-gray" : "text-gray-700"
-                                        )} />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                    {is3DMode ? "Exit 3D View" : "3D View"}
-                                </TooltipContent>
-                            </Tooltip>
+                                {/* Export Button */}
+                                <Tooltip delayDuration={500}>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setIsExportOpen(true); }}
+                                            className="p-2 rounded-full transition-all cursor-pointer hover:bg-gray-200"
+                                            disabled={!keyboard}
+                                            aria-label="Export Layout"
+                                        >
+                                            <LayoutExport className="h-5 w-5 text-black" />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                        Export Layout
+                                    </TooltipContent>
+                                </Tooltip>
 
-                            {/* Thumb Offset Toggle (3D) */}
-                            <Tooltip delayDuration={500}>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsThumb3DOffsetActive(!isThumb3DOffsetActive);
-                                        }}
-                                        className={cn(
-                                            "p-2 rounded-full transition-all cursor-pointer",
-                                            isThumb3DOffsetActive
-                                                ? "bg-black hover:bg-gray-800"
-                                                : "hover:bg-gray-200"
-                                        )}
-                                        aria-label="Hide Thumbs"
-                                    >
-                                        <LayoutThumbsSingleIcon className={cn(
-                                            "h-5 w-5",
-                                            isThumb3DOffsetActive ? "text-white" : "text-black"
-                                        )} />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                    Hide Thumbs
-                                </TooltipContent>
-                            </Tooltip>
+                                {/* Matrix Tester Button */}
+                                <Tooltip delayDuration={500}>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (activePanel === "matrixtester") {
+                                                    // If already in matrix tester mode, exit it
+                                                    setActivePanel(null);
+                                                } else {
+                                                    // Enter matrix tester mode
+                                                    setOpen(false);
+                                                    setActivePanel("matrixtester");
+                                                    setPanelToGoBack(null);
+                                                    setItemToEdit(null);
+                                                }
+                                            }}
+                                            className={cn(
+                                                "p-2 rounded-full transition-all cursor-pointer",
+                                                activePanel === "matrixtester"
+                                                    ? "bg-black hover:bg-gray-800"
+                                                    : "hover:bg-gray-200"
+                                            )}
+                                            aria-label={activePanel === "matrixtester" ? "Exit Matrix Tester" : "Matrix Tester"}
+                                        >
+                                            <MatrixTesterIcon className={cn(
+                                                "h-5 w-5",
+                                                activePanel === "matrixtester" ? "text-kb-gray" : "text-black"
+                                            )} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                        {activePanel === "matrixtester" ? "Exit Matrix Tester" : "Matrix Tester"}
+                                    </TooltipContent>
+                                </Tooltip>
 
-                            {/* Show/Hide All Transparent Keys Button */}
-                            <Tooltip delayDuration={500}>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onToggleAllTransparency();
-                                        }}
-                                        className={cn(
-                                            "p-2 rounded-full transition-all cursor-pointer w-9 h-9 flex items-center justify-center",
-                                            isAllTransparencyActive
-                                                ? "bg-black hover:bg-gray-800"
-                                                : "hover:bg-gray-200"
-                                        )}
-                                        aria-label={isAllTransparencyActive ? "Show Transparent Keys (All Layers)" : "Hide Transparent Keys (All Layers)"}
-                                    >
-                                        <MicroscopeIcon className={cn(
-                                            "h-4 w-4",
-                                            isAllTransparencyActive ? "text-kb-gray" : "text-black"
-                                        )} />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                    {isAllTransparencyActive ? "Show Transparent Keys (All Layers)" : "Hide Transparent Keys (All Layers)"}
-                                </TooltipContent>
-                            </Tooltip>
-                            {is3DMode && isMultiLayersActive && (
-                                <div className="flex items-center gap-2 ml-1 text-xs text-gray-600">
-                                    <span className="whitespace-nowrap">Layer Spacing</span>
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={1000}
-                                        step={10}
-                                        value={layerSpacingAdjust}
-                                        onChange={(e) => onLayerSpacingChange(Number(e.target.value))}
-                                        className="w-40"
-                                    />
-                                    <span className="tabular-nums w-12 text-right">{layerSpacingAdjust}px</span>
-                                </div>
-                            )}
-                            {is3DMode && (
-                                <div className="flex items-center gap-2 ml-1 text-xs text-gray-600">
-                                    <span className="whitespace-nowrap">Backdrop Opacity</span>
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={1}
-                                        step={0.05}
-                                        value={backdropOpacity}
-                                        onChange={(e) => setBackdropOpacity(Number(e.target.value))}
-                                        className="w-32"
-                                    />
-                                    <span className="tabular-nums w-10 text-right">{Math.round(backdropOpacity * 100)}%</span>
-                                </div>
-                            )}
+                                {/* Divider */}
+                                <div className="h-4 w-[1px] bg-slate-400 ml-2 mr-2 flex-shrink-0" />
+
+                                {/* Multi Layers Button */}
+                                <Tooltip delayDuration={500}>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (activePanel === "matrixtester") {
+                                                    setActivePanel(null);
+                                                }
+                                                onToggleMultiLayers();
+                                            }}
+                                            className={cn(
+                                                "p-2 rounded-full transition-all cursor-pointer",
+                                                isMultiLayersActive
+                                                    ? "bg-black hover:bg-gray-800"
+                                                    : "hover:bg-gray-200"
+                                            )}
+                                            aria-label={isMultiLayersActive ? "Show Single Layer" : "Show Multiple Layers"}
+                                        >
+                                            <LayoutMultiLayersIcon className={cn(
+                                                "h-5 w-5",
+                                                isMultiLayersActive ? "text-kb-gray" : "text-black"
+                                            )} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                        {isMultiLayersActive ? "Show Single Layer" : "Show Multiple Layers"}
+                                    </TooltipContent>
+                                </Tooltip>
+
+                                {/* 3D View Toggle Button */}
+                                <Tooltip delayDuration={500}>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIs3DMode(!is3DMode);
+                                            }}
+                                            className={cn(
+                                                "p-2 rounded-full transition-all cursor-pointer",
+                                                is3DMode
+                                                    ? "bg-black hover:bg-gray-800"
+                                                    : "hover:bg-gray-200"
+                                            )}
+                                            aria-label={is3DMode ? "Exit 3D View" : "3D View"}
+                                        >
+                                            <BoxIcon className={cn(
+                                                "h-5 w-5",
+                                                is3DMode ? "text-kb-gray" : "text-gray-700"
+                                            )} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                        {is3DMode ? "Exit 3D View" : "3D View"}
+                                    </TooltipContent>
+                                </Tooltip>
+
+                                {/* Thumb Offset Toggle (3D) */}
+                                <Tooltip delayDuration={500}>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsThumb3DOffsetActive(!isThumb3DOffsetActive);
+                                            }}
+                                            className={cn(
+                                                "p-2 rounded-full transition-all cursor-pointer",
+                                                isThumb3DOffsetActive
+                                                    ? "bg-black hover:bg-gray-800"
+                                                    : "hover:bg-gray-200"
+                                            )}
+                                            aria-label="Hide Thumbs"
+                                        >
+                                            <LayoutThumbsSingleIcon className={cn(
+                                                "h-5 w-5",
+                                                isThumb3DOffsetActive ? "text-white" : "text-black"
+                                            )} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                        Hide Thumbs
+                                    </TooltipContent>
+                                </Tooltip>
+
+                                {/* Show/Hide All Transparent Keys Button */}
+                                <Tooltip delayDuration={500}>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onToggleAllTransparency();
+                                            }}
+                                            className={cn(
+                                                "p-2 rounded-full transition-all cursor-pointer w-9 h-9 flex items-center justify-center",
+                                                isAllTransparencyActive
+                                                    ? "bg-black hover:bg-gray-800"
+                                                    : "hover:bg-gray-200"
+                                            )}
+                                            aria-label={isAllTransparencyActive ? "Show Transparent Keys (All Layers)" : "Hide Transparent Keys (All Layers)"}
+                                        >
+                                            <MicroscopeIcon className={cn(
+                                                "h-4 w-4",
+                                                isAllTransparencyActive ? "text-kb-gray" : "text-black"
+                                            )} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                        {isAllTransparencyActive ? "Show Transparent Keys (All Layers)" : "Hide Transparent Keys (All Layers)"}
+                                    </TooltipContent>
+                                </Tooltip>
+                                {is3DMode && isMultiLayersActive && (
+                                    <div className="flex items-center gap-2 ml-1 text-xs text-gray-600">
+                                        <span className="whitespace-nowrap">Layer Spacing</span>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={1000}
+                                            step={10}
+                                            value={layerSpacingAdjust}
+                                            onChange={(e) => onLayerSpacingChange(Number(e.target.value))}
+                                            className="w-40"
+                                        />
+                                        <span className="tabular-nums w-12 text-right">{layerSpacingAdjust}px</span>
+                                    </div>
+                                )}
+                                {is3DMode && (
+                                    <div className="flex items-center gap-2 ml-1 text-xs text-gray-600">
+                                        <span className="whitespace-nowrap">Backdrop Opacity</span>
+                                        <input
+                                            type="range"
+                                            min={0}
+                                            max={1}
+                                            step={0.05}
+                                            value={backdropOpacity}
+                                            onChange={(e) => setBackdropOpacity(Number(e.target.value))}
+                                            className="w-32"
+                                        />
+                                        <span className="tabular-nums w-10 text-right">{Math.round(backdropOpacity * 100)}%</span>
+                                    </div>
+                                )}
+                            </div>
+
                         </div>
 
-                    </div>
-
-                    {/* Matrix Tester Title - shown only when matrix tester is active */}
+                        {/* Matrix Tester Title - shown only when matrix tester is active */}
                         {activePanel === "matrixtester" && (
                             <div className="pl-[27px] pt-[7px] pb-2">
                                 <div className="flex items-center gap-2">

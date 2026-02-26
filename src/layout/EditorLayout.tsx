@@ -1218,6 +1218,14 @@ const GuideLines = ({
                     isBottom,
                 });
             };
+            const pushScreenPoint = (label: string, pxX: number, pxY: number, isBottom: boolean) => {
+                points.push({
+                    x: pxX,
+                    y: pxY,
+                    label,
+                    isBottom,
+                });
+            };
 
             let zBottom = (numLayers - 1) * zStep;
 
@@ -1264,6 +1272,16 @@ const GuideLines = ({
                 const zEnd = zTop + zBottom;
 
                 if (side === "top") {
+                    const primaryTopEdge = getActualTopEdge(keyboardEl, key.x, key.y);
+                    const secondaryTopEdge = lastKeyboardEl ? getActualTopEdge(lastKeyboardEl, key.x, key.y) : null;
+                    if (primaryTopEdge && secondaryTopEdge) {
+                        usedMeasuredTopEdges = true;
+                        pushScreenPoint(`${label}-top-1`, primaryTopEdge.left.x, primaryTopEdge.left.y, false);
+                        pushScreenPoint(`${label}-top-2`, primaryTopEdge.right.x, primaryTopEdge.right.y, false);
+                        pushScreenPoint(`${label}-top-1`, secondaryTopEdge.left.x, secondaryTopEdge.left.y, true);
+                        pushScreenPoint(`${label}-top-2`, secondaryTopEdge.right.x, secondaryTopEdge.right.y, true);
+                        return;
+                    }
                     pushProjectedPoint(`${label}-top-1`, leftX, topY, zTop, false);
                     pushProjectedPoint(`${label}-top-2`, rightX, topY, zTop, false);
                     pushProjectedPoint(`${label}-top-1`, leftX, topY, zEnd, true);
@@ -1330,19 +1348,10 @@ const GuideLines = ({
                 };
             };
 
-            const l2Actual = getActualTopEdge(keyboardEl, 3.5, 0); // W
             const lastKeyboardEl = lastViewId
                 ? (document.querySelector(`[data-keyboard-instance="${lastViewId}"]`) as HTMLElement | null)
                 : null;
-            const l2ActualLast = lastKeyboardEl ? getActualTopEdge(lastKeyboardEl, 3.5, 0) : null;
-
-            if (l2Actual && l2ActualLast) {
-                const measuredDeltaY = l2ActualLast.left.y - l2Actual.left.y;
-                const measuredZBottom = measuredDeltaY / sin55;
-                if (Number.isFinite(measuredZBottom) && measuredZBottom > 0) {
-                    zBottom = measuredZBottom;
-                }
-            }
+            let usedMeasuredTopEdges = false;
 
             clusterTopKeys.forEach(({ x, y, label }) => {
                 const top = findKeyByXY(x, y);
@@ -1356,6 +1365,12 @@ const GuideLines = ({
                 if (left) addFromKey(left, "left", label);
             });
 
+            if (usedMeasuredTopEdges) {
+                setGuidePointsPx(points);
+                return;
+            }
+
+            const l2Actual = getActualTopEdge(keyboardEl, 3.5, 0); // W
             const r2Actual = getActualTopEdge(keyboardEl, 16.3, 0); // I
             const calcLeft = points.find((p) => p.label === "L2-top-1" && !p.isBottom);
             const calcRight = points.find((p) => p.label === "R2-top-2" && !p.isBottom);

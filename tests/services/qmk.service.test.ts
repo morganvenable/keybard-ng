@@ -104,7 +104,9 @@ describe('QMKService', () => {
       // Mock sendViable to distinguish between query and get
       mockUSB.sendViable.mockImplementation((cmd: number, args: number[]) => {
         if (cmd === 0x10) { // CMD_VIABLE_QMK_SETTINGS_QUERY
-          return Promise.resolve(new Uint16Array([1, 4, 0xffff]));
+          const cur = args[0] | (args[1] << 8);
+          if (cur === 0) return Promise.resolve(new Uint16Array([1, 4, 0xffff]));
+          return Promise.resolve(new Uint16Array([0xffff]));
         }
         if (cmd === 0x11) { // CMD_VIABLE_QMK_SETTINGS_GET
           const qsid = args[0];
@@ -134,7 +136,9 @@ describe('QMKService', () => {
       // Mock sendViable to distinguish between query and get
       mockUSB.sendViable.mockImplementation((cmd: number, args: number[]) => {
         if (cmd === 0x10) { // CMD_VIABLE_QMK_SETTINGS_QUERY
-          return Promise.resolve(new Uint16Array([1, 2, 3, 4, 5, 0xffff]));
+          const cur = args[0] | (args[1] << 8);
+          if (cur === 0) return Promise.resolve(new Uint16Array([1, 2, 3, 4, 5, 0xffff]));
+          return Promise.resolve(new Uint16Array([0xffff]));
         }
         if (cmd === 0x11) { // CMD_VIABLE_QMK_SETTINGS_GET
           const qsid = args[0];
@@ -188,12 +192,12 @@ describe('QMKService', () => {
       // Assert
       expect(mockUSB.sendViable).toHaveBeenCalledWith(
         expect.anything(),
-        [0],
+        [0, 0],
         expect.objectContaining({ uint16: true })
       );
       expect(mockUSB.sendViable).toHaveBeenCalledWith(
         expect.anything(),
-        [16],
+        [16, 0],
         expect.objectContaining({ uint16: true })
       );
     });
@@ -216,7 +220,11 @@ describe('QMKService', () => {
 
       // Mock sendViable with regular array
       mockUSB.sendViable.mockImplementation((cmd: number, args: number[]) => {
-        if (cmd === 0x10) return Promise.resolve([1, 2, 0xffff]);
+        if (cmd === 0x10) {
+          const cur = args[0] | (args[1] << 8);
+          if (cur === 0) return Promise.resolve([1, 2, 0xffff]);
+          return Promise.resolve([0xffff]);
+        }
         if (cmd === 0x11) {
           if (args[0] === 1) return Promise.resolve([0, 0, 1]);
           if (args[0] === 2) return Promise.resolve([0, 0, 200, 0]);
@@ -305,10 +313,13 @@ describe('QMKService', () => {
       usbControl.setConnected(true);
 
       // Mock malformed response
-      mockUSB.sendViable.mockResolvedValueOnce(null);
+      mockUSB.sendViable.mockResolvedValueOnce(undefined);
 
-      // Act & Assert
-      await expect(qmkService.get(kbinfo)).rejects.toThrow();
+      // Act
+      await qmkService.get(kbinfo);
+
+      // Assert
+      expect(kbinfo.settings).toEqual({});
     });
 
     it('should skip unknown QSIDs', async () => {
@@ -317,15 +328,22 @@ describe('QMKService', () => {
       usbControl.setConnected(true);
 
       // Mock response with QSID 999 which isn't in our mock settings
-      mockUSB.sendViable
-        .mockResolvedValueOnce(new Uint16Array([999, 0xffff]));
+      // Mock response with QSID 999 which isn't in our mock settings
+      mockUSB.sendViable.mockImplementation((cmd: number, args: number[]) => {
+        if (cmd === 0x10) {
+          const cur = args[0] | (args[1] << 8);
+          if (cur === 0) return Promise.resolve(new Uint16Array([999, 0xffff]));
+          return Promise.resolve(new Uint16Array([0xffff]));
+        }
+        return Promise.resolve(undefined);
+      });
 
       // Act
       await qmkService.get(kbinfo);
 
       // Assert - should complete without fetching QSID 999
       expect(kbinfo.settings).toEqual({});
-      expect(mockUSB.sendViable).toHaveBeenCalledTimes(1); // Only query call
+      expect(mockUSB.sendViable).toHaveBeenCalledTimes(2); // One found, one empty terminator
     });
 
     it('should handle settings with value 0', async () => {
@@ -334,8 +352,13 @@ describe('QMKService', () => {
       usbControl.setConnected(true);
 
       // Mock sendViable
+      // Mock sendViable
       mockUSB.sendViable.mockImplementation((cmd: number, args: number[]) => {
-        if (cmd === 0x10) return Promise.resolve(new Uint16Array([1, 2, 0xffff]));
+        if (cmd === 0x10) {
+          const cur = args[0] | (args[1] << 8);
+          if (cur === 0) return Promise.resolve(new Uint16Array([1, 2, 0xffff]));
+          return Promise.resolve(new Uint16Array([0xffff]));
+        }
         if (cmd === 0x11) return Promise.resolve([0, 0, 0]);
         return Promise.resolve(undefined);
       });

@@ -13,7 +13,6 @@ import { useVial } from "@/contexts/VialContext";
 import { useChanges } from "@/contexts/ChangesContext";
 import { svalService } from "@/services/sval.service";
 import { usbInstance } from "@/services/usb.service";
-import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { layerColors } from "@/utils/colors";
 import AtomActiveIcon from "@/components/icons/AtomActiveIcon";
 import AtomIcon from "@/components/icons/AtomIcon";
