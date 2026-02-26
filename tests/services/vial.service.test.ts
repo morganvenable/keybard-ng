@@ -17,7 +17,7 @@ import LZMA from 'js-lzma';
 vi.mock('js-lzma', () => ({
   default: {
     decompressFile: vi.fn((_inStream, outStream) => {
-      const data = '{"matrix":{"rows":4,"cols":12},"customKeycodes":[],"lighting":"none"}';
+      const data = '{"matrix":{"rows":4,"cols":12},"customKeycodes":[],"lighting":"none","menus":[],"viable":{"tap_dance":2,"leader":1},"fragments":[],"composition":[]}';
       const bytes = new TextEncoder().encode(data);
       bytes.forEach(b => outStream.writeByte(b));
     })
@@ -482,6 +482,28 @@ describe('VialService', () => {
       expect(matrix[1][8]).toBe(true);  // First bit of second byte (0xFF)
       expect(matrix[2][1]).toBe(true); // Second bit of 0xAA (10101010)
     });
+
+    it('should handle response data shorter than expected', async () => {
+      const kbinfo = createTestKeyboardInfo();
+      kbinfo.rows = 4;
+      kbinfo.cols = 8;
+      // 4 rows * 1 byte/row = 4 bytes needed. Offset 3. Total 7 bytes.
+      mockUSB.send.mockResolvedValue(new Uint8Array([0x02, 0x03, 0x00, 0xFF, 0x00])); // Only 2 rows worth
+
+      const matrix = await vialService.pollMatrix(kbinfo);
+      expect(matrix).toHaveLength(2); // Should break early
+    });
+
+    it('should handle mismatched command echo in matrix response', async () => {
+      const kbinfo = createTestKeyboardInfo();
+      kbinfo.rows = 2;
+      kbinfo.cols = 8;
+      // If echo doesn't match, offset remains 0
+      mockUSB.send.mockResolvedValue(new Uint8Array([0x00, 0x00, 0x00, 0xFF, 0xAA]));
+      const matrix = await vialService.pollMatrix(kbinfo);
+      expect(matrix).toHaveLength(2);
+      expect(matrix[0][0]).toBe(false); // 0x00
+    });
   });
 
   describe('updateKey', () => {
@@ -622,6 +644,204 @@ describe('VialService', () => {
 
     it('should return true for empty array', () => {
       expect(vialService.isLayerEmpty([])).toBe(true);
+    });
+
+    it('should return true for layer with only 255s or 0s', () => {
+      expect(vialService.isLayerEmpty([255, 255, 0, 0, -1])).toBe(true);
+      expect(vialService.isLayerEmpty([255, 1, 0])).toBe(false);
+    });
+  });
+
+  describe('One-shot settings', () => {
+    it('should retrieve one-shot settings', async () => {
+      const kbinfo = createTestKeyboardInfo();
+      mockUSB.sendViable.mockImplementation((cmd: number) => {
+        if (cmd === 0x09) { // CMD_VIABLE_ONE_SHOT_GET
+          const response = new Uint8Array(4);
+          response[0] = 0x09; // cmd_echo
+          response[1] = 0x2C; // timeout low (300 = 0x012C)
+          response[2] = 0x01; // timeout high
+          response[3] = 0x01; // tap_toggle
+          return Promise.resolve(response);
+        }
+        return Promise.resolve(new Uint8Array(32));
+      });
+
+      await vialService.getOneShot(kbinfo);
+      expect(kbinfo.one_shot).toEqual({
+        timeout: 300,
+        tap_toggle: 1
+      });
+    });
+
+    it('should update one-shot settings', async () => {
+      const kbinfo = createTestKeyboardInfo();
+      kbinfo.one_shot = { timeout: 300, tap_toggle: 1 };
+
+      await vialService.updateOneShot(kbinfo);
+      expect(mockUSB.sendViable).toHaveBeenCalledWith(
+        0x0a, // CMD_VIABLE_ONE_SHOT_SET
+        [0x2c, 0x01, 0x01],
+        {}
+      );
+    });
+  });
+
+  describe('Alt Repeat Keys', () => {
+    it('should retrieve alt repeat keys', async () => {
+      const kbinfo = createTestKeyboardInfo();
+      kbinfo.alt_repeat_key_count = 1;
+      mockUSB.sendViable.mockImplementation((cmd: number) => {
+        if (cmd === 0x07) { // CMD_VIABLE_ALT_REPEAT_KEY_GET
+          const response = new Uint8Array(8);
+          response[0] = 0x07; // cmd_echo
+          response[1] = 0x00; // index
+          response[2] = 0x04; // keycode A low
+          response[3] = 0x00; // keycode A high
+          response[4] = 0x05; // alt_keycode B low
+          response[5] = 0x00; // alt_keycode B high
+          response[6] = 0x01; // allowed_mods
+          response[7] = 0x00; // options
+          return Promise.resolve(response);
+        }
+        return Promise.resolve(new Uint8Array(32));
+      });
+
+      await vialService.getAltRepeatKeys(kbinfo);
+      expect(kbinfo.alt_repeat_keys).toHaveLength(1);
+      expect(kbinfo.alt_repeat_keys![0].keycode).toBe('KC_4');
+    });
+
+    it('should skip if count is 0', async () => {
+      const kbinfo = createTestKeyboardInfo();
+      kbinfo.alt_repeat_key_count = 0;
+      await vialService.getAltRepeatKeys(kbinfo);
+      expect(kbinfo.alt_repeat_keys).toBeUndefined();
+    });
+  });
+
+  describe('Leader sequences', () => {
+    it('should retrieve leader sequences', async () => {
+      const kbinfo = createTestKeyboardInfo();
+      kbinfo.leader_count = 1;
+      mockUSB.sendViable.mockImplementation((cmd: number) => {
+        if (cmd === 0x14) { // CMD_VIABLE_LEADER_GET is 0x14
+          const response = new Uint8Array(20);
+          response[0] = 0x14; // cmd_echo
+          response[1] = 0x00; // index
+          const dv = new DataView(response.buffer);
+          dv.setUint16(2, 0x04, true); // KC_A
+          dv.setUint16(4, 0x00, true); // seq1 empty
+          dv.setUint16(12, 0x05, true); // output KC_B
+          dv.setUint16(14, 0x0001, true); // options
+          return Promise.resolve(response);
+        }
+        return Promise.resolve(new Uint8Array(32));
+      });
+
+      await vialService.getLeaders(kbinfo);
+      expect(kbinfo.leaders).toHaveLength(1);
+      expect(kbinfo.leaders![0].sequence).toEqual(['KC_4']);
+      expect(kbinfo.leaders![0].output).toBe('KC_5');
+    });
+
+    it('should skip if count is 0', async () => {
+      const kbinfo = createTestKeyboardInfo();
+      kbinfo.leader_count = 0;
+      await vialService.getLeaders(kbinfo);
+      expect(kbinfo.leaders).toBeUndefined();
+    });
+  });
+
+  describe('Layer state', () => {
+    it('should retrieve layer state mask', async () => {
+      mockUSB.sendViable.mockImplementation((cmd: number, args: any, options: any) => {
+        if (cmd === 0x16 && options?.uint32) { // CMD_VIABLE_LAYER_STATE_GET is 0x16
+          return Promise.resolve(0x0000000F); // Layers 0,1,2,3 active
+        }
+        return Promise.resolve(0);
+      });
+
+      const mask = await vialService.getLayerStateMask();
+      expect(mask).toBe(0x0F);
+    });
+
+    it('should determine active layer index from mask', () => {
+      expect(vialService.getActiveLayerIndexFromMask(0x00000001)).toBe(0);
+      expect(vialService.getActiveLayerIndexFromMask(0x00000002)).toBe(1);
+      expect(vialService.getActiveLayerIndexFromMask(0x00000008)).toBe(3);
+      expect(vialService.getActiveLayerIndexFromMask(0x80000000)).toBe(31);
+      expect(vialService.getActiveLayerIndexFromMask(0)).toBe(0);
+    });
+
+    it('should retrieve active layer index', async () => {
+      vi.spyOn(vialService, 'getLayerStateMask').mockResolvedValue(0x04); // Layer 2 active
+      const index = await vialService.getActiveLayerIndex();
+      expect(index).toBe(2);
+    });
+  });
+
+  describe('Alt Repeat Key', () => {
+    it('should update alt repeat key entry', async () => {
+      const kbinfo = createTestKeyboardInfo();
+      kbinfo.alt_repeat_keys = [{
+        arkid: 0,
+        keycode: 'KC_A',
+        alt_keycode: 'KC_B',
+        allowed_mods: 0x01,
+        options: 0
+      }];
+
+      await vialService.updateAltRepeatKey(kbinfo, 0);
+      expect(mockUSB.sendViable).toHaveBeenCalledWith(
+        0x08, // CMD_VIABLE_ALT_REPEAT_KEY_SET
+        expect.any(Array),
+        {}
+      );
+    });
+  });
+
+  describe('Leader sequences', () => {
+    it('should update leader entry', async () => {
+      const kbinfo = createTestKeyboardInfo();
+      kbinfo.leaders = [{
+        ldrid: 0,
+        sequence: ['KC_A', 'KC_B'],
+        output: 'KC_C',
+        options: 1
+      }];
+
+      await vialService.updateLeader(kbinfo, 0);
+
+      expect(mockUSB.sendViable).toHaveBeenCalledWith(
+        0x15, // CMD_VIABLE_LEADER_SET is 0x15
+        expect.any(Array),
+        {}
+      );
+    });
+  });
+
+  describe('Utility methods', () => {
+    it('should provide access to child services', () => {
+      expect(vialService.getFragmentService()).toBeDefined();
+      expect(vialService.getFragmentComposer()).toBeDefined();
+    });
+
+    it('should save and reset via USB', async () => {
+      await vialService.saveViable();
+      expect(mockUSB.sendViable).toHaveBeenCalledWith(0x0b, [], {});
+
+      await vialService.resetViable();
+      expect(mockUSB.sendViable).toHaveBeenCalledWith(0x0c, [], {});
+    });
+
+    it('should update fragment selection', async () => {
+      const kbinfo = createTestKeyboardInfo();
+      const spy = vi.spyOn((vialService as any).fragment, 'setSelection').mockResolvedValue(true);
+
+      const result = await vialService.updateFragmentSelection(kbinfo, 1, 2);
+      expect(result).toBe(true);
+      expect(spy).toHaveBeenCalledWith(kbinfo, 1, 2);
     });
   });
 });

@@ -470,6 +470,7 @@ export class ViableService {
                 return i;
             }
         }
+        /* v8 ignore next */
         return 0;
     }
 

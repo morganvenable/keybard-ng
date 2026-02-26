@@ -30,6 +30,7 @@ vi.mock('../../src/constants/keygen', () => {
 
     // Modifiers
     'KC_LSFT': { code: 0xe1, qmkid: 'KC_LSFT', str: 'LShift', title: 'Left Shift' },
+    'LSHIFT': { code: 0xe1, qmkid: 'KC_LSFT', str: 'LShift', title: 'Left Shift' },
     'KC_LCTL': { code: 0xe0, qmkid: 'KC_LCTL', str: 'LCtrl', title: 'Left Control' },
     'KC_LALT': { code: 0xe2, qmkid: 'KC_LALT', str: 'LAlt', title: 'Left Alt' },
     'KC_LGUI': { code: 0xe3, qmkid: 'KC_LGUI', str: 'LGui', title: 'Left GUI' },
@@ -120,6 +121,7 @@ vi.mock('../../src/constants/keygen', () => {
   mockCodemap[0x0800] = 'LGUI(kc)';
 
   const mockKeyaliases: any = {
+    'KC_LSFT': 'LSFT(kc)',
     'LSHIFT': 'KC_LSFT',
     'LCTRL': 'KC_LCTL',
     'LALT': 'KC_LALT',
@@ -283,6 +285,10 @@ describe('KeyService', () => {
       // Arrange & Act & Assert
       expect(keyService.parse('UNKNOWN_KEY' as any)).toBeNaN();
       expect(keyService.parse('0x1234' as any)).toBe(0x1234);
+    });
+
+    it('should handle "kc" string inside modifiers as KC_NO', () => {
+      expect(keyService.parse('LCTL(kc)')).toBe(0x0100);
     });
   });
 
