@@ -90,6 +90,7 @@ const EditorLayoutInner = () => {
         { id: "primary", selectedLayer: 0 }
     ]);
     const [showAllLayers, setShowAllLayers] = React.useState(true);
+    const [deferGuidesRender, setDeferGuidesRender] = React.useState(false);
     const [isMultiLayersActive, setIsMultiLayersActive] = React.useState(false);
     const [isLayerOrderReversed, setIsLayerOrderReversed] = React.useState(false);
     const [layerSpacingAdjust, setLayerSpacingAdjust] = React.useState(410);
@@ -102,6 +103,7 @@ const EditorLayoutInner = () => {
     const transparencyBackupRef = React.useRef<Record<number, boolean> | null>(null);
     const viewsScrollRef = React.useRef<HTMLDivElement>(null);
     const layerViewRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
+    const showLayersTransitionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     let nextViewId = React.useRef(1);
 
     // Animation: flying icon between layers-plus and layers-minus
@@ -122,6 +124,7 @@ const EditorLayoutInner = () => {
     React.useEffect(() => {
         return () => {
             if (animationTimerRef.current) clearTimeout(animationTimerRef.current);
+            if (showLayersTransitionTimerRef.current) clearTimeout(showLayersTransitionTimerRef.current);
         };
     }, []);
 
@@ -240,7 +243,16 @@ const EditorLayoutInner = () => {
     }, []);
 
     const handleToggleShowLayers = React.useCallback(() => {
+        if (showLayersTransitionTimerRef.current) {
+            clearTimeout(showLayersTransitionTimerRef.current);
+        }
+        // Hide guide trapezoids while layer stack animates to avoid "flash" at stale positions.
+        setDeferGuidesRender(true);
         setShowAllLayers(prev => !prev);
+        showLayersTransitionTimerRef.current = setTimeout(() => {
+            setDeferGuidesRender(false);
+            showLayersTransitionTimerRef.current = null;
+        }, 560);
     }, []);
 
     const handleSetViewLayer = React.useCallback((id: string, layer: number) => {
@@ -281,7 +293,11 @@ const EditorLayoutInner = () => {
 
     const handleToggleTransparency = React.useCallback((layerIndex: number, next: boolean) => {
         setTransparencyByLayer(prev => ({ ...prev, [layerIndex]: next }));
-    }, []);
+        // If we are in "all" mode and turn one off, clear the backup
+        if (isAllTransparencyActive && !next) {
+            transparencyBackupRef.current = null;
+        }
+    }, [isAllTransparencyActive]);
 
     const handleToggleAllTransparency = React.useCallback(() => {
         const next = !isAllTransparencyActive;
@@ -290,7 +306,7 @@ const EditorLayoutInner = () => {
             transparencyBackupRef.current = { ...transparencyByLayer };
             const allOn = Array.from({ length: totalLayers }, (_, i) => i)
                 .reduce<Record<number, boolean>>((acc, layerIndex) => {
-                    acc[layerIndex] = true;
+                    if (layerIndex > 0) acc[layerIndex] = true;
                     return acc;
                 }, {});
             setTransparencyByLayer(allOn);
@@ -306,6 +322,32 @@ const EditorLayoutInner = () => {
             });
         }
     }, [isAllTransparencyActive, keyboard?.layers, transparencyByLayer]);
+
+    // Synchronize the "All Transparency" state with individual layer states
+    React.useEffect(() => {
+        if (!keyboard) return;
+        const totalLayers = keyboard.layers || 16;
+        let allOn = true;
+        let allOff = true;
+
+        // Check layers 1 to N (layer 0 never has transparency toggle)
+        for (let i = 1; i < totalLayers; i++) {
+            if (transparencyByLayer[i]) {
+                allOff = false;
+            } else {
+                allOn = false;
+            }
+        }
+
+        if (allOn && !isAllTransparencyActive) {
+            setIsAllTransparencyActive(true);
+        } else if (allOff && isAllTransparencyActive) {
+            setIsAllTransparencyActive(false);
+        } else if (!allOn && !allOff && isAllTransparencyActive) {
+            // Mixed state but button shows as active - sync it to off
+            setIsAllTransparencyActive(false);
+        }
+    }, [transparencyByLayer, keyboard?.layers, isAllTransparencyActive]);
 
     const handleGhostNavigate = React.useCallback((sourceLayer: number) => {
         const targetEl = layerViewRefs.current.get(sourceLayer);
@@ -846,6 +888,7 @@ const EditorLayoutInner = () => {
                                                 fingerClusterSqueeze={fingerClusterSqueeze}
                                                 stepYValue={stepYValue}
                                                 primaryStackIndex={0}
+                                                deferRender={deferGuidesRender}
                                             />
                                         )}
                                         {viewsToDisplay.map((view, index) => (
@@ -1113,7 +1156,8 @@ const GuideLines = ({
     keyboardLayout,
     fingerClusterSqueeze,
     stepYValue,
-    primaryStackIndex
+    primaryStackIndex,
+    deferRender = false
 }: {
     numLayers: number,
     lastViewId: string,
@@ -1121,8 +1165,11 @@ const GuideLines = ({
     keyboardLayout: any,
     fingerClusterSqueeze: number,
     stepYValue: number,
-    primaryStackIndex: number
+    primaryStackIndex: number,
+    deferRender?: boolean
 }) => {
+    if (numLayers < 2 || deferRender) return null;
+
     const unitSize = keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : 60;
     const keyboardPadding = 16; // matches Keyboard.tsx p-4
     const useFragmentLayout = keyboardLayout !== SVALBOARD_LAYOUT;
@@ -1171,9 +1218,17 @@ const GuideLines = ({
     React.useLayoutEffect(() => {
         const overlayEl = overlayRef.current;
         const keyboardEl = document.querySelector('[data-keyboard-instance="primary"]') as HTMLElement | null;
-        if (!overlayEl || !keyboardEl) return;
+        if (!overlayEl || !keyboardEl) {
+            setGuidePointsPx([]);
+            return;
+        }
 
         const transformEl = (keyboardEl.closest('.keyboard-3d-active') as HTMLElement | null) || keyboardEl;
+        const lastKeyboardEl = lastViewId
+            ? (document.querySelector(`[data-keyboard-instance="${lastViewId}"]`) as HTMLElement | null)
+            : null;
+        const lastTransformEl =
+            (lastKeyboardEl?.closest('.keyboard-3d-active') as HTMLElement | null) || lastKeyboardEl;
 
         const getLayoutOffset = (el: HTMLElement) => {
             let x = 0;
@@ -1261,49 +1316,6 @@ const GuideLines = ({
                 return { x: xPos, y: yPos, w: key.w, h: key.h };
             };
 
-            const addFromKey = (key: { x: number; y: number; w: number; h: number }, side: "top" | "right" | "bottom" | "left", label: string) => {
-                const k = keyToPos(key);
-                const leftX = keyboardPadding + (k.x * unitSize);
-                const rightX = keyboardPadding + ((k.x + k.w) * unitSize);
-                const topY = keyboardPadding + (k.y * unitSize);
-                const bottomY = keyboardPadding + ((k.y + k.h) * unitSize);
-
-                const zTop = primaryStackIndex * zStep;
-                const zEnd = zTop + zBottom;
-
-                if (side === "top") {
-                    const primaryTopEdge = getActualTopEdge(keyboardEl, key.x, key.y);
-                    const secondaryTopEdge = lastKeyboardEl ? getActualTopEdge(lastKeyboardEl, key.x, key.y) : null;
-                    if (primaryTopEdge && secondaryTopEdge) {
-                        usedMeasuredTopEdges = true;
-                        pushScreenPoint(`${label}-top-1`, primaryTopEdge.left.x, primaryTopEdge.left.y, false);
-                        pushScreenPoint(`${label}-top-2`, primaryTopEdge.right.x, primaryTopEdge.right.y, false);
-                        pushScreenPoint(`${label}-top-1`, secondaryTopEdge.left.x, secondaryTopEdge.left.y, true);
-                        pushScreenPoint(`${label}-top-2`, secondaryTopEdge.right.x, secondaryTopEdge.right.y, true);
-                        return;
-                    }
-                    pushProjectedPoint(`${label}-top-1`, leftX, topY, zTop, false);
-                    pushProjectedPoint(`${label}-top-2`, rightX, topY, zTop, false);
-                    pushProjectedPoint(`${label}-top-1`, leftX, topY, zEnd, true);
-                    pushProjectedPoint(`${label}-top-2`, rightX, topY, zEnd, true);
-                } else if (side === "right") {
-                    pushProjectedPoint(`${label}-right-1`, rightX, topY, zTop, false);
-                    pushProjectedPoint(`${label}-right-2`, rightX, bottomY, zTop, false);
-                    pushProjectedPoint(`${label}-right-1`, rightX, topY, zEnd, true);
-                    pushProjectedPoint(`${label}-right-2`, rightX, bottomY, zEnd, true);
-                } else if (side === "bottom") {
-                    pushProjectedPoint(`${label}-bottom-1`, leftX, bottomY, zTop, false);
-                    pushProjectedPoint(`${label}-bottom-2`, rightX, bottomY, zTop, false);
-                    pushProjectedPoint(`${label}-bottom-1`, leftX, bottomY, zEnd, true);
-                    pushProjectedPoint(`${label}-bottom-2`, rightX, bottomY, zEnd, true);
-                } else {
-                    pushProjectedPoint(`${label}-left-1`, leftX, topY, zTop, false);
-                    pushProjectedPoint(`${label}-left-2`, leftX, bottomY, zTop, false);
-                    pushProjectedPoint(`${label}-left-1`, leftX, topY, zEnd, true);
-                    pushProjectedPoint(`${label}-left-2`, leftX, bottomY, zEnd, true);
-                }
-            };
-
             const getKeyEl = (kbEl: HTMLElement, key: { x: number; y: number }) => {
                 const selector = `[data-key-x="${key.x}"][data-key-y="${key.y}"]`;
                 return kbEl.querySelector(selector) as HTMLElement | null;
@@ -1331,26 +1343,133 @@ const GuideLines = ({
             }));
             const pickTopEdge = (edges: Array<{ a: DOMPoint; b: DOMPoint; avgX: number; avgY: number }>) =>
                 edges.reduce((min, e) => (e.avgY < min.avgY ? e : min), edges[0]);
-            const orderByX = (a: DOMPoint, b: DOMPoint) => (a.x <= b.x ? { left: a, right: b } : { left: b, right: a });
+            const orderByX = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+                (a.x <= b.x ? { left: a, right: b } : { left: b, right: a });
 
             const getActualTopEdge = (kbEl: HTMLElement, keyX: number, keyY: number) => {
                 const key = findKeyByXY(keyX, keyY);
                 if (!key) return null;
                 const el = getKeyEl(kbEl, key);
+                if (!el) return null;
                 const quad = el ? getQuad(el) : null;
                 if (!quad) return null;
                 const pts = quadPoints(quad);
-                const edge = pickTopEdge(quadEdges(pts));
-                const { left, right } = orderByX(edge.a, edge.b);
+                const topEdge = pickTopEdge(quadEdges(pts));
+                const edge = orderByX(topEdge.a, topEdge.b);
+
+                const { left, right } = edge;
                 return {
                     left: { x: left.x - overlayRect.left, y: left.y - overlayRect.top },
                     right: { x: right.x - overlayRect.left, y: right.y - overlayRect.top },
                 };
             };
 
-            const lastKeyboardEl = lastViewId
-                ? (document.querySelector(`[data-keyboard-instance="${lastViewId}"]`) as HTMLElement | null)
-                : null;
+            const getKeyCenter = (kbEl: HTMLElement, keyX: number, keyY: number) => {
+                const key = findKeyByXY(keyX, keyY);
+                if (!key) return null;
+                const el = getKeyEl(kbEl, key);
+                if (!el) return null;
+                const rect = el.getBoundingClientRect();
+                return {
+                    x: (rect.left + rect.right) / 2,
+                    y: (rect.top + rect.bottom) / 2,
+                };
+            };
+
+            const measuredLayerOffset = (() => {
+                if (!lastKeyboardEl || lastKeyboardEl === keyboardEl) return null;
+                const anchors = [
+                    { x: 3.5, y: 0 },   // W
+                    { x: 16.3, y: 0 },  // I
+                    { x: 1, y: 1.5 },   // Q
+                    { x: 22.3, y: 1.5 }, // P
+                ];
+                const deltas: Array<{ dx: number; dy: number }> = [];
+                anchors.forEach(({ x, y }) => {
+                    const primaryEdge = getActualTopEdge(keyboardEl, x, y);
+                    const secondaryEdge = getActualTopEdge(lastKeyboardEl, x, y);
+                    if (primaryEdge && secondaryEdge) {
+                        deltas.push({
+                            dx: ((secondaryEdge.left.x + secondaryEdge.right.x) / 2) - ((primaryEdge.left.x + primaryEdge.right.x) / 2),
+                            dy: ((secondaryEdge.left.y + secondaryEdge.right.y) / 2) - ((primaryEdge.left.y + primaryEdge.right.y) / 2),
+                        });
+                        return;
+                    }
+                    const primaryCenter = getKeyCenter(keyboardEl, x, y);
+                    const secondaryCenter = getKeyCenter(lastKeyboardEl, x, y);
+                    if (primaryCenter && secondaryCenter) {
+                        deltas.push({
+                            dx: secondaryCenter.x - primaryCenter.x,
+                            dy: secondaryCenter.y - primaryCenter.y,
+                        });
+                    }
+                });
+                if (deltas.length === 0) return null;
+                const sum = deltas.reduce(
+                    (acc, delta) => ({ dx: acc.dx + delta.dx, dy: acc.dy + delta.dy }),
+                    { dx: 0, dy: 0 }
+                );
+                return { dx: sum.dx / deltas.length, dy: sum.dy / deltas.length };
+            })();
+
+            const addFromKey = (key: { x: number; y: number; w: number; h: number }, side: "top" | "right" | "bottom" | "left", label: string) => {
+                const k = keyToPos(key);
+                const leftX = keyboardPadding + (k.x * unitSize);
+                const rightX = keyboardPadding + ((k.x + k.w) * unitSize);
+                const topY = keyboardPadding + (k.y * unitSize);
+                const bottomY = keyboardPadding + ((k.y + k.h) * unitSize);
+
+                const zTop = primaryStackIndex * zStep;
+                const zEnd = zTop + zBottom;
+
+                if (side === "top") {
+                    const primaryTopEdge = getActualTopEdge(keyboardEl, key.x, key.y);
+
+                    const projectedTopLeft = projectPoint(leftX, topY, zTop);
+                    const projectedTopRight = projectPoint(rightX, topY, zTop);
+                    const projectedTop1 = {
+                        x: projectedTopLeft.x + layoutOffset.x - overlayRect.left,
+                        y: projectedTopLeft.y + layoutOffset.y - overlayRect.top,
+                    };
+                    const projectedTop2 = {
+                        x: projectedTopRight.x + layoutOffset.x - overlayRect.left,
+                        y: projectedTopRight.y + layoutOffset.y - overlayRect.top,
+                    };
+
+                    const top1 = primaryTopEdge?.left ?? projectedTop1;
+                    const top2 = primaryTopEdge?.right ?? projectedTop2;
+
+                    if (measuredLayerOffset) {
+                        usedMeasuredTopEdges = true;
+                        pushScreenPoint(`${label}-top-1`, top1.x, top1.y, false);
+                        pushScreenPoint(`${label}-top-2`, top2.x, top2.y, false);
+                        pushScreenPoint(`${label}-top-1`, top1.x + measuredLayerOffset.dx, top1.y + measuredLayerOffset.dy, true);
+                        pushScreenPoint(`${label}-top-2`, top2.x + measuredLayerOffset.dx, top2.y + measuredLayerOffset.dy, true);
+                        return;
+                    }
+
+                    pushProjectedPoint(`${label}-top-1`, leftX, topY, zTop, false);
+                    pushProjectedPoint(`${label}-top-2`, rightX, topY, zTop, false);
+                    pushProjectedPoint(`${label}-top-1`, leftX, topY, zEnd, true);
+                    pushProjectedPoint(`${label}-top-2`, rightX, topY, zEnd, true);
+                } else if (side === "right") {
+                    pushProjectedPoint(`${label}-right-1`, rightX, topY, zTop, false);
+                    pushProjectedPoint(`${label}-right-2`, rightX, bottomY, zTop, false);
+                    pushProjectedPoint(`${label}-right-1`, rightX, topY, zEnd, true);
+                    pushProjectedPoint(`${label}-right-2`, rightX, bottomY, zEnd, true);
+                } else if (side === "bottom") {
+                    pushProjectedPoint(`${label}-bottom-1`, leftX, bottomY, zTop, false);
+                    pushProjectedPoint(`${label}-bottom-2`, rightX, bottomY, zTop, false);
+                    pushProjectedPoint(`${label}-bottom-1`, leftX, bottomY, zEnd, true);
+                    pushProjectedPoint(`${label}-bottom-2`, rightX, bottomY, zEnd, true);
+                } else {
+                    pushProjectedPoint(`${label}-left-1`, leftX, topY, zTop, false);
+                    pushProjectedPoint(`${label}-left-2`, leftX, bottomY, zTop, false);
+                    pushProjectedPoint(`${label}-left-1`, leftX, topY, zEnd, true);
+                    pushProjectedPoint(`${label}-left-2`, leftX, bottomY, zEnd, true);
+                }
+            };
+
             let usedMeasuredTopEdges = false;
 
             clusterTopKeys.forEach(({ x, y, label }) => {
@@ -1393,14 +1512,32 @@ const GuideLines = ({
         const ro = new ResizeObserver(handleResize);
         ro.observe(overlayEl);
         ro.observe(keyboardEl);
+        if (lastKeyboardEl && lastKeyboardEl !== keyboardEl) {
+            ro.observe(lastKeyboardEl);
+        }
+
+        const transitionTargets = [transformEl, lastTransformEl].filter((el): el is HTMLElement => !!el);
+        transitionTargets.forEach((el) => {
+            el.addEventListener('transitionrun', handleResize);
+            el.addEventListener('transitionend', handleResize);
+        });
+
+        const settleTimer = window.setTimeout(handleResize, 220);
         window.addEventListener('resize', handleResize);
         measure();
 
         return () => {
+            window.clearTimeout(settleTimer);
+
+            transitionTargets.forEach((el) => {
+                el.removeEventListener('transitionrun', handleResize);
+                el.removeEventListener('transitionend', handleResize);
+            });
+
             ro.disconnect();
             window.removeEventListener('resize', handleResize);
         };
-    }, [keyboardLayout, keyVariant, numLayers, lastViewId, fingerClusterSqueeze, stepYValue, primaryStackIndex, useFragmentLayout, unitSize, layoutMidline, layoutMaxX, layoutMaxY]);
+    }, [keyboardLayout, keyVariant, numLayers, lastViewId, fingerClusterSqueeze, stepYValue, primaryStackIndex, useFragmentLayout, unitSize, layoutMidline]);
 
     // Spacing between layers in screen pixels
     const svgWidth = svgSize.width || 1;

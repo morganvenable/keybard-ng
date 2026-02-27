@@ -562,7 +562,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                                     const next = !isTransparencyActive;
                                     onToggleTransparency(selectedLayer, next);
                                 }}
-                                disabled={activePanel === "matrixtester" || isAllTransparencyActive || isTransparencyRestoring}
+                                disabled={activePanel === "matrixtester" || isTransparencyRestoring}
                                 className={cn(
                                     "p-1.5 rounded-full transition-colors flex-shrink-0 ml-[-4px]",
                                     activePanel === "matrixtester"
