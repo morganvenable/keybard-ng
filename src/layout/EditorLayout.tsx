@@ -1231,6 +1231,7 @@ const GuideLines = ({
             (lastKeyboardEl?.closest('.keyboard-3d-active') as HTMLElement | null) || lastKeyboardEl;
 
         const getLayoutOffset = (el: HTMLElement) => {
+            // Use layout coordinates (not transformed bounds), then compensate for all ancestor scrolling.
             let x = 0;
             let y = 0;
             let current: HTMLElement | null = el;
@@ -1239,6 +1240,14 @@ const GuideLines = ({
                 y += current.offsetTop;
                 current = current.offsetParent as HTMLElement | null;
             }
+
+            current = el.parentElement;
+            while (current) {
+                x -= current.scrollLeft;
+                y -= current.scrollTop;
+                current = current.parentElement;
+            }
+
             return { x: x - window.scrollX, y: y - window.scrollY };
         };
 
@@ -1524,6 +1533,8 @@ const GuideLines = ({
 
         const settleTimer = window.setTimeout(handleResize, 220);
         window.addEventListener('resize', handleResize);
+        // Keep trapezoids aligned when scrolling inside overflow containers.
+        document.addEventListener('scroll', handleResize, true);
         measure();
 
         return () => {
@@ -1536,6 +1547,7 @@ const GuideLines = ({
 
             ro.disconnect();
             window.removeEventListener('resize', handleResize);
+            document.removeEventListener('scroll', handleResize, true);
         };
     }, [keyboardLayout, keyVariant, numLayers, lastViewId, fingerClusterSqueeze, stepYValue, primaryStackIndex, useFragmentLayout, unitSize, layoutMidline]);
 

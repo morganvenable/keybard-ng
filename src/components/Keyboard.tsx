@@ -383,8 +383,40 @@ export const Keyboard: React.FC<KeyboardProps> = ({
     const iconColorClass = (isConnected && isLayerActive) ? layerTextColorClass : undefined;
     const iconColorStyle = iconColorClass ? undefined : { color: layerHeaderTextColor };
 
+    const getDarkLayerHex = (layerName: string) => {
+        const layerHex = getColorByName(layerName)?.hex || "#099e7c";
+        const r = parseInt(layerHex.slice(1, 3), 16);
+        const g = parseInt(layerHex.slice(3, 5), 16);
+        const b = parseInt(layerHex.slice(5, 7), 16);
+        const darkenMultiplier = 0.7;
+        const rd = Math.round(r * darkenMultiplier).toString(16).padStart(2, "0");
+        const gd = Math.round(g * darkenMultiplier).toString(16).padStart(2, "0");
+        const bd = Math.round(b * darkenMultiplier).toString(16).padStart(2, "0");
+        return `#${rd}${gd}${bd}`;
+    };
+
 
     const KC_TRNS = 1;
+    const UNDERLAY_SCREEN_OFFSET_PX = 4;
+    const ISOMETRIC_ROTATE_Z_DEG = -45;
+    const ISOMETRIC_ROTATE_X_DEG = 55;
+
+    // Convert desired screen-space vertical drop into local XY offsets that cancel X drift
+    // after rotateZ + rotateX in 3D view.
+    const underlayLocalOffset = useMemo(() => {
+        const zRad = (ISOMETRIC_ROTATE_Z_DEG * Math.PI) / 180;
+        const xRad = (ISOMETRIC_ROTATE_X_DEG * Math.PI) / 180;
+        const cosZ = Math.cos(zRad);
+        const sinZ = Math.sin(zRad);
+        const cosX = Math.cos(xRad);
+
+        // Solve:
+        //  screenDx = dx*cosZ - dy*sinZ = 0
+        //  screenDy = (dx*sinZ + dy*cosZ) * cosX = UNDERLAY_SCREEN_OFFSET_PX
+        const dy = UNDERLAY_SCREEN_OFFSET_PX / ((sinZ * sinZ / cosZ + cosZ) * cosX);
+        const dx = dy * (sinZ / cosZ);
+        return { dx, dy };
+    }, []);
 
     // Helper to find effective keycode for transparency
     // Uses layerActiveState (UI/device) to decide which lower layers are "active".
@@ -421,7 +453,10 @@ export const Keyboard: React.FC<KeyboardProps> = ({
         <div className="p-4 pointer-events-none" data-keyboard-instance={instanceId}>
             <div
                 className="keyboard-layout relative pointer-events-none"
-                style={{ width: `${keyboardSize.width}px`, height: `${keyboardSize.height}px` }}
+                style={{
+                    width: `${keyboardSize.width}px`,
+                    height: `${keyboardSize.height}px`,
+                }}
             >
                 {is3DMode && show3DBackdrop && clusterBounds && (
                     <div
@@ -521,6 +556,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                     const keyHoverBg = isTransmitting ? hoverBackgroundClasses[layerColor] : undefined;
                     const keyHoverBorder = isTransmitting ? hoverBorderClasses[layerColor] : undefined;
                     const keyHoverLayerColor = isTransmitting ? layerColor : undefined;
+                    const keyUnderlayColor = getDarkLayerHex(activeLayerColor);
 
                     const yPos = getYPos(layout.y) + layoutOffsets.offsetY;
 
@@ -554,6 +590,21 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                         : "pointer-events-auto";
 
                     const THUMB_3D_SHIFT_PX = (is3DMode && isThumb3DOffsetActive) ? 900 : 0;
+                    const underlayBorderRadius = keyVariant === "default" ? 6 : 5;
+                    const underlayStyle: React.CSSProperties = {
+                        position: "absolute",
+                        left: `${(xPos * currentUnitSize) + (is3DMode ? underlayLocalOffset.dx : 0)}px`,
+                        top: `${(yPos * currentUnitSize) + (is3DMode ? underlayLocalOffset.dy : UNDERLAY_SCREEN_OFFSET_PX)}px`,
+                        width: `${layout.w * currentUnitSize}px`,
+                        height: `${layout.h * currentUnitSize}px`,
+                        borderRadius: `${underlayBorderRadius}px`,
+                        border: `1px solid ${keyUnderlayColor}`,
+                        backgroundColor: keyUnderlayColor,
+                        opacity: 0.65,
+                        pointerEvents: "none",
+                        transition: "top 300ms ease-in-out, left 300ms ease-in-out, transform 300ms ease-in-out",
+                        transform: is3DMode && isThumbCluster ? `translateY(${THUMB_3D_SHIFT_PX}px)` : undefined,
+                    };
                     const standardKey = (
                         <Key
                             key={`${row}-${col}`}
@@ -596,7 +647,12 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                     );
 
                     if (!isGhostKey) {
-                        return standardKey;
+                        return (
+                            <React.Fragment key={`${row}-${col}-stack`}>
+                                {is3DMode && <div aria-hidden="true" style={underlayStyle} />}
+                                {standardKey}
+                            </React.Fragment>
+                        );
                     }
 
                     // Render Ghost Key Overlay
@@ -626,13 +682,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                     // Calculate darker border color
                     const layerColorObj = layerColors.find(c => c.name === ghostLayerColor) || layerColors[0];
                     const hex = layerColorObj.hex;
-                    const r = parseInt(hex.slice(1, 3), 16);
-                    const g = parseInt(hex.slice(3, 5), 16);
-                    const b = parseInt(hex.slice(5, 7), 16);
-                    const r2 = Math.round(r * 0.7).toString(16).padStart(2, '0');
-                    const g2 = Math.round(g * 0.7).toString(16).padStart(2, '0');
-                    const b2 = Math.round(b * 0.7).toString(16).padStart(2, '0');
-                    const darkBorderColor = `#${r2}${g2}${b2}`;
+                    const darkBorderColor = getDarkLayerHex(ghostLayerColor);
 
                     const ghostOverlay = (
                         <Key
