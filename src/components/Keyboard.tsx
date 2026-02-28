@@ -27,6 +27,13 @@ import { svalService } from "@/services/sval.service";
 import { usePanels } from "@/contexts/PanelsContext";
 import { useChanges } from "@/hooks/useChanges";
 
+const TEXT_CLASS_TO_HEX: Record<string, string> = {
+    "text-white": "#ffffff",
+    "text-black": "#000000",
+    "text-orange-800": "#9a3412",
+    "text-gray-200": "#e5e7eb",
+};
+
 interface KeyboardProps {
     keyboard: KeyboardInfo;
     onKeyClick?: (layer: number, row: number, col: number) => void;
@@ -377,6 +384,11 @@ export const Keyboard: React.FC<KeyboardProps> = ({
         const classes = colorClasses[layerName] || colorClasses.primary;
         return classes.split(" ").find(c => c.startsWith("text-"));
     }, [keyboard.cosmetic, selectedLayer]);
+    const keyTextColorHex = layerTextColorClass ? TEXT_CLASS_TO_HEX[layerTextColorClass] : undefined;
+    const active3DIndicatorColor = isLayerActive ? (keyTextColorHex || layerHeaderTextColor) : layerHeaderTextColor;
+    const useKeyTextColorFor3DLabel = isLayerActive
+        ? !!layerTextColorClass
+        : !!layerTextColorClass && layerTextColorClass !== "text-white";
     const isDefaultLayer = selectedLayer === 0;
     const showStatusRing = isDefaultLayer || isLayerActive;
     const useInsetDotStyle = isLayerActive && !isDefaultLayer;
@@ -476,26 +488,29 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                 )}
                 {is3DMode && show3DBackdrop && clusterBounds && (
                     <div
-                        className={cn("absolute text-lg font-normal select-none flex items-center gap-2", isActiveLayerBackdrop && layerTextColorClass)}
+                        className={cn(
+                            "absolute text-lg font-normal select-none flex items-center gap-2",
+                            useKeyTextColorFor3DLabel && layerTextColorClass
+                        )}
                         data-layer-label="true"
                         style={{
-                            color: isActiveLayerBackdrop ? undefined : layerHeaderTextColor,
+                            color: useKeyTextColorFor3DLabel ? undefined : active3DIndicatorColor,
                             left: ((clusterBounds!.minX + layoutOffsets.offsetX) * currentUnitSize) - currentUnitSize + 24,
                             top: ((clusterBounds!.minY + layoutOffsets.offsetY) * currentUnitSize) - currentUnitSize + 8 + LAYER_LABEL_PREPROJECTION_Y_SHIFT_PX,
                         }}
                     >
                         <span
                             className="relative w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={showStatusRing ? { border: `2px solid ${layerHeaderTextColor}` } : undefined}
+                            style={showStatusRing ? { border: `2px solid ${active3DIndicatorColor}` } : undefined}
                         >
                             <span
                                 className="w-[18px] h-[18px] rounded-full shadow-sm"
                                 style={useInsetDotStyle
                                     ? {
                                         backgroundColor: "transparent",
-                                        boxShadow: `inset 0 0 0 6px ${layerHeaderTextColor}`,
+                                        boxShadow: `inset 0 0 0 6px ${active3DIndicatorColor}`,
                                     }
-                                    : { backgroundColor: layerHeaderTextColor }}
+                                    : { backgroundColor: active3DIndicatorColor }}
                             />
                         </span>
                         <span>{layerDisplayName}</span>
