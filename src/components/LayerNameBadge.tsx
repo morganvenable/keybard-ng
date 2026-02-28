@@ -14,8 +14,6 @@ import { useChanges } from "@/contexts/ChangesContext";
 import { svalService } from "@/services/sval.service";
 import { usbInstance } from "@/services/usb.service";
 import { layerColors } from "@/utils/colors";
-import AtomActiveIcon from "@/components/icons/AtomActiveIcon";
-import AtomIcon from "@/components/icons/AtomIcon";
 import { getPresetHsv, hsvToHex, hexToHsv } from "@/utils/color-conversion";
 
 import { cn } from "@/lib/utils";
@@ -93,6 +91,11 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
     // const hardwareColorHex = getHardwareColorHex();
 
     const allColors = [...layerColors];
+    const isDefaultLayer = selectedLayer === defaultLayerIndex;
+    const isLayerActive = !!isActive;
+    const showStatusRing = isDefaultLayer || isLayerActive;
+    const useInsetDotStyle = isLayerActive && !isDefaultLayer;
+    const layerDotTooltipText = isDefaultLayer ? "Default Layer" : "Layer Color";
 
     const handleStartEditing = () => {
         const currentName = svalService.getLayerName(keyboard, selectedLayer);
@@ -272,66 +275,57 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
         left: `${x}px`,
         top: `${y}px`,
         transform: "translate(-50%, -50%)",
-        position: 'absolute'
+        position: 'absolute',
+        marginLeft: "24px",
     } : {
-        position: 'relative'
+        position: 'relative',
+        marginLeft: "24px",
     };
 
     return (
         <>
             <div
                 className={cn(
-                    "flex items-center gap-2 z-50",
+                    "flex items-center gap-2 z-50 transition-[margin] duration-150",
                     className
                 )}
                 style={style}
                 onClick={(e) => e.stopPropagation()}
             >
                 <div
-                    className="w-6 h-6 flex items-center justify-center flex-shrink-0 mr-[-3px]"
-                    onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        onToggleLayerOn?.(selectedLayer);
-                    }}
+                    className="relative"
+                    ref={pickerRef}
                 >
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <span className="flex items-center">
-                                {selectedLayer === defaultLayerIndex ? (
-                                    <AtomIcon
-                                        className="w-5 h-5"
-                                        style={{ color: displayColorHex, stroke: displayColorHex }}
-                                    />
-                                ) : isActive ? (
-                                    <AtomActiveIcon
-                                        className="w-5 h-5"
-                                        style={{ color: displayColorHex, stroke: displayColorHex }}
-                                    />
-                                ) : null}
-                            </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                            {selectedLayer === defaultLayerIndex
-                                ? (isActive ? "Default Layer" : "Default Layer (inactive)")
-                                : (isActive ? "Active Layer" : "Inactive Layer")}
-                        </TooltipContent>
-                    </Tooltip>
-                </div>
-
-                {/* Display Color Dot with Picker */}
-                <div className="relative" ref={pickerRef}>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div
+                            <button
+                                type="button"
                                 className={cn(
-                                    "w-5 h-5 rounded-full shadow-sm cursor-pointer transition-transform hover:scale-110 border-2",
-                                    isColorPickerOpen ? "border-black" : "border-transparent"
+                                    "relative w-7 h-7 rounded-full cursor-pointer transition-transform hover:scale-110 flex items-center justify-center",
+                                    isColorPickerOpen && "z-30"
                                 )}
-                                style={{ backgroundColor: displayColorHex }}
+                                style={showStatusRing ? { border: `2px solid ${displayColorHex}` } : undefined}
+                                onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleLayerOn?.(selectedLayer);
+                                }}
                                 onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-                            />
+                            >
+                                <span
+                                    className="w-[18px] h-[18px] rounded-full shadow-sm"
+                                    style={useInsetDotStyle
+                                        ? {
+                                            backgroundColor: "transparent",
+                                            boxShadow: `inset 0 0 0 6px ${displayColorHex}`,
+                                        }
+                                        : { backgroundColor: displayColorHex }}
+                                />
+                                {isColorPickerOpen && (
+                                    <span className="absolute -inset-[3px] rounded-full border-2 border-black pointer-events-none z-20" />
+                                )}
+                            </button>
                         </TooltipTrigger>
-                        <TooltipContent side="top">Display Color</TooltipContent>
+                        <TooltipContent side="top">{layerDotTooltipText}</TooltipContent>
                     </Tooltip>
 
                     {isColorPickerOpen && (

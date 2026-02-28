@@ -23,8 +23,6 @@ import {
 } from "@/utils/colors";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { svalService } from "@/services/sval.service";
-import AtomActiveIcon from "@/components/icons/AtomActiveIcon";
-import AtomIcon from "@/components/icons/AtomIcon";
 // import { InfoIcon } from "./icons/InfoIcon";
 import { usePanels } from "@/contexts/PanelsContext";
 import { useChanges } from "@/hooks/useChanges";
@@ -57,7 +55,6 @@ export const Keyboard: React.FC<KeyboardProps> = ({
     instanceId,
     show3DBackdrop = false,
     activeLayerIndex,
-    isConnected = false,
 }) => {
     const {
         selectKeyboardKey,
@@ -380,8 +377,9 @@ export const Keyboard: React.FC<KeyboardProps> = ({
         const classes = colorClasses[layerName] || colorClasses.primary;
         return classes.split(" ").find(c => c.startsWith("text-"));
     }, [keyboard.cosmetic, selectedLayer]);
-    const iconColorClass = (isConnected && isLayerActive) ? layerTextColorClass : undefined;
-    const iconColorStyle = iconColorClass ? undefined : { color: layerHeaderTextColor };
+    const isDefaultLayer = selectedLayer === 0;
+    const showStatusRing = isDefaultLayer || isLayerActive;
+    const useInsetDotStyle = isLayerActive && !isDefaultLayer;
 
     const getDarkLayerHex = (layerName: string) => {
         const layerHex = getColorByName(layerName)?.hex || "#099e7c";
@@ -398,6 +396,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
 
     const KC_TRNS = 1;
     const UNDERLAY_SCREEN_OFFSET_PX = 4;
+    const LAYER_LABEL_PREPROJECTION_Y_SHIFT_PX = 8;
     const ISOMETRIC_ROTATE_Z_DEG = -45;
     const ISOMETRIC_ROTATE_X_DEG = 55;
 
@@ -482,19 +481,24 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                         style={{
                             color: isActiveLayerBackdrop ? undefined : layerHeaderTextColor,
                             left: ((clusterBounds!.minX + layoutOffsets.offsetX) * currentUnitSize) - currentUnitSize + 24,
-                            top: ((clusterBounds!.minY + layoutOffsets.offsetY) * currentUnitSize) - currentUnitSize + 8,
+                            top: ((clusterBounds!.minY + layoutOffsets.offsetY) * currentUnitSize) - currentUnitSize + 8 + LAYER_LABEL_PREPROJECTION_Y_SHIFT_PX,
                         }}
                     >
+                        <span
+                            className="relative w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={showStatusRing ? { border: `2px solid ${layerHeaderTextColor}` } : undefined}
+                        >
+                            <span
+                                className="w-[18px] h-[18px] rounded-full shadow-sm"
+                                style={useInsetDotStyle
+                                    ? {
+                                        backgroundColor: "transparent",
+                                        boxShadow: `inset 0 0 0 6px ${layerHeaderTextColor}`,
+                                    }
+                                    : { backgroundColor: layerHeaderTextColor }}
+                            />
+                        </span>
                         <span>{layerDisplayName}</span>
-                        {(selectedLayer === 0 || isLayerActive) && (
-                            <span className={iconColorClass} style={iconColorStyle}>
-                                {selectedLayer === 0 ? (
-                                    <AtomIcon className="h-6 w-6" />
-                                ) : (
-                                    isLayerActive && <AtomActiveIcon className="h-6 w-6" />
-                                )}
-                            </span>
-                        )}
                     </div>
                 )}
                 {is3DMode && show3DBackdrop && clusterBounds && thumbClusterBounds && (
