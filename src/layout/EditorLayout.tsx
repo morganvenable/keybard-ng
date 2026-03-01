@@ -401,6 +401,14 @@ const EditorLayoutInner = () => {
         ];
     }, [isMultiLayersActive, viewInstances, primaryView, multiLayerIds, isLayerOrderReversed, primaryLayerIndex]);
 
+    const effectiveLayerSpacing = React.useMemo(() => {
+        if (is3DMode && isMultiLayersActive) {
+            if (keyVariant === "medium") return 330;
+            if (keyVariant === "small") return 260;
+        }
+        return layerSpacingAdjust;
+    }, [is3DMode, isMultiLayersActive, keyVariant, layerSpacingAdjust]);
+
     // Badge positioning handled per-layer in KeyboardViewInstance to keep layout/badge relationship consistent.
 
     // Ref for measuring container dimensions
@@ -836,7 +844,7 @@ const EditorLayoutInner = () => {
                     onToggleLayerOn={handleToggleLayerOn}
                     isAllTransparencyActive={isAllTransparencyActive}
                     onToggleAllTransparency={handleToggleAllTransparency}
-                    layerSpacingAdjust={layerSpacingAdjust}
+                    layerSpacingAdjust={effectiveLayerSpacing}
                     onLayerSpacingChange={setLayerSpacingAdjust}
                 />
 
@@ -862,7 +870,7 @@ const EditorLayoutInner = () => {
                                     const yPos = (!useFragmentLayout && key.y >= 6) ? key.y + 0.3 : key.y;
                                     maxYUnits = Math.max(maxYUnits, yPos + key.h);
                                 });
-                                const zStep = layerSpacingAdjust;
+                                const zStep = effectiveLayerSpacing;
                                 const stepYValue = zStep * 0.8192; // 0.8192 is sin(55deg)
 
                                 const viewsToDisplay = renderedViews;
@@ -937,7 +945,7 @@ const EditorLayoutInner = () => {
                                                                 isRevealing={view.id === revealingViewId}
                                                                 isHiding={view.id === hidingViewId}
                                                                 stackIndex={stackIndex}
-                                                                layerSpacingPx={layerSpacingAdjust}
+                                                                layerSpacingPx={effectiveLayerSpacing}
                                                                 baseBadgeOffsetY={baseBadgeOffsetY}
                                                                 onBaseBadgeOffsetY={view.id === "primary" ? setBaseBadgeOffsetY : undefined}
                                                             />
