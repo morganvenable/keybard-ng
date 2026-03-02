@@ -73,10 +73,10 @@ const SHOW_ALT_REPEAT = true;
 const SHOW_LEADERS = true;
 
 const featureSidebarItems: SidebarItem[] = [
-    { title: "Combos", url: "combos", icon: ComboIcon },
-    { title: "Overrides", url: "overrides", icon: OverridesIcon },
     ...(SHOW_ALT_REPEAT ? [{ title: "Alt-Repeat", url: "altrepeat", icon: AltRepeatArrowsIcon }] : []),
     ...(SHOW_LEADERS ? [{ title: "Leaders", url: "leaders", icon: ListOrdered }] : []),
+    { title: "Combos", url: "combos", icon: ComboIcon },
+    { title: "Overrides", url: "overrides", icon: OverridesIcon },
 ];
 
 const footerItems: SidebarItem[] = [

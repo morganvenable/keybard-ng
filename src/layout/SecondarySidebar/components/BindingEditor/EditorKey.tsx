@@ -118,7 +118,6 @@ const EditorKey: FC<EditorKeyProps> = ({
         // Default: prefer bottom/base
         return parts[parts.length - 1];
     })() || "";
-
     return (
         <div className={wrapperClassName}>
             {label && <span className={labelClassName}>{label}</span>}
