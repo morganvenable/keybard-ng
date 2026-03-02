@@ -8,6 +8,7 @@ import LayersActiveIcon from "@/components/icons/LayersActive";
 import LayersDefaultIcon from "@/components/icons/LayersDefault";
 import SquareArrowLeftIcon from "@/components/icons/SquareArrowLeft";
 import SquareArrowRightIcon from "@/components/icons/SquareArrowRight";
+import TelescopeIcon from "@/components/icons/TelescopeIcon";
 import { ArrowLeft, ChevronDown, Unplug, Undo2, Zap } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useVial } from "@/contexts/VialContext";
@@ -51,6 +52,16 @@ interface LayerSelectorProps {
     onToggleAllTransparency: () => void;
 }
 
+interface OverviewStateSnapshot {
+    isMultiLayersActive: boolean;
+    is3DMode: boolean;
+    isThumb3DOffsetActive: boolean;
+    isAllTransparencyActive: boolean;
+    showAllLayers: boolean;
+    isLayerOrderReversed: boolean;
+    selectedLayer: number;
+}
+
 /**
  * Component for selecting and managing active layers in the keyboard editor.
  * Displays a horizontal bar of layer tabs with a filter toggle for hiding blank layers.
@@ -73,6 +84,7 @@ const LayerSelector: FC<LayerSelectorProps> = ({
     const { queue, commit, getPendingCount, clearAll } = useChanges();
     const { getSetting, updateSetting } = useSettings();
     const { is3DMode, setIs3DMode, isThumb3DOffsetActive, setIsThumb3DOffsetActive } = useLayoutSettings();
+    const { activePanel, setActivePanel, setOpen, setItemToEdit, setPanelToGoBack } = usePanels();
 
     const liveUpdating = getSetting("live-updating") === true;
     const selectedLayer = _selectedLayer;
@@ -183,6 +195,8 @@ const LayerSelector: FC<LayerSelectorProps> = ({
     const [windowHeight, setWindowHeight] = useState(window.innerHeight);
     const [isHovered, setIsHovered] = useState(false);
     const [ignoreHover, setIgnoreHover] = useState(false);
+    const [isOverviewActive, setIsOverviewActive] = useState(false);
+    const overviewSnapshotRef = useRef<OverviewStateSnapshot | null>(null);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -206,9 +220,104 @@ const LayerSelector: FC<LayerSelectorProps> = ({
     const isVerticallyConstrained = windowHeight < 550;
     const showFullBar = !isVerticallyConstrained || isHovered;
 
-    if (!keyboard) return null;
+    const getDisplayOrderForState = (
+        nextShowAllLayers: boolean,
+        nextIsLayerOrderReversed: boolean,
+        nextSelectedLayer: number = selectedLayer
+    ): number[] => {
+        if (!keyboard) return [];
+        const allLayerIds = Array.from({ length: keyboard.layers || 16 }, (_, i) => i);
+        const visibleLayerIds = allLayerIds.filter((i) => {
+            const layerData = keyboard.keymap?.[i];
+            const isTransparentLayer = layerData ? layerData.every((keycode) => keycode === (KEYMAP["KC_TRNS"]?.code ?? 1)) : true;
+            const isLayerActive = typeof activeLayerIndex === "number"
+                ? activeLayerIndex === i
+                : !!layerActiveState?.[i];
 
-    const { activePanel, setActivePanel, setOpen, setItemToEdit, setPanelToGoBack } = usePanels();
+            if (!nextShowAllLayers && isTransparentLayer && i !== nextSelectedLayer && !isLayerActive) {
+                return false;
+            }
+            return true;
+        });
+        return nextIsLayerOrderReversed ? [...visibleLayerIds].reverse() : visibleLayerIds;
+    };
+
+    const disableOverviewWithoutRestore = () => {
+        if (!isOverviewActive) return;
+        overviewSnapshotRef.current = null;
+        setIsOverviewActive(false);
+    };
+
+    const handleOverviewToggle = () => {
+        if (isOverviewActive) {
+            const snapshot = overviewSnapshotRef.current;
+            overviewSnapshotRef.current = null;
+            setIsOverviewActive(false);
+            if (!snapshot) return;
+
+            if (isMultiLayersActive !== snapshot.isMultiLayersActive) onToggleMultiLayers();
+            if (is3DMode !== snapshot.is3DMode) setIs3DMode(snapshot.is3DMode);
+            if (isThumb3DOffsetActive !== snapshot.isThumb3DOffsetActive) setIsThumb3DOffsetActive(snapshot.isThumb3DOffsetActive);
+            if (isAllTransparencyActive !== snapshot.isAllTransparencyActive) onToggleAllTransparency();
+            if (showAllLayers !== snapshot.showAllLayers) onToggleShowLayers();
+            if (isLayerOrderReversed !== snapshot.isLayerOrderReversed) onToggleLayerOrder();
+            if (selectedLayer !== snapshot.selectedLayer) setSelectedLayer(snapshot.selectedLayer);
+            return;
+        }
+
+        overviewSnapshotRef.current = {
+            isMultiLayersActive,
+            is3DMode,
+            isThumb3DOffsetActive,
+            isAllTransparencyActive,
+            showAllLayers,
+            isLayerOrderReversed,
+            selectedLayer,
+        };
+        setIsOverviewActive(true);
+
+        if (activePanel === "matrixtester") {
+            setActivePanel(null);
+        }
+        if (!isMultiLayersActive) onToggleMultiLayers();
+        if (!is3DMode) setIs3DMode(true);
+        if (!isThumb3DOffsetActive) setIsThumb3DOffsetActive(true);
+        if (!isAllTransparencyActive) onToggleAllTransparency();
+        if (showAllLayers) onToggleShowLayers();
+        if (!isLayerOrderReversed) onToggleLayerOrder();
+
+        const overviewDisplayOrder = getDisplayOrderForState(false, true);
+        if (overviewDisplayOrder.length > 0) {
+            setSelectedLayer(overviewDisplayOrder[0]);
+        }
+    };
+
+    // If tracked controls change while overview is active, auto-disable overview and keep current states.
+    useEffect(() => {
+        if (!isOverviewActive) return;
+        const stillInOverviewPreset =
+            isMultiLayersActive &&
+            is3DMode &&
+            isThumb3DOffsetActive &&
+            isAllTransparencyActive &&
+            !showAllLayers &&
+            isLayerOrderReversed;
+
+        if (!stillInOverviewPreset) {
+            overviewSnapshotRef.current = null;
+            setIsOverviewActive(false);
+        }
+    }, [
+        isOverviewActive,
+        isMultiLayersActive,
+        is3DMode,
+        isThumb3DOffsetActive,
+        isAllTransparencyActive,
+        showAllLayers,
+        isLayerOrderReversed
+    ]);
+
+    if (!keyboard) return null;
 
     const handleSelectLayer = (layer: number) => () => {
         setSelectedLayer(layer);
@@ -546,6 +655,7 @@ const LayerSelector: FC<LayerSelectorProps> = ({
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
+                                                disableOverviewWithoutRestore();
                                                 if (activePanel === "matrixtester") {
                                                     setActivePanel(null);
                                                 }
@@ -576,6 +686,7 @@ const LayerSelector: FC<LayerSelectorProps> = ({
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
+                                                disableOverviewWithoutRestore();
                                                 setIs3DMode(!is3DMode);
                                             }}
                                             className={cn(
@@ -603,6 +714,7 @@ const LayerSelector: FC<LayerSelectorProps> = ({
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
+                                                disableOverviewWithoutRestore();
                                                 setIsThumb3DOffsetActive(!isThumb3DOffsetActive);
                                             }}
                                             className={cn(
@@ -630,6 +742,7 @@ const LayerSelector: FC<LayerSelectorProps> = ({
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
+                                                disableOverviewWithoutRestore();
                                                 onToggleAllTransparency();
                                             }}
                                             className={cn(
@@ -650,6 +763,33 @@ const LayerSelector: FC<LayerSelectorProps> = ({
                                     </TooltipTrigger>
                                     <TooltipContent side="top">
                                         {isAllTransparencyActive ? "Show All Transparent Keys" : "Hide All Transparent Keys"}
+                                    </TooltipContent>
+                                </Tooltip>
+
+                                {/* Overview Button */}
+                                <Tooltip delayDuration={500}>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleOverviewToggle();
+                                            }}
+                                            className={cn(
+                                                "p-2 rounded-full transition-all cursor-pointer",
+                                                isOverviewActive
+                                                    ? "bg-black hover:bg-gray-800"
+                                                    : "hover:bg-gray-200"
+                                            )}
+                                            aria-label={isOverviewActive ? "Disable Overview" : "Overview"}
+                                        >
+                                            <TelescopeIcon className={cn(
+                                                "h-5 w-5",
+                                                isOverviewActive ? "text-kb-gray" : "text-gray-700"
+                                            )} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                        Overview
                                     </TooltipContent>
                                 </Tooltip>
                             </div>
@@ -679,7 +819,11 @@ const LayerSelector: FC<LayerSelectorProps> = ({
                                     <Tooltip delayDuration={500}>
                                         <TooltipTrigger asChild>
                                             <button
-                                                onClick={onToggleShowLayers}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    disableOverviewWithoutRestore();
+                                                    onToggleShowLayers();
+                                                }}
                                                 disabled={activePanel === "matrixtester"}
                                                 className={cn(
                                                     "p-2 rounded-full transition-colors flex-shrink-0",
@@ -707,6 +851,7 @@ const LayerSelector: FC<LayerSelectorProps> = ({
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
+                                                disableOverviewWithoutRestore();
                                                 onToggleLayerOrder();
                                             }}
                                             className={cn(
