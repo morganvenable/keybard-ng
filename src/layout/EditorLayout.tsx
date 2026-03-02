@@ -419,6 +419,69 @@ const EditorLayoutInner = () => {
         return layerSpacingAdjust;
     }, [is3DMode, isMultiLayersActive, keyVariant, layerSpacingAdjust]);
 
+    const threeDTopScrollReservePx = React.useMemo(() => {
+        if (!is3DMode) return 0;
+        return 260;
+    }, [is3DMode]);
+
+    const threeDBottomScrollReservePx = React.useMemo(() => {
+        if (!is3DMode) return 0;
+        return isMultiLayersActive ? 120 : 900;
+    }, [is3DMode, isMultiLayersActive]);
+
+    const threeDEntryCompensationPx = React.useMemo(() => {
+        if (!is3DMode) return 0;
+        // Single-layer 3D uses fixed layer tabs outside the scroll flow,
+        // so it needs less entry compensation to keep all keys visible.
+        return isMultiLayersActive ? threeDTopScrollReservePx : 180;
+    }, [is3DMode, isMultiLayersActive, threeDTopScrollReservePx]);
+
+    const was3DModeRef = React.useRef(is3DMode);
+    const last3DEntryCompensationRef = React.useRef(0);
+    const pending3DAdjustRafRef = React.useRef<number | null>(null);
+
+    React.useLayoutEffect(() => {
+        const container = viewsScrollRef.current;
+        const was3D = was3DModeRef.current;
+        if (!container) {
+            was3DModeRef.current = is3DMode;
+            return;
+        }
+
+        if (pending3DAdjustRafRef.current !== null) {
+            cancelAnimationFrame(pending3DAdjustRafRef.current);
+            pending3DAdjustRafRef.current = null;
+        }
+
+        // Preserve the exact visual entry position when toggling 3D while
+        // still adding extra scroll room above the scene.
+        if (!was3D && is3DMode) {
+            const targetTop = container.scrollTop + threeDEntryCompensationPx;
+            last3DEntryCompensationRef.current = threeDEntryCompensationPx;
+            const raf1 = requestAnimationFrame(() => {
+                const raf2 = requestAnimationFrame(() => {
+                    const current = viewsScrollRef.current;
+                    if (!current) return;
+                    current.scrollTop = targetTop;
+                    pending3DAdjustRafRef.current = null;
+                });
+                pending3DAdjustRafRef.current = raf2;
+            });
+            pending3DAdjustRafRef.current = raf1;
+        } else if (was3D && !is3DMode) {
+            container.scrollTop = Math.max(0, container.scrollTop - last3DEntryCompensationRef.current);
+            last3DEntryCompensationRef.current = 0;
+        }
+
+        was3DModeRef.current = is3DMode;
+        return () => {
+            if (pending3DAdjustRafRef.current !== null) {
+                cancelAnimationFrame(pending3DAdjustRafRef.current);
+                pending3DAdjustRafRef.current = null;
+            }
+        };
+    }, [is3DMode, threeDEntryCompensationPx]);
+
     // Badge positioning handled per-layer in KeyboardViewInstance to keep layout/badge relationship consistent.
 
     // Ref for measuring container dimensions
@@ -863,6 +926,13 @@ const EditorLayoutInner = () => {
                     )}
                     ref={viewsScrollRef}
                 >
+                    {threeDTopScrollReservePx > 0 && (
+                        <div
+                            aria-hidden="true"
+                            className="w-full shrink-0 pointer-events-none"
+                            style={{ height: `${threeDTopScrollReservePx}px` }}
+                        />
+                    )}
 
                     {activePanel === "matrixtester" ? (
                         <MatrixTester />
@@ -994,6 +1064,15 @@ const EditorLayoutInner = () => {
                                 </TooltipContent>
                             </Tooltip>
                         </div>
+                    )}
+
+                    {/* 3D-only scroll reserve so transformed backdrops can be fully revealed by scrolling */}
+                    {threeDBottomScrollReservePx > 0 && (
+                        <div
+                            aria-hidden="true"
+                            className="w-full shrink-0 pointer-events-none"
+                            style={{ height: `${threeDBottomScrollReservePx}px` }}
+                        />
                     )}
 
                     {/* Flying icon animation (add: plus→minus, remove: minus→plus) */}

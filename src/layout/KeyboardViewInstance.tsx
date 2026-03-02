@@ -447,7 +447,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
             }}
         >
             {/* Layer Controls Row: Hide-blank-layers toggle + layer tabs + (optional) remove button */}
-            {!hideLayerTabs && !isMultiLayersActive && (
+            {!hideLayerTabs && !isMultiLayersActive && !is3DMode && (
                 <div
                     className="flex items-center gap-2 pl-5 pb-2 whitespace-nowrap pointer-events-auto"
                     style={isPrimary && multiLayerHeaderOffset > 0 ? { marginTop: -multiLayerHeaderOffset } : undefined}

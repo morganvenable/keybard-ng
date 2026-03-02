@@ -812,8 +812,8 @@ const LayerSelector: FC<LayerSelectorProps> = ({
                             </div>
                         )}
 
-                        {/* Layer Tabs Row - fixed position in multi-layer mode */}
-                        {isMultiLayersActive && (
+                        {/* Layer Tabs Row - fixed position in 3D and/or multi-layer mode */}
+                        {(isMultiLayersActive || is3DMode) && (
                             <div className="absolute left-0 right-0 top-full z-30 flex items-center gap-2 pl-5 pb-2 whitespace-nowrap bg-transparent pointer-events-auto">
                                 <div className="flex items-center gap-1">
                                     <Tooltip delayDuration={500}>
