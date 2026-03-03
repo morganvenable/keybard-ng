@@ -168,6 +168,100 @@ export const Keyboard: React.FC<KeyboardProps> = ({
         return { minX, minY, maxX, maxY };
     }, [layoutValues, getYPos, useFragmentLayout]);
 
+    // Some fragment combinations (for example 6-key index/pinky) extend finger keys lower
+    // than our nominal cluster hull. Extend only the backdrop bottom so keys never overhang.
+    const fingerBackdropBottomExtensionUnits = useMemo(() => {
+        if (!clusterBounds) return 0;
+
+        let fingerMaxY = -Infinity;
+        layoutValues.forEach((k) => {
+            const isThumbCluster = k.y >= 5;
+            if (isThumbCluster) return;
+            const yPos = getYPos(k.y);
+            fingerMaxY = Math.max(fingerMaxY, yPos + k.h);
+        });
+
+        if (!Number.isFinite(fingerMaxY)) return 0;
+
+        const overhang = fingerMaxY - clusterBounds.maxY;
+        if (overhang <= 0) return 0;
+
+        // Small safety margin avoids antialias/edge clipping in the projected 3D view.
+        return overhang + 0.25;
+    }, [clusterBounds, layoutValues, getYPos]);
+
+    // Only apply backdrop/thumb extension for 6-key index/pinky fragment configurations.
+    const hasSixKeyIndexOrPinky = useMemo(() => {
+        const instances = keyboard.composition?.instances;
+        const fragments = keyboard.fragments;
+        if (!instances || !fragments) return false;
+
+        const targetInstanceIds = new Set(["left_pinky", "right_pinky", "left_index", "right_index"]);
+        const getFromMapLike = <K extends string | number, V>(
+            mapOrObj: Map<K, V> | Record<string, V> | undefined,
+            key: K
+        ): V | undefined => {
+            if (!mapOrObj) return undefined;
+            if (mapOrObj instanceof Map) return mapOrObj.get(key);
+            return (mapOrObj as Record<string, V>)[String(key)];
+        };
+        const getFragmentNameById = (fragmentId: number): string | undefined => {
+            for (const [name, fragment] of Object.entries(fragments)) {
+                if (fragment.id === fragmentId) return name;
+            }
+            return undefined;
+        };
+
+        for (let idx = 0; idx < instances.length; idx++) {
+            const instance = instances[idx];
+            if (!targetInstanceIds.has(instance.id)) continue;
+
+            let fragmentName: string | undefined = instance.fragment;
+            const options = instance.fragment_options ?? [];
+
+            if (!fragmentName && options.length > 0) {
+                const userSelection = getFromMapLike(keyboard.fragmentState?.userSelections, instance.id);
+                if (userSelection && options.some(opt => opt.fragment === userSelection)) {
+                    fragmentName = userSelection;
+                }
+            }
+
+            if (!fragmentName && options.length > 0) {
+                const eepromOptionIdx = getFromMapLike(keyboard.fragmentState?.eepromSelections, idx);
+                if (typeof eepromOptionIdx === "number" && eepromOptionIdx >= 0 && eepromOptionIdx < options.length) {
+                    fragmentName = options[eepromOptionIdx].fragment;
+                }
+            }
+
+            if (!fragmentName && options.length > 0) {
+                const hwFragmentId = getFromMapLike(keyboard.fragmentState?.hwDetection, idx);
+                if (typeof hwFragmentId === "number" && hwFragmentId !== 0xff) {
+                    const hwName = getFragmentNameById(hwFragmentId);
+                    if (hwName && options.some(opt => opt.fragment === hwName)) {
+                        fragmentName = hwName;
+                    }
+                }
+            }
+
+            if (!fragmentName && options.length > 0) {
+                fragmentName = options.find(opt => opt.default)?.fragment ?? options[0].fragment;
+            }
+
+            if (!fragmentName) continue;
+
+            const fragmentDef = fragments[fragmentName];
+            const normalizedName = fragmentName.toLowerCase();
+            const normalizedDesc = (fragmentDef?.description ?? "").toLowerCase();
+            if (normalizedName.includes("finger_6") || /\b6[- ]?key\b/.test(normalizedDesc)) {
+                return true;
+            }
+        }
+
+        return false;
+    }, [keyboard.composition, keyboard.fragments, keyboard.fragmentState]);
+
+    const effectiveFingerBackdropExtensionUnits = hasSixKeyIndexOrPinky ? fingerBackdropBottomExtensionUnits : 0;
+
     const thumbClusterBounds = useMemo(() => {
         const hideThumbs2D = !is3DMode && isThumb3DOffsetActive;
         if (hideThumbs2D) return null;
@@ -192,6 +286,15 @@ export const Keyboard: React.FC<KeyboardProps> = ({
 
         return { minX, minY, maxX, maxY };
     }, [layoutValues, getYPos, is3DMode, isThumb3DOffsetActive]);
+
+    // Backdrop-only clamp: push thumb backdrop down just enough to avoid overlap.
+    // Do not move thumb keys.
+    const thumbBackdropNonOverlapPushUnits = useMemo(() => {
+        if (!is3DMode || !clusterBounds || !thumbClusterBounds) return 0;
+        const fingerBackdropBottomUnits = clusterBounds.maxY + 0.5 + effectiveFingerBackdropExtensionUnits;
+        const thumbBackdropTopBaseUnits = thumbClusterBounds.minY - 1;
+        return Math.max(0, fingerBackdropBottomUnits - thumbBackdropTopBaseUnits);
+    }, [is3DMode, clusterBounds, thumbClusterBounds, effectiveFingerBackdropExtensionUnits]);
 
     // Calculate layout midline for squeeze positioning (center X of the keyboard)
     const layoutMidline = useMemo(() => {
@@ -414,6 +517,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
     const LAYER_LABEL_PREPROJECTION_Y_SHIFT_PX = 8;
     const ISOMETRIC_ROTATE_Z_DEG = -45;
     const ISOMETRIC_ROTATE_X_DEG = 55;
+    const KEY_3D_MOTION_TRANSITION = "top 500ms ease-in-out, left 500ms ease-in-out, transform 500ms ease-in-out";
 
     // Convert desired screen-space vertical drop into local XY offsets that cancel X drift
     // after rotateZ + rotateX in 3D view.
@@ -480,7 +584,10 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                             left: ((clusterBounds!.minX + layoutOffsets.offsetX) * currentUnitSize) - currentUnitSize,
                             top: ((clusterBounds!.minY + layoutOffsets.offsetY) * currentUnitSize) - currentUnitSize,
                             width: ((clusterBounds!.maxX - clusterBounds!.minX) * currentUnitSize) + (currentUnitSize * 3),
-                            height: ((clusterBounds!.maxY - clusterBounds!.minY) * currentUnitSize) + (currentUnitSize * 1.5),
+                            height:
+                                ((clusterBounds!.maxY - clusterBounds!.minY) * currentUnitSize) +
+                                (currentUnitSize * 1.5) +
+                                (effectiveFingerBackdropExtensionUnits * currentUnitSize),
                             background: layerBackdropColor,
                             mixBlendMode: "multiply",
                             zIndex: -1,
@@ -527,9 +634,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                         data-layer-backdrop="true"
                         style={{
                             left: ((thumbClusterBounds!.minX + layoutOffsets.offsetX) * currentUnitSize) - currentUnitSize,
-                            top:
-                                (((clusterBounds!.minY + layoutOffsets.offsetY) * currentUnitSize) - currentUnitSize) +
-                                (((clusterBounds!.maxY - clusterBounds!.minY) * currentUnitSize) + (currentUnitSize * 1.5)),
+                            top: ((thumbClusterBounds!.minY + thumbBackdropNonOverlapPushUnits + layoutOffsets.offsetY) * currentUnitSize) - currentUnitSize,
                             width: ((thumbClusterBounds!.maxX - thumbClusterBounds!.minX) * currentUnitSize) + (currentUnitSize * 2),
                             height: ((thumbClusterBounds!.maxY - thumbClusterBounds!.minY) * currentUnitSize) + (currentUnitSize * 1.5),
                             background: layerBackdropColor,
@@ -537,7 +642,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                             zIndex: -1,
                             pointerEvents: "none",
                             transform: (is3DMode && isThumb3DOffsetActive) ? "translateY(900px)" : undefined,
-                            transition: "transform 300ms ease-in-out",
+                            transition: KEY_3D_MOTION_TRANSITION,
                         }}
                     />
                 )}
@@ -626,7 +731,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                         backgroundColor: keyUnderlayColor,
                         opacity: 0.65,
                         pointerEvents: "none",
-                        transition: "top 300ms ease-in-out, left 300ms ease-in-out, transform 300ms ease-in-out",
+                        transition: is3DMode ? KEY_3D_MOTION_TRANSITION : undefined,
                         transform: is3DMode && isThumbCluster ? `translateY(${THUMB_3D_SHIFT_PX}px)` : undefined,
                     };
                     const standardKey = (
@@ -666,7 +771,13 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                             hasPendingChange={hasPendingChangeForKey(selectedLayer, row, col)}
                             disableTooltip={true}
                             className={standardKeyClassName}
-                            style={is3DMode && isThumbCluster ? { transform: `translateY(${THUMB_3D_SHIFT_PX}px)`, transition: 'transform 300ms ease-in-out' } : undefined}
+                            style={is3DMode
+                                ? {
+                                    // In ghost-wrapper mode, wrapper already carries thumb translate.
+                                    transform: (isThumbCluster && !isGhostKey) ? `translateY(${THUMB_3D_SHIFT_PX}px)` : undefined,
+                                    transition: KEY_3D_MOTION_TRANSITION
+                                }
+                                : undefined}
                         />
                     );
 
@@ -777,7 +888,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                         top: `${yPos * currentUnitSize}px`,
                         width: `${layout.w * currentUnitSize}px`,
                         height: `${layout.h * currentUnitSize}px`,
-                        transition: 'top 300ms ease-in-out, left 300ms ease-in-out, transform 300ms ease-in-out',
+                        transition: is3DMode ? KEY_3D_MOTION_TRANSITION : undefined,
                         transform: (is3DMode && isThumbCluster) ? `translateY(${THUMB_3D_SHIFT_PX}px)` : undefined,
                     };
 
