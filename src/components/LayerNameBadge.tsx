@@ -31,6 +31,7 @@ interface LayerNameBadgeProps {
     isActive?: boolean;
     onToggleLayerOn?: (layer: number) => void;
     defaultLayerIndex?: number;
+    trailingAction?: React.ReactNode;
 }
 
 /**
@@ -45,6 +46,7 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
     isActive,
     onToggleLayerOn,
     defaultLayerIndex = 0,
+    trailingAction,
 }) => {
     const { keyboard, setKeyboard, isConnected, updateKey } = useVial();
     const { queue } = useChanges();
@@ -286,7 +288,7 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
         <>
             <div
                 className={cn(
-                    "flex items-center gap-2 z-50 transition-[margin] duration-150",
+                    "group/layer-badge flex items-center gap-2 z-50 transition-[margin] duration-150",
                     className
                 )}
                 style={style}
@@ -412,6 +414,8 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
+
+                {trailingAction}
 
                 {/* LED Color Indicator - Hidden per user request */}
                 {/* <Tooltip>

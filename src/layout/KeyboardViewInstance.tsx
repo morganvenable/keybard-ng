@@ -531,7 +531,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                                 </button>
                             </TooltipTrigger>
                             <TooltipContent side="top">
-                                Hide layer view
+                                Hide Layer
                             </TooltipContent>
                         </Tooltip>
                     )}
@@ -551,43 +551,45 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                         onToggleLayerOn={onToggleLayerOn}
                         // TODO: when firmware reports default layer, pass it here.
                         defaultLayerIndex={0}
+                        trailingAction={selectedLayer !== 0 && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => {
+                                            if (selectedLayer === 0) return;
+                                            const next = !isTransparencyActive;
+                                            onToggleTransparency(selectedLayer, next);
+                                        }}
+                                        disabled={activePanel === "matrixtester" || isTransparencyRestoring}
+                                        className={cn(
+                                            "w-8 h-8 rounded-full transition-all duration-150 flex-shrink-0 ml-[-4px] flex items-center justify-center",
+                                            activePanel === "matrixtester"
+                                                ? "text-gray-400 cursor-not-allowed opacity-30"
+                                                : isTransparencyActive
+                                                    ? "opacity-100 bg-black hover:bg-gray-800"
+                                                    : cn(
+                                                        "opacity-0 pointer-events-none scale-95",
+                                                        !suppressTransparencyHover && "group-hover/layer-badge:opacity-100 group-hover/layer-badge:pointer-events-auto group-hover/layer-badge:scale-100 hover:bg-gray-200"
+                                                    ),
+                                            isTransparencyRestoring && "invisible pointer-events-none"
+                                        )}
+                                        aria-label={isTransparencyActive ? "Show Transparent Keys" : "Hide Transparent Keys"}
+                                    >
+                                        <span className={cn(
+                                            "text-base leading-none font-semibold translate-y-[1px]",
+                                            isTransparencyActive ? "text-kb-gray" : "text-black"
+                                        )}>
+                                            {transparentKeyGlyph}
+                                        </span>
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                    {isTransparencyActive ? "Show Transparent Keys" : "Hide Transparent Keys"}
+                                </TooltipContent>
+                            </Tooltip>
+                        )}
                     />
                 </div>
-
-                {selectedLayer !== 0 && (
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                onClick={() => {
-                                    if (selectedLayer === 0) return;
-                                    const next = !isTransparencyActive;
-                                    onToggleTransparency(selectedLayer, next);
-                                }}
-                                disabled={activePanel === "matrixtester" || isTransparencyRestoring}
-                                className={cn(
-                                    "w-8 h-8 rounded-full transition-colors flex-shrink-0 ml-[-4px] flex items-center justify-center",
-                                    activePanel === "matrixtester"
-                                        ? "text-gray-400 cursor-not-allowed opacity-30"
-                                        : isTransparencyActive
-                                            ? "bg-black hover:bg-gray-800"
-                                            : (!suppressTransparencyHover ? "hover:bg-gray-200" : ""),
-                                    isTransparencyRestoring && "invisible pointer-events-none"
-                                )}
-                                aria-label={isTransparencyActive ? "Show Transparent Keys" : "Hide Transparent Keys"}
-                            >
-                                <span className={cn(
-                                    "text-base leading-none font-semibold translate-y-[1px]",
-                                    isTransparencyActive ? "text-kb-gray" : "text-black"
-                                )}>
-                                    {transparentKeyGlyph}
-                                </span>
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                            {isTransparencyActive ? "Show Transparent Keys" : "Hide Transparent Keys"}
-                        </TooltipContent>
-                    </Tooltip>
-                )}
             </div>
 
             {/* Keyboard */}

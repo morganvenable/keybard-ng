@@ -111,7 +111,6 @@ const EditorLayoutInner = () => {
     const [transparencyByLayer, setTransparencyByLayer] = React.useState<Record<number, boolean>>({});
     const [isAllTransparencyActive, setIsAllTransparencyActive] = React.useState(false);
     const [isTransparencyRestoring, setIsTransparencyRestoring] = React.useState(false);
-    const transparencyBackupRef = React.useRef<Record<number, boolean> | null>(null);
     const viewsScrollRef = React.useRef<HTMLDivElement>(null);
     const layerViewRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
     const showLayersTransitionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -304,35 +303,26 @@ const EditorLayoutInner = () => {
 
     const handleToggleTransparency = React.useCallback((layerIndex: number, next: boolean) => {
         setTransparencyByLayer(prev => ({ ...prev, [layerIndex]: next }));
-        // If we are in "all" mode and turn one off, clear the backup
-        if (isAllTransparencyActive && !next) {
-            transparencyBackupRef.current = null;
-        }
-    }, [isAllTransparencyActive]);
+    }, []);
 
     const handleToggleAllTransparency = React.useCallback(() => {
         const next = !isAllTransparencyActive;
         const totalLayers = keyboard?.layers || 16;
-        if (next) {
-            transparencyBackupRef.current = { ...transparencyByLayer };
-            const allOn = Array.from({ length: totalLayers }, (_, i) => i)
-                .reduce<Record<number, boolean>>((acc, layerIndex) => {
-                    if (layerIndex > 0) acc[layerIndex] = true;
-                    return acc;
-                }, {});
-            setTransparencyByLayer(allOn);
-        } else {
-            setIsTransparencyRestoring(true);
-            setTransparencyByLayer(transparencyBackupRef.current || {});
-            transparencyBackupRef.current = null;
-        }
+        const allLayersState = Array.from({ length: totalLayers }, (_, i) => i)
+            .reduce<Record<number, boolean>>((acc, layerIndex) => {
+                if (layerIndex > 0) acc[layerIndex] = next;
+                return acc;
+            }, {});
+        setTransparencyByLayer(allLayersState);
+
+        if (!next) setIsTransparencyRestoring(true);
         setIsAllTransparencyActive(next);
         if (!next) {
             requestAnimationFrame(() => {
                 setIsTransparencyRestoring(false);
             });
         }
-    }, [isAllTransparencyActive, keyboard?.layers, transparencyByLayer]);
+    }, [isAllTransparencyActive, keyboard?.layers]);
 
     // Synchronize the "All Transparency" state with individual layer states
     React.useEffect(() => {
@@ -1060,7 +1050,7 @@ const EditorLayoutInner = () => {
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent side="right">
-                                    Show another layer view
+                                    Show Another Layer
                                 </TooltipContent>
                             </Tooltip>
                         </div>
