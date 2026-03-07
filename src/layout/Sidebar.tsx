@@ -125,7 +125,7 @@ const SidebarNavItem = ({
         >
             <button type="button" onClick={() => onClick(item)} className={cn("flex w-full items-center", getIconJustify(isCollapsed))}>
                 <div className={cn(getIconGutterWidth(isCollapsed), "h-full flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
-                    <item.icon className="h-4 w-4 shrink-0" />
+                    <item.icon className="h-5 w-5 shrink-0" />
                 </div>
                 <span className={cn("truncate", isCollapsed && "hidden")}>
                     {item.title}

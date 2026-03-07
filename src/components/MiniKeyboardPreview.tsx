@@ -17,6 +17,7 @@ interface MiniKeyboardPreviewProps {
     keymap: number[];
     /** Layer color for styling */
     layerColor?: string;
+    layerColorStyle?: React.CSSProperties;
 }
 
 // Base unit size for preview keys
@@ -25,6 +26,7 @@ const SMALL_UNIT_SIZE = 30;
 export const MiniKeyboardPreview: FC<MiniKeyboardPreviewProps> = ({
     keymap,
     layerColor = "primary",
+    layerColorStyle,
 }) => {
     const { keyboard } = useVial();
 
@@ -73,6 +75,7 @@ export const MiniKeyboardPreview: FC<MiniKeyboardPreviewProps> = ({
             {Object.entries(keyboardLayout).map(([matrixPos, layout]) => {
                 const pos = Number(matrixPos);
                 const keycode = keymap[pos] || 0;
+
                 const { label, keyContents } = getKeyLabel(mockKeyboardInfo, keycode);
                 const keycodeName = getKeycodeName(keycode);
 
@@ -90,7 +93,9 @@ export const MiniKeyboardPreview: FC<MiniKeyboardPreviewProps> = ({
                         label={label}
                         keyContents={keyContents}
                         layerColor={layerColor}
+                        layerColorStyle={layerColorStyle}
                         unitSize={SMALL_UNIT_SIZE}
+                        pos={pos}
                     />
                 );
             })}

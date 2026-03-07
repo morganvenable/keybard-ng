@@ -41,6 +41,7 @@ export interface KeyProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'on
     disableDrag?: boolean;
     dragItemData?: Partial<DragItem>;
     style?: React.CSSProperties;
+    unitSize?: number;
 }
 
 /**
@@ -53,7 +54,7 @@ export const Key = React.forwardRef<HTMLDivElement, KeyProps>((props, ref) => {
         isRelative = false, className = "", headerClassName = "bg-black/30", variant = "default",
         hoverBorderColor, hoverBackgroundColor, hoverLayerColor, disableHover = false,
         hasPendingChange = false, forceLabel = false, dragW, dragH, disableDrag = false,
-        style,
+        style, unitSize,
         ...rest
     } = props;
 
@@ -61,7 +62,8 @@ export const Key = React.forwardRef<HTMLDivElement, KeyProps>((props, ref) => {
     const drag = useKeyDrag({
         uniqueId, keycode, label, row, col, layerIndex, layerColor,
         isRelative, keyContents, w, h, dragW, dragH, variant, onClick, disableHover, disableDrag,
-        dragItemData: props.dragItemData
+        dragItemData: props.dragItemData,
+        unitSize
     });
 
     const isSmall = variant === "small";

@@ -5,7 +5,8 @@
 
 import type { FC } from "react";
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Trash2, Keyboard } from "lucide-react";
+import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import LayoutLayersIcon from "@/components/icons/LayoutLayersIcon";
 
 import type { LayoutGroup, ImportedLayer } from "@/types/layer-library";
 import { Button } from "@/components/ui/button";
@@ -55,9 +56,9 @@ export const LayoutGroupCard: FC<LayoutGroupCardProps> = ({
         return (
             <div className="flex flex-row gap-1 h-full items-stretch">
                 {/* Group label - vertical on the left */}
-                <div className="flex flex-col items-center justify-between py-1 px-1 bg-gray-50 rounded-l-lg border border-gray-200 border-r-0 w-6 flex-shrink-0">
+                <div className="flex flex-col items-center justify-between py-1 px-1 bg-kb-gray rounded-l-lg border border-gray-200 border-r-0 w-6 flex-shrink-0">
                     <div className="flex flex-col items-center gap-0.5">
-                        <Keyboard className="w-3 h-3 text-gray-400" />
+                        <LayoutLayersIcon className="w-3 h-3 text-gray-400" />
                         {group.source === "current" && (
                             <span className="text-[7px] px-1 bg-blue-100 text-blue-700 rounded writing-mode-vertical">
                                 Active
@@ -101,7 +102,7 @@ export const LayoutGroupCard: FC<LayoutGroupCardProps> = ({
     }
 
     return (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
             {/* Header */}
             <div
                 role="button"
@@ -116,7 +117,7 @@ export const LayoutGroupCard: FC<LayoutGroupCardProps> = ({
                     ) : (
                         <ChevronRight className="w-4 h-4 text-gray-500" />
                     )}
-                    <Keyboard className="w-4 h-4 text-gray-500" />
+                    <LayoutLayersIcon className="w-5 h-5 text-gray-500" />
                     <span className="font-medium text-gray-900 dark:text-gray-100">
                         {group.name}
                     </span>
@@ -148,7 +149,7 @@ export const LayoutGroupCard: FC<LayoutGroupCardProps> = ({
 
             {/* Expanded Content */}
             {isExpanded && (
-                <div className="border-t border-gray-200 dark:border-gray-700">
+                <div className="flex flex-col">
                     {filteredLayers.map((layer) => (
                         <LayerRow
                             key={`${group.id}-${layer.index}`}

@@ -92,22 +92,71 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
     const { activePanel } = usePanels();
     const { is3DMode, keyVariant } = useLayoutSettings();
     const badgeRowRef = useRef<HTMLDivElement | null>(null);
-    const [badgeOffsetY, setBadgeOffsetY] = useState(is3DMode ? (baseBadgeOffsetY ?? 450) : 0);
+    const [badgeOffsetY, setBadgeOffsetY] = useState(() => {
+        if (!is3DMode) return 0;
+        if (baseBadgeOffsetY !== null) return baseBadgeOffsetY;
+        const unitSize = keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : 60;
+        return unitSize * 7.7;
+    });
     // Suppress CSS transitions until the first real DOM measurement completes (prevents bounce).
-    const hasMeasured = useRef(false);
+    const [hasMeasured, setHasMeasured] = useState(false);
+    const hasMeasuredRef = useRef(false);
     // Cache the primary badge offset so it doesn't shift between single ↔ multi toggles.
     const cachedBaseOffset = useRef<number | null>(null);
     // Track multi-layer toggle direction for entry/exit animations.
     const prevMultiLayersActiveRef = useRef(isMultiLayersActive);
     // Non-primary layers start invisible and animate in.
     const [layerAnimatingIn, setLayerAnimatingIn] = useState(!isPrimary && isMultiLayersActive);
+    const [dynamicFlowOffset, setDynamicFlowOffset] = useState(0);
     const was3DRef = useRef(is3DMode);
     const prevStackIndexRef = useRef(stackIndex);
+    const [isToggling3D, setIsToggling3D] = useState(false);
+    const measureBaseRef = useRef<(() => void) | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setIsToggling3D(true);
+        const timer = setTimeout(() => {
+            // 1. First, end the toggle state and snap the measurement.
+            // In this specific render path, isToggling3D is false and hasMeasured is false.
+            // This force-disables the CSS transition property, making the measure snap instantaneous.
+            setIsToggling3D(false);
+            if (is3DMode) {
+                measureBaseRef.current?.();
+
+                // 2. In the NEXT frame, enable transitions for future events (like resizes).
+                requestAnimationFrame(() => {
+                    setHasMeasured(true);
+                    hasMeasuredRef.current = true;
+                });
+            } else {
+                setHasMeasured(false);
+                hasMeasuredRef.current = false;
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [is3DMode]);
+
+    useLayoutEffect(() => {
+        if (!isPrimary && isMultiLayersActive && layerAnimatingIn) {
+            const container = containerRef.current;
+            if (!container) return;
+            const myWrapper = container.closest('.relative.w-full');
+            const primaryEl = document.querySelector('[data-keyboard-instance="primary"]')?.closest('.relative.w-full');
+            if (myWrapper && primaryEl) {
+                const myRect = myWrapper.getBoundingClientRect();
+                const primaryRect = primaryEl.getBoundingClientRect();
+                const diff = myRect.top - primaryRect.top;
+                setDynamicFlowOffset(-diff);
+            }
+        } else {
+            setDynamicFlowOffset(0);
+        }
+    }, [isMultiLayersActive, isPrimary, layerAnimatingIn]);
 
     useLayoutEffect(() => {
         if (!is3DMode) {
             setBadgeOffsetY(0);
-            hasMeasured.current = false;
             if (stackIndex === 0) {
                 onBaseBadgeOffsetY?.(null);
                 cachedBaseOffset.current = null;
@@ -116,13 +165,15 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
         }
 
         if (stackIndex === 0) {
-            // Use the cached real offset if we have one, otherwise use a guestimate.
-            // The transition is suppressed (via hasMeasured) so neither value causes visible bounce.
-            const initialOffset = cachedBaseOffset.current ?? 450;
+            const unitSize = keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : 60;
+            const guess = unitSize * 7.7;
+            const initialOffset = cachedBaseOffset.current ?? guess;
             setBadgeOffsetY(initialOffset);
         }
+    }, [is3DMode, stackIndex, keyVariant, onBaseBadgeOffsetY]);
 
-        if (stackIndex !== 0) return;
+    useLayoutEffect(() => {
+        if (!is3DMode || stackIndex !== 0) return;
         const container = containerRef.current;
         const badgeEl = badgeRowRef.current;
         if (!container || !badgeEl) return;
@@ -133,8 +184,6 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
             const badgeRect = badgeEl.getBoundingClientRect();
             const labelRect = labelEl.getBoundingClientRect();
 
-            // Using computed style instead of inline style ensures we get the current state 
-            // of any ongoing transition, which prevents measurement-feedback-loops (yoyo).
             const computedTransform = window.getComputedStyle(badgeEl).transform;
             let currentTranslateY = 0;
             if (computedTransform && computedTransform !== 'none') {
@@ -146,7 +195,8 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
             const labelCenter = labelRect.top + (labelRect.height / 2);
             const desiredOffset = labelCenter - badgeNaturalCenter;
 
-            // Only update if significantly different from cached (avoids micro-shifts on re-measure)
+            if (isToggling3D || layerAnimatingIn) return;
+
             const cached = cachedBaseOffset.current;
             if (cached === null || Math.abs(desiredOffset - cached) > 2) {
                 cachedBaseOffset.current = desiredOffset;
@@ -154,23 +204,24 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                 setBadgeOffsetY(desiredOffset);
             }
 
-            // Enable transitions after the very first real measurement settles.
-            if (!hasMeasured.current) {
+            if (!hasMeasuredRef.current) {
                 requestAnimationFrame(() => {
-                    hasMeasured.current = true;
+                    setHasMeasured(true);
+                    hasMeasuredRef.current = true;
                 });
             }
         };
 
+        measureBaseRef.current = measureBase;
         const rafId = requestAnimationFrame(measureBase);
-        const settleTimer = window.setTimeout(measureBase, 600);
+        const settleTimer = window.setTimeout(measureBase, 500);
         window.addEventListener('resize', measureBase);
         return () => {
             cancelAnimationFrame(rafId);
             window.clearTimeout(settleTimer);
             window.removeEventListener('resize', measureBase);
         };
-    }, [is3DMode, stackIndex, keyVariant, onBaseBadgeOffsetY, isBaseMeasured]);
+    }, [is3DMode, stackIndex, keyVariant, onBaseBadgeOffsetY, isBaseMeasured, layerAnimatingIn, isToggling3D]);
 
     useEffect(() => {
         was3DRef.current = is3DMode;
@@ -183,10 +234,12 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
         // During the animation-in phase, use 0 shift so it starts perfectly at the primary badge's layer.
         const projectedShift = (isMultiLayersActive && !layerAnimatingIn) ? (-stackIndex * stepYValue) : 0;
 
-        // Use cached base or guestimate. Transition is suppressed until hasMeasured so no bounce.
-        const effectiveBase = baseBadgeOffsetY ?? cachedBaseOffset.current ?? 450;
+        // Use cached base or dynamic unit-based guestimate.
+        const unitSize = keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : 60;
+        const guess = unitSize * 7.7;
+        const effectiveBase = baseBadgeOffsetY ?? cachedBaseOffset.current ?? guess;
         setBadgeOffsetY(effectiveBase + projectedShift);
-    }, [is3DMode, isMultiLayersActive, layerAnimatingIn, stackIndex, baseBadgeOffsetY, layerSpacingPx]);
+    }, [is3DMode, isMultiLayersActive, layerAnimatingIn, stackIndex, baseBadgeOffsetY, layerSpacingPx, keyVariant]);
 
     const [isHudMode, setIsHudMode] = useState(false);
     const [suppressTransparencyHover, setSuppressTransparencyHover] = useState(false);
@@ -211,15 +264,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
         return () => clearTimeout(t);
     }, [isAllTransparencyActive, isTransparencyRestoring]);
 
-    // Ref for container
-    const containerRef = useRef<HTMLDivElement>(null);
-
     if (!keyboard) return null;
-
-
-
-
-
 
 
 
@@ -507,15 +552,16 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
     // Also animate newly appearing layers (e.g. show-all-layers toggle adds more views)
     useEffect(() => {
         if (isPrimary || !isMultiLayersActive) return;
-        // Detect if this is a freshly mounted non-primary view by tracking stackIndex > 0
-        if (stackIndex > 0 && layerAnimatingIn) {
+        // Detect if this is a freshly mounted non-primary view 
+        // We wait for isBaseMeasured so we don't jump when the primary offset finally arrives.
+        if (stackIndex > 0 && layerAnimatingIn && isBaseMeasured && dynamicFlowOffset !== 0) {
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
                     setLayerAnimatingIn(false);
                 });
             });
         }
-    }, [stackIndex, isPrimary, isMultiLayersActive]);
+    }, [stackIndex, isPrimary, isMultiLayersActive, isBaseMeasured, dynamicFlowOffset, layerAnimatingIn]);
 
     // Animate when the stack order changes (e.g. "Flip Layer View")
     useEffect(() => {
@@ -537,12 +583,12 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
             className="w-full flex-shrink-0 pointer-events-none"
             style={{
                 opacity: (isRevealing || isHiding || (!isPrimary && is3DMode && isMultiLayersActive && layerAnimatingIn)) ? 0 : 1,
-                // During animation-in, pull the layer UP by exactly its DOM stack height
-                // so it starts perfectly overlapped with the primary layer, then animates DOWN.
-                transform: (is3DMode && isMultiLayersActive && layerAnimatingIn) 
-                            ? `translateY(calc(-100% * ${stackIndex}))` 
-                            : 'translateY(0)',
-                transition: (is3DMode || was3DRef.current) 
+                // During animation-in, pull the layer UP so it starts perfectly overlapped 
+                // with the primary layer, then animates DOWN.
+                transform: (is3DMode && isMultiLayersActive && layerAnimatingIn)
+                    ? `translateY(${dynamicFlowOffset}px)`
+                    : 'translateY(0)',
+                transition: (is3DMode || was3DRef.current)
                     ? 'opacity 500ms ease-in-out, transform 500ms ease-in-out'
                     : 'opacity 200ms ease-in-out',
             }}
@@ -647,10 +693,10 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                     transform: is3DMode ? `translateY(${badgeOffsetY}px)` : 'translateY(0px)',
                     // transitions are active in 3D mode, and also while switching TO/FROM 3D.
                     // However, we suppress them after the first 3D measurement to hide the "correction jump".
-                    transition: (is3DMode || was3DRef.current) && (hasMeasured.current || (was3DRef.current !== is3DMode))
-                        ? 'transform 500ms ease-in-out' 
-                        : (is3DMode && !hasMeasured.current && !isPrimary && isBaseMeasured)
-                            ? 'transform 500ms ease-in-out' 
+                    transition: (is3DMode || was3DRef.current || isToggling3D) && (hasMeasured || isToggling3D)
+                        ? 'transform 500ms ease-in-out'
+                        : (is3DMode && !hasMeasured && !isPrimary && isBaseMeasured)
+                            ? 'transform 500ms ease-in-out'
                             : 'none',
                 }}
             >
@@ -738,6 +784,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                         show3DBackdrop={is3DMode}
                         activeLayerIndex={activeLayerIndex}
                         isConnected={isConnected}
+                        isToggling3D={isToggling3D}
                     />
                 </div>
             </div>

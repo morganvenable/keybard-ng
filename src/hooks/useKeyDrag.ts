@@ -26,6 +26,7 @@ export interface UseKeyDragProps {
     disableHover?: boolean;
     disableDrag?: boolean;
     dragItemData?: Partial<DragItem>;
+    unitSize?: number;
 }
 
 /**
@@ -35,7 +36,7 @@ export const useKeyDrag = (props: UseKeyDragProps) => {
     const {
         uniqueId, keycode, label, row, col, layerIndex, layerColor,
         isRelative, keyContents, w, h, dragW, dragH, variant, onClick, disableHover, disableDrag,
-        dragItemData
+        dragItemData, unitSize
     } = props;
 
     const { startDrag, dragSourceId, isDragging, draggedItem, markDropConsumed } = useDrag();
@@ -47,10 +48,11 @@ export const useKeyDrag = (props: UseKeyDragProps) => {
     const [isDragHover, setIsDragHover] = useState(false);
 
     const currentUnitSize = useMemo(() => {
+        if (unitSize !== undefined) return unitSize;
         if (variant === "small") return 30;
         if (variant === "medium") return 45;
         return UNIT_SIZE;
-    }, [variant]);
+    }, [variant, unitSize]);
 
     // Calculate the target unit size for the drag payload based on the global key variant
     const targetUnitSize = useMemo(() => {

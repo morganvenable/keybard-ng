@@ -913,7 +913,7 @@ const EditorLayoutInner = () => {
                 <div
                     className={cn(
                         "flex-1 overflow-y-auto flex flex-col items-center max-w-full relative",
-                        isMultiLayersActive && !is3DMode && "pt-12"
+                        isMultiLayersActive && !is3DMode && "pt-11"
                     )}
                     ref={viewsScrollRef}
                 >

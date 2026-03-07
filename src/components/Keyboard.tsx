@@ -46,6 +46,7 @@ interface KeyboardProps {
     show3DBackdrop?: boolean;
     activeLayerIndex?: number | null;
     isConnected?: boolean;
+    isToggling3D?: boolean;
 }
 
 /**
@@ -60,8 +61,8 @@ export const Keyboard: React.FC<KeyboardProps> = ({
     onGhostNavigate,
     layerActiveState,
     instanceId,
-    show3DBackdrop = false,
     activeLayerIndex,
+    isToggling3D = false,
 }) => {
     const {
         selectKeyboardKey,
@@ -576,7 +577,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                     height: `${keyboardSize.height}px`,
                 }}
             >
-                {show3DBackdrop && clusterBounds && (
+                {(is3DMode || isToggling3D) && clusterBounds && (
                     <div
                         className="absolute transition-opacity duration-500"
                         data-layer-backdrop="true"
@@ -597,7 +598,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                     >
                     </div>
                 )}
-                {show3DBackdrop && clusterBounds && (() => {
+                {(is3DMode || isToggling3D) && clusterBounds && (() => {
                     // Scale label offsets proportionally to key size so alignment works at all sizes.
                     const sizeRatio = currentUnitSize / UNIT_SIZE;
                     const labelPadX = 24 * sizeRatio;
@@ -649,7 +650,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                         </div>
                     );
                 })()}
-                {is3DMode && show3DBackdrop && clusterBounds && thumbClusterBounds && (
+                {is3DMode && clusterBounds && thumbClusterBounds && (
                     <div
                         className="absolute"
                         data-layer-backdrop="true"

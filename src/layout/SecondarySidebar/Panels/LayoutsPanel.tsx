@@ -9,7 +9,8 @@
 
 import type { FC } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, Filter, Plus, Search, Upload, X } from "lucide-react";
+import { ChevronLeft, Filter, Search, Upload, X } from "lucide-react";
+import { LayoutImport } from "@/components/icons/LayoutImport";
 
 import { LayoutGroupCard } from "@/components/LayoutGroupCard";
 import { LayerCard } from "@/components/LayoutCard";
@@ -215,7 +216,7 @@ const LayoutsPanel: FC = () => {
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isImporting}
                             >
-                                <Plus className="w-3 h-3 mr-1" />
+                                <LayoutImport className="w-3 h-3 mr-1" />
                                 Import
                             </Button>
 
@@ -227,7 +228,7 @@ const LayoutsPanel: FC = () => {
                                     placeholder="Search..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-6 pr-5 h-6 text-[11px]"
+                                    className="pl-6 pr-5 h-6 text-[11px] rounded-full"
                                 />
                                 {searchQuery && (
                                     <button
@@ -333,17 +334,17 @@ const LayoutsPanel: FC = () => {
             onDrop={handleDrop}
         >
             {/* Header with Import Button */}
-            <div className="px-3 flex items-center justify-between">
+            <div className="pl-0 pr-3 flex items-center justify-between">
                 <span className="text-sm text-gray-500">
-                    Import layers from layout files
+                    Import a layout file
                 </span>
                 <Button
                     variant="outline"
-                    size="sm"
+                    className="rounded-full h-9 !px-5 shadow-sm"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isImporting}
                 >
-                    <Plus className="w-4 h-4 mr-1" />
+                    <LayoutImport className="size-5 mr-2" />
                     Import
                 </Button>
             </div>
@@ -358,30 +359,31 @@ const LayoutsPanel: FC = () => {
             />
 
             {/* Search Bar */}
-            <div className="px-3">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input
-                        type="text"
-                        placeholder="Search layouts..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9 pr-8"
-                    />
-                    {searchQuery && (
-                        <button
-                            onClick={() => setSearchQuery('')}
-                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
-                    )}
+            {(importedLayouts.length > 0 || publishedLayers.length > 0) && (
+                <div className="pl-0 pr-3">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                            className="pl-9 bg-gray-50/50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-800 focus:ring-1 focus:ring-blue-500/20 rounded-full"
+                            placeholder="Search layouts..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Error Message */}
             {importError && (
-                <div className="px-3">
+                <div className="pl-0 pr-3">
                     <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-md text-sm flex items-center justify-between">
                         <span>{importError}</span>
                         <button onClick={() => setImportError(null)} className="ml-2">
@@ -404,7 +406,7 @@ const LayoutsPanel: FC = () => {
             )}
 
             {/* Layout List */}
-            <div className="flex-1 overflow-auto px-3 pb-3 space-y-3 scrollbar-thin">
+            <div className="flex-1 overflow-auto pl-0 pr-3 pb-3 space-y-3 scrollbar-thin">
                 {/* Imported Layouts */}
                 {importedLayouts
                     .filter(hasMatchingLayers)
@@ -412,7 +414,7 @@ const LayoutsPanel: FC = () => {
                         <LayoutGroupCard
                             key={layout.id}
                             group={layout}
-                            defaultExpanded={false}
+                            defaultExpanded={true}
                             onDelete={handleDeleteLayout}
                             onPlaceLayer={handlePlaceLayer}
                             searchQuery={searchQuery}
@@ -442,21 +444,12 @@ const LayoutsPanel: FC = () => {
 
                 {/* Empty State */}
                 {importedLayouts.length === 0 && publishedLayers.length === 0 && (
-                    <div className="text-center text-gray-500 mt-10">
-                        <Upload className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                        <p className="mb-2">No layouts loaded</p>
-                        <p className="text-sm">
-                            Import a .viable file or publish layers to get started
+                    <div className="text-center text-gray-500 mt-20">
+                        <LayoutImport className="w-16 h-16 mx-auto mb-6 text-gray-200 dark:text-gray-800" />
+                        <p className="text-base font-medium mb-2">No layouts loaded</p>
+                        <p className="text-sm max-w-[200px] mx-auto opacity-70">
+                            Import a .viable file or publish a layer to get started
                         </p>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-4"
-                            onClick={() => fileInputRef.current?.click()}
-                        >
-                            <Plus className="w-4 h-4 mr-1" />
-                            Import Layout
-                        </Button>
                     </div>
                 )}
 
@@ -482,10 +475,6 @@ const LayoutsPanel: FC = () => {
                 )}
             </div>
 
-            {/* Tip text */}
-            <div className="px-3 pb-2 text-xs text-gray-400 text-center">
-                Click Place to apply a layer to the currently selected layer
-            </div>
 
             {/* Layer Preview Modal */}
             <LayerPreviewModal
@@ -494,7 +483,7 @@ const LayoutsPanel: FC = () => {
                 onClose={closePreview}
                 onCopy={handleCopyPublished}
             />
-        </section>
+        </section >
     );
 };
 
