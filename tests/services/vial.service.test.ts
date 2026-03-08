@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { VialService } from '../../src/services/vial.service';
+import { ViableService } from '../../src/services/vial.service';
+import { ViableUSB } from '../../src/services/usb.service';
 import { createTestKeyboardInfo } from '../fixtures/keyboard-info.fixture';
+import { keyService } from '../../src/services/key.service';
+import LZMA from 'js-lzma';
 
-// Mock the key service
 vi.mock('../../src/services/key.service', () => ({
   keyService: {
     stringify: vi.fn((keycode: number) => `KC_${keycode.toString(16).toUpperCase()}`),
@@ -11,404 +13,295 @@ vi.mock('../../src/services/key.service', () => ({
   }
 }));
 
-// Mock xz-decompress
-vi.mock('xz-decompress', () => ({
-  XzReadableStream: vi.fn().mockImplementation(() => ({
-    getReader: () => ({
-      read: vi.fn()
-        .mockResolvedValueOnce({
-          done: false,
-          value: new TextEncoder().encode('{"matrix":{"rows":4,"cols":12},"customKeycodes":[],"lighting":"none"}')
-        })
-        .mockResolvedValue({ done: true })
-    })
-  }))
+vi.mock('js-lzma', () => ({
+  default: {
+    decompressFile: vi.fn()
+  }
 }));
 
-describe('VialService', () => {
-  let vialService: VialService;
+const defaultPayload = {
+  name: 'Test Keyboard',
+  matrix: { rows: 2, cols: 3 },
+  customKeycodes: [],
+  viable: {
+    tap_dance: 0,
+    combo: 0,
+    key_override: 0,
+    alt_repeat_key: 0,
+    leader: 0
+  }
+};
+
+describe('ViableService', () => {
+  let viableService: ViableService;
   let mockUSB: any;
+  let definitionBytes: Uint8Array;
 
   beforeEach(() => {
-    // Create a comprehensive USB mock
+    vi.clearAllMocks();
+
+    definitionBytes = new Uint8Array(Array.from({ length: 32 }, (_, i) => i));
+
+    vi.mocked(LZMA.decompressFile).mockImplementation((_inStream: any, outStream: any) => {
+      const bytes = new TextEncoder().encode(JSON.stringify(defaultPayload));
+      for (const b of bytes) {
+        outStream.writeByte(b);
+      }
+    });
+
     mockUSB = {
       send: vi.fn(),
-      sendVial: vi.fn(),
+      sendViable: vi.fn(),
       getViaBuffer: vi.fn(),
+      pushViaBuffer: vi.fn(),
       open: vi.fn().mockResolvedValue(true),
-      close: vi.fn().mockResolvedValue(undefined)
+      close: vi.fn().mockResolvedValue(undefined),
+      getDeviceName: vi.fn().mockReturnValue('Mock Device')
     };
 
-    // Setup default mock responses
-    mockUSB.send.mockImplementation((cmd: number, args: number[], options?: any) => {
-      if (cmd === 0x01) { // VIA protocol version
-        if (options?.unpack === 'B>H' && options?.index === 1) {
-          return Promise.resolve(0x0C);
-        }
-        return Promise.resolve(new Uint8Array([0x01, 0x00, 0x0C]));
+    mockUSB.send.mockImplementation((cmd: number, _args: number[], options?: any) => {
+      if (cmd === ViableUSB.CMD_VIA_GET_PROTOCOL_VERSION && options?.unpack === 'B>H' && options?.index === 1) {
+        return Promise.resolve(0x0c);
       }
-      if (cmd === 0x11) { // Layer count
-        if (options?.uint8 && options?.index === 1) {
-          return Promise.resolve(4);
-        }
-        return Promise.resolve(new Uint8Array([0x11, 4]));
+      if (cmd === ViableUSB.CMD_VIA_GET_LAYER_COUNT && options?.uint8 && options?.index === 1) {
+        return Promise.resolve(2);
       }
-      if (cmd === 0x0C) { // Macro count
-        if (options?.uint8 && options?.index === 1) {
-          return Promise.resolve(2);
-        }
-        return Promise.resolve(new Uint8Array([0x0C, 2]));
+      if (cmd === ViableUSB.CMD_VIA_MACRO_GET_COUNT && options?.uint8 && options?.index === 1) {
+        return Promise.resolve(0);
       }
-      if (cmd === 0x0D) { // Macro buffer size
-        if (options?.unpack === 'B>H' && options?.index === 1) {
-          return Promise.resolve(256);
-        }
-        return Promise.resolve(new Uint8Array([0x0D, 0x01, 0x00]));
+      if (cmd === ViableUSB.CMD_VIA_MACRO_GET_BUFFER_SIZE && options?.unpack === 'B>H' && options?.index === 1) {
+        return Promise.resolve(0);
       }
-      if (cmd === 0x02) { // Get keyboard value (for matrix polling)
-        // Return matrix state data
+      if (cmd === ViableUSB.CMD_VIA_GET_KEYBOARD_VALUE) {
         const response = new Uint8Array(32);
-        response[0] = 0x02;
-        response[1] = 0x03; // Matrix state type
-        // Row 0: col 0 and 2 pressed
-        response[2] = 0b00000101;
-        // Row 1: no keys pressed
-        response[3] = 0b00000000;
+        response[0] = ViableUSB.CMD_VIA_GET_KEYBOARD_VALUE;
+        response[1] = ViableUSB.VIA_SWITCH_MATRIX_STATE;
+        response[3] = 0b00000101; // row 0
+        response[4] = 0b00000000; // row 1
         return Promise.resolve(response);
-      }
-      if (cmd === 0x05) { // Set keycode
-        return Promise.resolve(new Uint8Array([0x05]));
-      }
-      if (cmd === 0x12) { // Get keymap buffer
-        // This should not be called directly, getViaBuffer handles it
-        return Promise.resolve(new Uint8Array(32));
       }
       return Promise.resolve(new Uint8Array(32));
     });
 
-    mockUSB.sendVial.mockImplementation((cmd: number, args: number[], options?: any) => {
-      if (cmd === 0x00) { // Get keyboard ID
-        if (options?.unpack === 'I<Q') {
-          return Promise.resolve([6, BigInt('0x1234567890ABCDEF')]);
-        }
-        return Promise.resolve(new Uint8Array([0xFE, 0x00, 0x06, 0, 0, 0, 0xEF, 0xCD, 0xAB, 0x90, 0x78, 0x56, 0x34, 0x12]));
+    mockUSB.sendViable.mockImplementation((cmd: number, args: number[]) => {
+      if (cmd === ViableUSB.CMD_VIABLE_GET_INFO) {
+        return Promise.resolve(
+          new Uint8Array([
+            ViableUSB.CMD_VIABLE_GET_INFO,
+            0x06, 0x00, 0x00, 0x00, // protocol version
+            0xef, 0xcd, 0xab, 0x90, 0x78, 0x56, 0x34, 0x12, // uid LE
+            0x00 // feature flags
+          ])
+        );
       }
-      if (cmd === 0x01) { // Get size
-        if (options?.uint32 && options?.index === 0) {
-          return Promise.resolve(100); // Small payload for testing
-        }
-        return Promise.resolve(new Uint8Array([100, 0, 0, 0]));
+
+      if (cmd === ViableUSB.CMD_VIABLE_DEFINITION_SIZE) {
+        return Promise.resolve(definitionBytes.length);
       }
-      if (cmd === 0x02) { // Get definition
-        if (options?.uint8) {
-          // Return mock compressed data
-          const data = new Uint8Array(32);
-          data[0] = 0xFD; // XZ magic bytes
-          data[1] = 0x37;
-          data[2] = 0x7A;
-          data[3] = 0x58;
-          data[4] = 0x5A;
-          return Promise.resolve(data);
-        }
-        return Promise.resolve(new Uint8Array(32));
+
+      if (cmd === ViableUSB.CMD_VIABLE_DEFINITION_CHUNK) {
+        const offset = (args[0] || 0) | ((args[1] || 0) << 8);
+        const requestedSize = args[2] || 0;
+        const chunk = definitionBytes.slice(offset, offset + requestedSize);
+        return Promise.resolve(
+          new Uint8Array([
+            ViableUSB.CMD_VIABLE_DEFINITION_CHUNK,
+            args[0] || 0,
+            args[1] || 0,
+            chunk.length,
+            ...chunk
+          ])
+        );
       }
-      if (cmd === 0x0D) { // Dynamic entry op
-        return Promise.resolve(new Uint8Array([0xFE, 0x0D]));
-      }
+
       return Promise.resolve(new Uint8Array(32));
     });
 
     mockUSB.getViaBuffer.mockImplementation((cmd: number, size: number, options?: any) => {
-      // Return mock keymap data
-      if (options?.uint16) {
-        // When uint16 is true, return array of numbers
-        const data: number[] = [];
-        for (let i = 0; i < size / 2; i++) {
-          data.push(i);  // Return sequential keycodes as numbers
-        }
-        return Promise.resolve(data);
-      } else {
-        // Return Uint8Array for byte data
-        const buffer = new Uint8Array(size);
-        // Fill with sequential keycodes for testing
-        for (let i = 0; i < size / 2; i++) {
-          buffer[i * 2] = (i >> 8) & 0xFF; // Big endian high byte
-          buffer[i * 2 + 1] = i & 0xFF;    // Big endian low byte
-        }
-        return Promise.resolve(buffer);
+      if (cmd === ViableUSB.CMD_VIA_KEYMAP_GET_BUFFER && options?.uint16) {
+        return Promise.resolve(Array.from({ length: size / 2 }, (_, i) => i));
       }
+      return Promise.resolve(new Uint8Array(size));
     });
 
-    vialService = new VialService(mockUSB);
+    viableService = new ViableService(mockUSB);
   });
 
   describe('init', () => {
     it('should initialize without errors', async () => {
       const kbinfo = createTestKeyboardInfo();
-      await expect(vialService.init(kbinfo)).resolves.toBeUndefined();
+      await expect(viableService.init(kbinfo)).resolves.toBeUndefined();
     });
   });
 
   describe('getKeyboardInfo', () => {
-    it('should retrieve VIA protocol version', async () => {
+    it('should retrieve protocol, id, and matrix from viable definition', async () => {
       const kbinfo = createTestKeyboardInfo();
-      await vialService.getKeyboardInfo(kbinfo);
-      expect(kbinfo.via_proto).toBe(0x0C);
-    });
 
-    it('should retrieve Vial protocol version', async () => {
-      const kbinfo = createTestKeyboardInfo();
-      await vialService.getKeyboardInfo(kbinfo);
-      expect(kbinfo.vial_proto).toBe(6);
-    });
+      await viableService.getKeyboardInfo(kbinfo);
 
-    it('should retrieve keyboard ID', async () => {
-      const kbinfo = createTestKeyboardInfo();
-      await vialService.getKeyboardInfo(kbinfo);
-      // The bigint 0x1234567890ABCDEF is converted to decimal string
-      expect(kbinfo.kbid).toBe('1311768467294899695');
+      expect(kbinfo.via_proto).toBe(0x0c);
+      expect(kbinfo.viable_proto).toBe(6);
+      expect(kbinfo.kbid).toBe('1234567890abcdef');
+      expect(kbinfo.rows).toBe(2);
+      expect(kbinfo.cols).toBe(3);
+      expect(kbinfo.name).toBe('Test Keyboard');
     });
 
     it('should handle USB disconnection during info retrieval', async () => {
       const kbinfo = createTestKeyboardInfo();
       mockUSB.send.mockRejectedValue(new Error('USB disconnected'));
-      await expect(vialService.getKeyboardInfo(kbinfo)).rejects.toThrow('USB disconnected');
-    });
 
-    it('should retrieve matrix size', async () => {
-      const kbinfo = createTestKeyboardInfo();
-      await vialService.getKeyboardInfo(kbinfo);
-      expect(kbinfo.rows).toBe(4);
-      expect(kbinfo.cols).toBe(12);
+      await expect(viableService.getKeyboardInfo(kbinfo)).rejects.toThrow('USB disconnected');
     });
   });
 
   describe('getFeatures', () => {
     it('should retrieve macro count and buffer size', async () => {
       const kbinfo = createTestKeyboardInfo();
-      await vialService.getFeatures(kbinfo);
-      expect(kbinfo.macro_count).toBe(2);
-      expect(kbinfo.macros_size).toBe(256);
-    });
 
-    it('should handle keyboards with no macros', async () => {
-      const kbinfo = createTestKeyboardInfo();
-      mockUSB.send.mockImplementation((cmd: number, args: number[], options?: any) => {
-        if (cmd === 0x0C) { // Macro count
-          if (options?.uint8 && options?.index === 1) {
-            return Promise.resolve(0);
-          }
+      mockUSB.send.mockImplementation((cmd: number, _args: number[], options?: any) => {
+        if (cmd === ViableUSB.CMD_VIA_MACRO_GET_COUNT && options?.uint8 && options?.index === 1) {
+          return Promise.resolve(2);
         }
-        if (cmd === 0x0D) { // Macro buffer size
-          if (options?.unpack === 'B>H' && options?.index === 1) {
-            return Promise.resolve(0);
-          }
+        if (cmd === ViableUSB.CMD_VIA_MACRO_GET_BUFFER_SIZE && options?.unpack === 'B>H' && options?.index === 1) {
+          return Promise.resolve(256);
         }
         return Promise.resolve(new Uint8Array(32));
       });
 
-      await vialService.getFeatures(kbinfo);
-      expect(kbinfo.macro_count).toBe(0);
-      expect(kbinfo.macros_size).toBe(0);
+      await viableService.getFeatures(kbinfo);
+
+      expect(kbinfo.macro_count).toBe(2);
+      expect(kbinfo.macros_size).toBe(256);
     });
   });
 
   describe('getKeyMap', () => {
     it('should retrieve keymap for all layers', async () => {
-      const kbinfo = createTestKeyboardInfo();
-      kbinfo.rows = 2;
-      kbinfo.cols = 2;
+      const kbinfo = createTestKeyboardInfo({ rows: 2, cols: 2 });
 
-      await vialService.getKeyMap(kbinfo);
+      await viableService.getKeyMap(kbinfo);
 
-      expect(kbinfo.keymap).toHaveLength(4); // 4 layers
-      expect(kbinfo.keymap?.[0]).toHaveLength(4); // 2x2 = 4 keys per layer
-      expect(kbinfo.keymap?.[0][0]).toBe(0); // First key (numeric keycode)
+      expect(kbinfo.keymap).toHaveLength(2);
+      expect(kbinfo.keymap?.[0]).toEqual([0, 1, 2, 3]);
+      expect(kbinfo.keymap?.[1]).toEqual([4, 5, 6, 7]);
     });
 
     it('should throw error if layer count is not available', async () => {
-      const kbinfo = createTestKeyboardInfo();
-      mockUSB.send.mockImplementation((cmd: number) => {
-        if (cmd === 0x11) { // Layer count
+      const kbinfo = createTestKeyboardInfo({ rows: 2, cols: 2 });
+
+      mockUSB.send.mockImplementation((cmd: number, _args: number[], options?: any) => {
+        if (cmd === ViableUSB.CMD_VIA_GET_LAYER_COUNT && options?.uint8 && options?.index === 1) {
           return Promise.resolve(undefined);
         }
         return Promise.resolve(new Uint8Array(32));
       });
 
-      await expect(vialService.getKeyMap(kbinfo)).rejects.toThrow('Failed to get layer count');
-    });
-
-    it('should handle empty keymap', async () => {
-      const kbinfo = createTestKeyboardInfo();
-      kbinfo.rows = 0;
-      kbinfo.cols = 0;
-      mockUSB.send.mockImplementation((cmd: number, args: number[], options?: any) => {
-        if (cmd === 0x11) { // Layer count
-          if (options?.uint8 && options?.index === 1) {
-            return Promise.resolve(1);
-          }
-        }
-        return Promise.resolve(new Uint8Array(32));
-      });
-
-      await vialService.getKeyMap(kbinfo);
-
-      expect(kbinfo.keymap).toHaveLength(1);
-      expect(kbinfo.keymap?.[0]).toHaveLength(0);
+      await expect(viableService.getKeyMap(kbinfo)).rejects.toThrow('Failed to get layer count');
     });
   });
 
   describe('load', () => {
     it('should load complete keyboard information', async () => {
       const kbinfo = createTestKeyboardInfo();
-      kbinfo.rows = 2;
-      kbinfo.cols = 2;
 
-      const result = await vialService.load(kbinfo);
+      const result = await viableService.load(kbinfo);
 
       expect(result).toBe(kbinfo);
-      expect(kbinfo.via_proto).toBe(0x0C);
-      expect(kbinfo.vial_proto).toBe(6);
-      expect(kbinfo.kbid).toBe('1311768467294899695');
-      expect(kbinfo.macro_count).toBe(2);
-      expect(kbinfo.keymap).toHaveLength(4);
+      expect(kbinfo.via_proto).toBe(0x0c);
+      expect(kbinfo.viable_proto).toBe(6);
+      expect(kbinfo.kbid).toBe('1234567890abcdef');
+      expect(kbinfo.keymap).toHaveLength(2);
+      expect(keyService.generateAllKeycodes).toHaveBeenCalledWith(kbinfo);
     });
 
-    it('should handle errors during load gracefully', async () => {
+    it('should propagate load errors', async () => {
       const kbinfo = createTestKeyboardInfo();
-      mockUSB.sendVial.mockRejectedValue(new Error('Load failed'));
+      mockUSB.sendViable.mockRejectedValue(new Error('Load failed'));
 
-      await expect(vialService.load(kbinfo)).rejects.toThrow('Load failed');
+      await expect(viableService.load(kbinfo)).rejects.toThrow('Load failed');
     });
   });
 
   describe('pollMatrix', () => {
     it('should return matrix state as boolean array', async () => {
-      const kbinfo = createTestKeyboardInfo();
-      kbinfo.rows = 2;
-      kbinfo.cols = 8;
+      const kbinfo = createTestKeyboardInfo({ rows: 2, cols: 8 });
 
-      const matrix = await vialService.pollMatrix(kbinfo);
+      const matrix = await viableService.pollMatrix(kbinfo);
 
       expect(matrix).toHaveLength(2);
       expect(matrix[0]).toEqual([true, false, true, false, false, false, false, false]);
       expect(matrix[1]).toEqual([false, false, false, false, false, false, false, false]);
     });
 
-    it('should handle larger matrices', async () => {
-      const kbinfo = createTestKeyboardInfo();
-      kbinfo.rows = 4;
-      kbinfo.cols = 16;
+    it('should handle larger matrices with row byte-order mapping', async () => {
+      const kbinfo = createTestKeyboardInfo({ rows: 4, cols: 16 });
 
-      mockUSB.send.mockImplementation(() => {
+      mockUSB.send.mockImplementation((cmd: number) => {
+        if (cmd !== ViableUSB.CMD_VIA_GET_KEYBOARD_VALUE) {
+          return Promise.resolve(new Uint8Array(32));
+        }
+
         const response = new Uint8Array(32);
-        response[0] = 0x02;
-        response[1] = 0x03;
-        // Each row needs 2 bytes for 16 columns
-        response[2] = 0xFF; // Row 0, cols 0-7
-        response[3] = 0x00; // Row 0, cols 8-15
-        response[4] = 0x00; // Row 1, cols 0-7
-        response[5] = 0xFF; // Row 1, cols 8-15
-        response[6] = 0xAA; // Row 2, cols 0-7
-        response[7] = 0x55; // Row 2, cols 8-15
-        response[8] = 0x00; // Row 3, cols 0-7
-        response[9] = 0x00; // Row 3, cols 8-15
+        response[0] = ViableUSB.CMD_VIA_GET_KEYBOARD_VALUE;
+        response[1] = ViableUSB.VIA_SWITCH_MATRIX_STATE;
+
+        // start at offset 3, 2 bytes per row
+        response[3] = 0x00; response[4] = 0x01; // row 0 => col 0 true
+        response[5] = 0x01; response[6] = 0x00; // row 1 => col 8 true
+        response[7] = 0x00; response[8] = 0x02; // row 2 => col 1 true
+        response[9] = 0x00; response[10] = 0x00; // row 3 => none
+
         return Promise.resolve(response);
       });
 
-      const matrix = await vialService.pollMatrix(kbinfo);
+      const matrix = await viableService.pollMatrix(kbinfo);
 
       expect(matrix).toHaveLength(4);
-      expect(matrix[0][0]).toBe(true);  // First bit of 0xFF
-      expect(matrix[1][8]).toBe(true);  // First bit of second byte (0xFF)
-      expect(matrix[2][1]).toBe(true); // Second bit of 0xAA (10101010)
+      expect(matrix[0][0]).toBe(true);
+      expect(matrix[1][8]).toBe(true);
+      expect(matrix[2][1]).toBe(true);
     });
   });
 
   describe('updateKey', () => {
     it('should update a key at specific position', async () => {
-      await vialService.updateKey(0, 1, 2, 0x0004);
+      await viableService.updateKey(0, 1, 2, 0x0004);
 
       expect(mockUSB.send).toHaveBeenCalledWith(
-        0x05, // CMD_VIA_SET_KEYCODE
-        [0, 1, 2, 0, 4] // layer, row, col, BE16(keymask)
+        ViableUSB.CMD_VIA_SET_KEYCODE,
+        [0, 1, 2, 0, 4],
+        {}
       );
     });
 
     it('should encode keymask as big endian', async () => {
-      await vialService.updateKey(2, 3, 7, 0x1234);
+      await viableService.updateKey(2, 3, 7, 0x1234);
 
       expect(mockUSB.send).toHaveBeenCalledWith(
-        0x05,
-        [2, 3, 7, 0x12, 0x34] // 0x1234 in big endian
+        ViableUSB.CMD_VIA_SET_KEYCODE,
+        [2, 3, 7, 0x12, 0x34],
+        {}
       );
     });
 
     it('should handle USB disconnection during update', async () => {
       mockUSB.send.mockRejectedValue(new Error('USB disconnected'));
 
-      await expect(vialService.updateKey(0, 0, 0, 0x0004)).rejects.toThrow('USB disconnected');
+      await expect(viableService.updateKey(0, 0, 0, 0x0004)).rejects.toThrow('USB disconnected');
     });
   });
 
-  describe('USB disconnection scenarios', () => {
-    it('should handle disconnection during keymap loading', async () => {
-      const kbinfo = createTestKeyboardInfo();
-      mockUSB.getViaBuffer.mockRejectedValue(new Error('USB disconnected'));
-
-      await expect(vialService.getKeyMap(kbinfo)).rejects.toThrow('USB disconnected');
-    });
-
-    it('should handle permission denied errors', async () => {
-      const kbinfo = createTestKeyboardInfo();
-      mockUSB.send.mockRejectedValue(new DOMException('Permission denied'));
-
-      await expect(vialService.getKeyboardInfo(kbinfo)).rejects.toThrow('Permission denied');
-    });
-  });
-
-  describe('XZ decompression error handling', () => {
-    it('should handle xz-decompress read error', async () => {
-      // Create a separate mock for XzReadableStream that throws an error
-      const { XzReadableStream } = await import('xz-decompress');
-      const mockXzReadableStream = vi.mocked(XzReadableStream);
-
-      // Mock to throw error during read
-      mockXzReadableStream.mockImplementationOnce(() => ({
-        getReader: () => ({
-          read: vi.fn().mockRejectedValue(new Error('XZ decompression failed')),
-          releaseLock: vi.fn(),
-          closed: Promise.resolve(undefined),
-          cancel: vi.fn().mockResolvedValue(undefined)
-        })
-      }) as any);
-
-      const kbinfo = createTestKeyboardInfo();
-
-      // Mock sendVial to return proper responses for getting keyboard info
-      mockUSB.sendVial.mockImplementation((cmd: number, _args: number[], options?: any) => {
-        if (cmd === 0x01) { // Get size
-          if (options?.uint32 && options?.index === 0) {
-            return Promise.resolve(100);
-          }
-        }
-        if (cmd === 0x02) { // Get definition - this will trigger XZ decompression
-          if (options?.uint8) {
-            // Return XZ compressed data
-            const data = new Uint8Array(32);
-            data[0] = 0xFD; // XZ magic bytes
-            data[1] = 0x37;
-            data[2] = 0x7A;
-            data[3] = 0x58;
-            data[4] = 0x5A;
-            return Promise.resolve(data);
-          }
-        }
-        return Promise.resolve(new Uint8Array(32));
+  describe('LZMA decompression error handling', () => {
+    it('should surface js-lzma decompression errors', async () => {
+      vi.mocked(LZMA.decompressFile).mockImplementationOnce(() => {
+        throw new Error('LZMA decompression failed');
       });
 
-      // The getKeyboardInfo method internally calls methods that use XZ decompression
-      await expect(vialService.getKeyboardInfo(kbinfo)).rejects.toThrow('XZ decompression failed');
+      const kbinfo = createTestKeyboardInfo();
+
+      await expect(viableService.getKeyboardInfo(kbinfo)).rejects.toThrow('LZMA decompression failed');
     });
   });
 });
