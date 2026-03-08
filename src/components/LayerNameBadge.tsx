@@ -410,7 +410,7 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={() => setIsPublishDialogOpen(true)}>
-                            Publish Layer...
+                            Save Layer...
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>

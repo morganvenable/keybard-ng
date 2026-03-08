@@ -51,6 +51,10 @@ interface KeyboardViewInstanceProps {
     baseBadgeOffsetY?: number | null;
     onBaseBadgeOffsetY?: (offset: number | null) => void;
     isBaseMeasured?: boolean;
+    isLayerDragActive?: boolean;
+    hoveredDropLayer?: number | null;
+    onLayerDropHover?: (layer: number | null) => void;
+    onLayerDrop?: (layer: number) => void;
 }
 
 /**
@@ -84,6 +88,10 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
     baseBadgeOffsetY = null,
     onBaseBadgeOffsetY,
     isBaseMeasured = false,
+    isLayerDragActive = false,
+    hoveredDropLayer = null,
+    onLayerDropHover,
+    onLayerDrop,
 }) => {
     const { keyboard, updateKey, setKeyboard, activeLayerIndex, isConnected } = useVial();
     const transparentKeyGlyph = KEYMAP["KC_TRNS"]?.str || "▽";
@@ -266,7 +274,22 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
 
     if (!keyboard) return null;
 
+    const isLayoutDropTarget = isLayerDragActive && hoveredDropLayer === selectedLayer;
 
+    const handleDropHoverEnter = () => {
+        if (!isLayerDragActive) return;
+        onLayerDropHover?.(selectedLayer);
+    };
+
+    const handleDropHoverLeave = () => {
+        if (!isLayerDragActive || hoveredDropLayer !== selectedLayer) return;
+        onLayerDropHover?.(null);
+    };
+
+    const handleDropOnLayer = () => {
+        if (!isLayerDragActive) return;
+        onLayerDrop?.(selectedLayer);
+    };
 
     const handleSelectLayer = (layer: number) => () => {
         setSelectedLayer(layer);
@@ -359,6 +382,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
 
         const layerShortName = svalService.getLayerNameNoLabel(keyboard, i);
         const isActive = selectedLayer === i;
+        const isDropTarget = isLayerDragActive && hoveredDropLayer === i;
         const isLayerActive = typeof activeLayerIndex === "number"
             ? activeLayerIndex === i
             : !!layerActiveState?.[i];
@@ -379,11 +403,26 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                             e.stopPropagation();
                             onToggleLayerOn(i);
                         }}
+                        onMouseEnter={() => {
+                            if (!isLayerDragActive) return;
+                            onLayerDropHover?.(i);
+                        }}
+                        onMouseLeave={() => {
+                            if (!isLayerDragActive || hoveredDropLayer !== i) return;
+                            onLayerDropHover?.(null);
+                        }}
+                        onMouseUp={() => {
+                            if (!isLayerDragActive) return;
+                            onLayerDrop?.(i);
+                        }}
                         className={cn(
                             "px-4 py-1 rounded-full transition-colors text-sm font-medium cursor-pointer border-none outline-none whitespace-nowrap",
-                            isActive
-                                ? "bg-gray-800 text-white shadow-md scale-105"
-                                : "bg-transparent text-gray-600 hover:bg-gray-200",
+                            isDropTarget
+                                ? "bg-red-500 text-white shadow-md scale-105 ring-2 ring-red-500 ring-offset-1 ring-offset-background"
+                                : isActive
+                                    ? "bg-gray-800 text-white shadow-md scale-105"
+                                    : "bg-transparent text-gray-600 hover:bg-gray-200",
+                            isDropTarget && "hover:bg-red-500",
                             isHudMode && !isActive && !isLayerActive && "text-gray-300"
                         )}
                     >
@@ -685,107 +724,114 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                 </div>
             )}
 
-            {/* Layer Name Badge Row */}
             <div
-                ref={badgeRowRef}
-                className="pl-5 pt-[7px] pb-2 flex items-center gap-2 pointer-events-auto"
-                style={{
-                    transform: is3DMode ? `translateY(${badgeOffsetY}px)` : 'translateY(0px)',
-                    // transitions are active in 3D mode, and also while switching TO/FROM 3D.
-                    // However, we suppress them after the first 3D measurement to hide the "correction jump".
-                    transition: (is3DMode || was3DRef.current || isToggling3D) && (hasMeasured || isToggling3D)
-                        ? 'transform 500ms ease-in-out'
-                        : (is3DMode && !hasMeasured && !isPrimary && isBaseMeasured)
-                            ? 'transform 500ms ease-in-out'
-                            : 'none',
-                }}
+                className="pointer-events-auto rounded-lg"
+                onMouseEnter={handleDropHoverEnter}
+                onMouseLeave={handleDropHoverLeave}
+                onMouseUp={handleDropOnLayer}
             >
-                <div style={{ marginLeft: -20 }}>
-                    <LayerNameBadge
-                        selectedLayer={selectedLayer}
-                        isActive={isSelectedLayerActive}
-                        onToggleLayerOn={onToggleLayerOn}
-                        // TODO: when firmware reports default layer, pass it here.
-                        defaultLayerIndex={0}
-                        trailingAction={selectedLayer !== 0 && (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={() => {
-                                            if (selectedLayer === 0) return;
-                                            const next = !isTransparencyActive;
-                                            onToggleTransparency(selectedLayer, next);
-                                        }}
-                                        disabled={activePanel === "matrixtester" || isTransparencyRestoring}
-                                        className={cn(
-                                            "w-8 h-8 rounded-full transition-all duration-150 flex-shrink-0 ml-[-4px] flex items-center justify-center",
-                                            activePanel === "matrixtester"
-                                                ? "text-gray-400 cursor-not-allowed opacity-30"
-                                                : isTransparencyActive
-                                                    ? "opacity-100 bg-black hover:bg-gray-800"
-                                                    : cn(
-                                                        "opacity-0 pointer-events-none scale-95",
-                                                        !suppressTransparencyHover && "group-hover/layer-badge:opacity-100 group-hover/layer-badge:pointer-events-auto group-hover/layer-badge:scale-100 hover:bg-gray-200"
-                                                    ),
-                                            isTransparencyRestoring && "invisible pointer-events-none"
-                                        )}
-                                        aria-label={isTransparencyActive ? "Show Transparent Keys" : "Hide Transparent Keys"}
-                                    >
-                                        <span className={cn(
-                                            "text-base leading-none font-semibold translate-y-[1px]",
-                                            isTransparencyActive ? "text-kb-gray" : "text-black"
-                                        )}>
-                                            {transparentKeyGlyph}
-                                        </span>
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                    {isTransparencyActive ? "Show Transparent Keys" : "Hide Transparent Keys"}
-                                </TooltipContent>
-                            </Tooltip>
-                        )}
-                    />
-                </div>
-            </div>
-
-            {/* Keyboard */}
-            <div
-                className={cn(
-                    "flex items-start justify-center max-w-full pointer-events-none",
-                    is3DMode && "keyboard-3d-wrapper"
-                )}
-                style={is3DMode
-                    ? {
-                        transformStyle: 'preserve-3d',
-                    }
-                    : undefined
-                }
-            >
+                {/* Layer Name Badge Row */}
                 <div
-                    className={cn(
-                        "pointer-events-none",
-                        is3DMode && "keyboard-3d-active"
-                    )}
+                    ref={badgeRowRef}
+                    className="pl-5 pt-[7px] pb-2 flex items-center gap-2 pointer-events-auto"
                     style={{
-                        transform: is3DMode
-                            ? `rotateX(55deg) rotateZ(-45deg) translateZ(${isMultiLayersActive && !layerAnimatingIn ? (stackIndex * layerSpacingPx) : 0}px)`
-                            : 'rotateX(0deg) rotateZ(0deg) translateZ(0px)',
-                        transition: 'transform 500ms ease-in-out',
+                        transform: is3DMode ? `translateY(${badgeOffsetY}px)` : 'translateY(0px)',
+                        // transitions are active in 3D mode, and also while switching TO/FROM 3D.
+                        // However, we suppress them after the first 3D measurement to hide the "correction jump".
+                        transition: (is3DMode || was3DRef.current || isToggling3D) && (hasMeasured || isToggling3D)
+                            ? 'transform 500ms ease-in-out'
+                            : (is3DMode && !hasMeasured && !isPrimary && isBaseMeasured)
+                                ? 'transform 500ms ease-in-out'
+                                : 'none',
                     }}
                 >
-                    <Keyboard
-                        keyboard={keyboard}
-                        selectedLayer={selectedLayer}
-                        setSelectedLayer={setSelectedLayer}
-                        showTransparency={isTransparencyActive}
-                        onGhostNavigate={onGhostNavigate}
-                        layerActiveState={layerActiveState}
-                        instanceId={instanceId}
-                        show3DBackdrop={is3DMode}
-                        activeLayerIndex={activeLayerIndex}
-                        isConnected={isConnected}
-                        isToggling3D={isToggling3D}
-                    />
+                    <div style={{ marginLeft: -20 }}>
+                        <LayerNameBadge
+                            selectedLayer={selectedLayer}
+                            isActive={isSelectedLayerActive}
+                            onToggleLayerOn={onToggleLayerOn}
+                            // TODO: when firmware reports default layer, pass it here.
+                            defaultLayerIndex={0}
+                            trailingAction={selectedLayer !== 0 && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={() => {
+                                                if (selectedLayer === 0) return;
+                                                const next = !isTransparencyActive;
+                                                onToggleTransparency(selectedLayer, next);
+                                            }}
+                                            disabled={activePanel === "matrixtester" || isTransparencyRestoring}
+                                            className={cn(
+                                                "w-8 h-8 rounded-full transition-all duration-150 flex-shrink-0 ml-[-4px] flex items-center justify-center",
+                                                activePanel === "matrixtester"
+                                                    ? "text-gray-400 cursor-not-allowed opacity-30"
+                                                    : isTransparencyActive
+                                                        ? "opacity-100 bg-black hover:bg-gray-800"
+                                                        : cn(
+                                                            "opacity-0 pointer-events-none scale-95",
+                                                            !suppressTransparencyHover && "group-hover/layer-badge:opacity-100 group-hover/layer-badge:pointer-events-auto group-hover/layer-badge:scale-100 hover:bg-gray-200"
+                                                        ),
+                                                isTransparencyRestoring && "invisible pointer-events-none"
+                                            )}
+                                            aria-label={isTransparencyActive ? "Show Transparent Keys" : "Hide Transparent Keys"}
+                                        >
+                                            <span className={cn(
+                                                "text-base leading-none font-semibold translate-y-[1px]",
+                                                isTransparencyActive ? "text-kb-gray" : "text-black"
+                                            )}>
+                                                {transparentKeyGlyph}
+                                            </span>
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                        {isTransparencyActive ? "Show Transparent Keys" : "Hide Transparent Keys"}
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
+                        />
+                    </div>
+                </div>
+                {/* Keyboard */}
+                <div
+                    className={cn(
+                        "flex items-start justify-center max-w-full pointer-events-none",
+                        is3DMode && "keyboard-3d-wrapper"
+                    )}
+                    style={is3DMode
+                        ? {
+                            transformStyle: 'preserve-3d',
+                        }
+                        : undefined
+                    }
+                >
+                    <div
+                        className={cn(
+                            "pointer-events-none",
+                            is3DMode && "keyboard-3d-active"
+                        )}
+                        style={{
+                            transform: is3DMode
+                                ? `rotateX(55deg) rotateZ(-45deg) translateZ(${isMultiLayersActive && !layerAnimatingIn ? (stackIndex * layerSpacingPx) : 0}px)`
+                                : 'rotateX(0deg) rotateZ(0deg) translateZ(0px)',
+                            transition: 'transform 500ms ease-in-out',
+                        }}
+                    >
+                        <Keyboard
+                            keyboard={keyboard}
+                            selectedLayer={selectedLayer}
+                            setSelectedLayer={setSelectedLayer}
+                            showTransparency={isTransparencyActive}
+                            onGhostNavigate={onGhostNavigate}
+                            layerActiveState={layerActiveState}
+                            instanceId={instanceId}
+                            show3DBackdrop={is3DMode}
+                            activeLayerIndex={activeLayerIndex}
+                            isConnected={isConnected}
+                            isToggling3D={isToggling3D}
+                            showDropTargetHighlight={isLayoutDropTarget}
+                        />
+                    </div>
                 </div>
             </div>
         </div>

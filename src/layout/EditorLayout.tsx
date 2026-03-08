@@ -20,6 +20,8 @@ import AppSidebar from "./Sidebar";
 import { LayerProvider, useLayer } from "@/contexts/LayerContext";
 import { useLayoutLibrary } from "@/contexts/LayoutLibraryContext";
 import { PasteLayerDialog } from "@/components/PasteLayerDialog";
+import { DragReplaceLayerDialog } from "@/components/DragReplaceLayerDialog";
+import type { LayerEntry } from "@/types/layer-library";
 
 import { LayoutSettingsProvider, useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { UNIT_SIZE, SVALBOARD_LAYOUT } from "@/constants/svalboard-layout";
@@ -84,12 +86,17 @@ const EditorLayoutInner = () => {
         fingerClusterSqueeze,
         isThumb3DOffsetActive,
     } = useLayoutSettings();
-    const { layerClipboard, copyLayer, openPasteDialog } = useLayoutLibrary();
+    const { layerClipboard, openPasteDialog } = useLayoutLibrary();
     const { isDragging, draggedItem, markDropConsumed } = useDrag();
 
     const KC_TRNS = 1;
-    // Track if we're dragging a layer over the keyboard area
-    const [isLayerDragOver, setIsLayerDragOver] = React.useState(false);
+    const [hoveredDropLayer, setHoveredDropLayer] = React.useState<number | null>(null);
+    const [pendingLayerDrop, setPendingLayerDrop] = React.useState<{
+        targetLayer: number;
+        targetLayerName: string;
+        sourceLayerName: string;
+        sourceLayerData: LayerEntry;
+    } | null>(null);
     const isDraggingLayer = isDragging && draggedItem?.type === "layer" && draggedItem?.component === "Layer";
 
     // Dynamic view instances for stacking keyboard views
@@ -588,20 +595,24 @@ const EditorLayoutInner = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [layerClipboard, openPasteDialog]);
 
-    // Handler for when paste is confirmed
-    const handlePasteConfirm = React.useCallback(() => {
-        if (!keyboard || !layerClipboard || !keyboard.keymap) return;
+    const getLayerName = React.useCallback((layerIndex: number) => {
+        if (!keyboard?.cosmetic?.layer) return `Layer ${layerIndex}`;
+        return keyboard.cosmetic.layer[String(layerIndex)] || `Layer ${layerIndex}`;
+    }, [keyboard]);
 
-        const sourceKeymap = layerClipboard.layer.keymap;
-        const sourceLayerColor = layerClipboard.layer.layerColor;
-        const sourceLedColor = layerClipboard.layer.ledColor;
-        const targetLayerKeymap = keyboard.keymap[selectedLayer] || [];
+    const applyLayerToTarget = React.useCallback((sourceLayer: LayerEntry, targetLayer: number) => {
+        if (!keyboard || !keyboard.keymap) return;
+
+        const sourceKeymap = sourceLayer.keymap;
+        const sourceLayerColor = sourceLayer.layerColor;
+        const sourceLedColor = sourceLayer.ledColor;
+        const targetLayerKeymap = keyboard.keymap[targetLayer] || [];
         const cols = keyboard.cols || MATRIX_COLS;
 
         // Create ONE copy and batch all changes to avoid React state batching issues
         const updatedKeyboard = JSON.parse(JSON.stringify(keyboard));
-        if (!updatedKeyboard.keymap[selectedLayer]) {
-            updatedKeyboard.keymap[selectedLayer] = [];
+        if (!updatedKeyboard.keymap[targetLayer]) {
+            updatedKeyboard.keymap[targetLayer] = [];
         }
 
         // Copy cosmetic layer color if the source layer has one
@@ -612,7 +623,7 @@ const EditorLayoutInner = () => {
             if (!updatedKeyboard.cosmetic.layer_colors) {
                 updatedKeyboard.cosmetic.layer_colors = {};
             }
-            updatedKeyboard.cosmetic.layer_colors[selectedLayer] = sourceLayerColor;
+            updatedKeyboard.cosmetic.layer_colors[targetLayer] = sourceLayerColor;
         }
 
         // Copy LED hardware color if the source layer has one
@@ -621,10 +632,10 @@ const EditorLayoutInner = () => {
                 updatedKeyboard.layer_colors = [];
             }
             // Ensure array is long enough
-            while (updatedKeyboard.layer_colors.length <= selectedLayer) {
+            while (updatedKeyboard.layer_colors.length <= targetLayer) {
                 updatedKeyboard.layer_colors.push({ hue: 0, sat: 0, val: 0 });
             }
-            updatedKeyboard.layer_colors[selectedLayer] = { ...sourceLedColor };
+            updatedKeyboard.layer_colors[targetLayer] = { ...sourceLedColor };
         }
 
         // Collect all changes and apply to the single copy
@@ -637,18 +648,18 @@ const EditorLayoutInner = () => {
 
             if (newValue !== currentValue) {
                 // Apply to the single copy
-                updatedKeyboard.keymap[selectedLayer][matrixPos] = newValue;
+                updatedKeyboard.keymap[targetLayer][matrixPos] = newValue;
 
                 // Queue change for push to device
-                const changeDesc = `key_${selectedLayer}_${row}_${col}`;
+                const changeDesc = `key_${targetLayer}_${row}_${col}`;
                 queue(
                     changeDesc,
                     async () => {
-                        await updateKey(selectedLayer, row, col, newValue);
+                        await updateKey(targetLayer, row, col, newValue);
                     },
                     {
                         type: "key",
-                        layer: selectedLayer,
+                        layer: targetLayer,
                         row,
                         col,
                         keycode: newValue,
@@ -660,25 +671,49 @@ const EditorLayoutInner = () => {
 
         // Update state ONCE with all changes
         setKeyboard(updatedKeyboard);
-    }, [keyboard, layerClipboard, selectedLayer, queue, updateKey, setKeyboard]);
+    }, [keyboard, queue, updateKey, setKeyboard]);
 
-    // Handle layer drop on keyboard area
-    const handleLayerDrop = React.useCallback(() => {
+    // Handler for when clipboard paste is confirmed
+    const handlePasteConfirm = React.useCallback(() => {
+        if (!layerClipboard) return;
+        applyLayerToTarget(layerClipboard.layer, selectedLayer);
+    }, [layerClipboard, selectedLayer, applyLayerToTarget]);
+
+    const handleLayerDropHover = React.useCallback((layer: number | null) => {
+        if (!isDraggingLayer) return;
+        setHoveredDropLayer(layer);
+    }, [isDraggingLayer]);
+
+    const handleLayerDrop = React.useCallback((targetLayer: number) => {
         if (!isDraggingLayer || !draggedItem?.layerData) return;
-
-        // Copy the layer to clipboard and open paste dialog
-        copyLayer(draggedItem.layerData);
         markDropConsumed();
+        setHoveredDropLayer(null);
+        setPendingLayerDrop({
+            targetLayer,
+            targetLayerName: getLayerName(targetLayer),
+            sourceLayerName: draggedItem.layerData.name,
+            sourceLayerData: draggedItem.layerData,
+        });
+    }, [isDraggingLayer, draggedItem, markDropConsumed, getLayerName]);
 
-        // Open paste dialog after a brief delay to ensure clipboard is set
-        setTimeout(() => openPasteDialog(), 0);
-    }, [isDraggingLayer, draggedItem, copyLayer, markDropConsumed, openPasteDialog]);
+    React.useEffect(() => {
+        if (!isDraggingLayer) {
+            setHoveredDropLayer(null);
+        }
+    }, [isDraggingLayer]);
+
+    const handleDragReplaceConfirm = React.useCallback(() => {
+        if (!pendingLayerDrop) return;
+        applyLayerToTarget(pendingLayerDrop.sourceLayerData, pendingLayerDrop.targetLayer);
+        setPendingLayerDrop(null);
+    }, [pendingLayerDrop, applyLayerToTarget]);
+
+    const handleDragReplaceCancel = React.useCallback(() => {
+        setPendingLayerDrop(null);
+    }, []);
 
     // Get current layer name for the paste dialog
-    const currentLayerName = React.useMemo(() => {
-        if (!keyboard?.cosmetic?.layer) return `Layer ${selectedLayer}`;
-        return keyboard.cosmetic.layer[String(selectedLayer)] || `Layer ${selectedLayer}`;
-    }, [keyboard, selectedLayer]);
+    const currentLayerName = React.useMemo(() => getLayerName(selectedLayer), [getLayerName, selectedLayer]);
 
 
 
@@ -873,28 +908,11 @@ const EditorLayoutInner = () => {
                 ref={contentContainerRef}
                 className={cn(
                     "relative flex-1 px-4 h-screen max-h-screen flex flex-col max-w-full w-full overflow-hidden bg-kb-gray border-none",
-                    isDraggingLayer && "ring-4 ring-inset ring-blue-400 ring-opacity-50 bg-blue-50/10"
+                    isDraggingLayer && "ring-4 ring-inset ring-blue-400 ring-opacity-50"
                 )}
                 style={contentStyle}
                 onClick={() => clearSelection()}
-                onMouseEnter={() => isDraggingLayer && setIsLayerDragOver(true)}
-                onMouseLeave={() => setIsLayerDragOver(false)}
-                onMouseUp={() => {
-                    if (isDraggingLayer && isLayerDragOver) {
-                        handleLayerDrop();
-                        setIsLayerDragOver(false);
-                    }
-                }}
             >
-                {/* Layer drop indicator - covers entire content area */}
-                {isDraggingLayer && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-                        <div className="bg-blue-500/90 text-white px-6 py-3 rounded-lg shadow-lg text-lg font-medium">
-                            Drop to place on Layer {selectedLayer}
-                        </div>
-                    </div>
-                )}
-
                 <LayerSelector
                     selectedLayer={selectedLayer}
                     setSelectedLayer={setSelectedLayer}
@@ -1022,6 +1040,10 @@ const EditorLayoutInner = () => {
                                                                     setBaseBadgeOffsetY(offset);
                                                                     if (offset !== null) setIsBaseMeasured(true);
                                                                 } : undefined}
+                                                                isLayerDragActive={isDraggingLayer}
+                                                                hoveredDropLayer={hoveredDropLayer}
+                                                                onLayerDropHover={handleLayerDropHover}
+                                                                onLayerDrop={handleLayerDrop}
                                                             />
                                                         </div>
                                                     </div>
@@ -1231,6 +1253,13 @@ const EditorLayoutInner = () => {
             <PasteLayerDialog
                 currentLayerName={currentLayerName}
                 onConfirm={handlePasteConfirm}
+            />
+            <DragReplaceLayerDialog
+                open={!!pendingLayerDrop}
+                sourceLayerName={pendingLayerDrop?.sourceLayerName ?? ""}
+                targetLayerName={pendingLayerDrop?.targetLayerName ?? ""}
+                onConfirm={handleDragReplaceConfirm}
+                onCancel={handleDragReplaceCancel}
             />
         </div >
     );

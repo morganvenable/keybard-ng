@@ -8,19 +8,17 @@
  */
 
 import type { FC } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, Filter, Search, Upload, X } from "lucide-react";
 import { LayoutImport } from "@/components/icons/LayoutImport";
 
 import { LayoutGroupCard } from "@/components/LayoutGroupCard";
-import { LayerCard } from "@/components/LayoutCard";
-import { LayerPreviewModal } from "@/components/LayerPreviewModal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useLayoutLibrary } from "@/contexts/LayoutLibraryContext";
 import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { layerLibraryService } from "@/services/layer-library.service";
-import type { LayoutGroup, ImportedLayer, LayerEntry } from "@/types/layer-library";
+import type { LayoutGroup, ImportedLayer } from "@/types/layer-library";
 import { cn } from "@/lib/utils";
 
 const LayoutsPanel: FC = () => {
@@ -33,10 +31,6 @@ const LayoutsPanel: FC = () => {
         layers: publishedLayers,
         isLoading: isPublishedLoading,
         deleteLayer,
-        previewLayer,
-        isPreviewOpen,
-        openPreview,
-        closePreview,
     } = useLayoutLibrary();
 
     const [searchQuery, setSearchQuery] = useState("");
@@ -125,18 +119,17 @@ const LayoutsPanel: FC = () => {
         }
     };
 
+    const handleDeleteImportedLayer = (group: LayoutGroup, layer: ImportedLayer) => {
+        if (!layerLibraryService.deleteImportedLayer(group.id, layer.index)) return;
+        const nextLayouts = layerLibraryService.getImportedLayouts();
+        setImportedLayouts(nextLayouts);
+    };
+
     // Handle place layer (copy to clipboard and open paste dialog)
     const handlePlaceLayer = (layer: ImportedLayer, sourceLayout: string) => {
         const layerEntry = layerLibraryService.importedLayerToLayerEntry(layer, sourceLayout);
         copyLayer(layerEntry);
         // Open paste dialog immediately after copying
-        setTimeout(() => openPasteDialog(), 0);
-    };
-
-    // Handle copy published layer
-    const handleCopyPublished = async (layer: LayerEntry) => {
-        await navigator.clipboard.writeText(JSON.stringify(layer.keymap));
-        copyLayer(layer);
         setTimeout(() => openPasteDialog(), 0);
     };
 
@@ -153,6 +146,43 @@ const LayoutsPanel: FC = () => {
     const filteredPublishedLayers = publishedLayers.filter(l =>
         !searchQuery || l.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    const savedLayerRows = useMemo<ImportedLayer[]>(
+        () => filteredPublishedLayers.map((layer, index) => ({
+            index,
+            name: layer.name,
+            keymap: layer.keymap,
+            color: layer.layerColor,
+            ledColor: layer.ledColor,
+        })),
+        [filteredPublishedLayers]
+    );
+
+    const savedLayerGroup = useMemo<LayoutGroup | null>(
+        () => {
+            if (savedLayerRows.length === 0) return null;
+            return {
+                id: "saved-layer-group",
+                name: "Saved Layers",
+                source: "imported",
+                layers: savedLayerRows,
+            };
+        },
+        [savedLayerRows]
+    );
+
+    const handleDeleteSavedLayer = useCallback(async (_group: LayoutGroup, layer: ImportedLayer) => {
+        const target = filteredPublishedLayers[layer.index];
+        if (!target) return;
+        await deleteLayer(target.id);
+    }, [filteredPublishedLayers, deleteLayer]);
+
+    const handleDeleteSavedLayersGroup = useCallback((_group: LayoutGroup) => {
+        const deleteAll = async () => {
+            await Promise.all(publishedLayers.map((layer) => deleteLayer(layer.id)));
+        };
+        void deleteAll();
+    }, [publishedLayers, deleteLayer]);
 
     // ==========================================
     // HORIZONTAL LAYOUT (Bottom Bar Mode)
@@ -274,6 +304,7 @@ const LayoutsPanel: FC = () => {
                                     group={layout}
                                     defaultExpanded={false}
                                     onDelete={handleDeleteLayout}
+                                    onDeleteLayer={handleDeleteImportedLayer}
                                     onPlaceLayer={handlePlaceLayer}
                                     searchQuery={searchQuery}
                                     compact
@@ -281,17 +312,19 @@ const LayoutsPanel: FC = () => {
                             ))
                         }
 
-                        {/* Published Layers */}
-                        {filteredPublishedLayers.map(layer => (
-                            <LayerCard
-                                key={layer.id}
-                                layer={layer}
-                                onCopy={handleCopyPublished}
-                                onClick={openPreview}
-                                onDelete={() => { deleteLayer(layer.id); }}
+                        {/* Saved Layers */}
+                        {savedLayerGroup && (
+                            <LayoutGroupCard
+                                key={savedLayerGroup.id}
+                                group={savedLayerGroup}
+                                defaultExpanded={true}
+                                onDelete={handleDeleteSavedLayersGroup}
+                                onPlaceLayer={handlePlaceLayer}
+                                onDeleteLayer={handleDeleteSavedLayer}
+                                searchQuery={searchQuery}
                                 compact
                             />
-                        ))}
+                        )}
 
                         {/* Empty State */}
                         {importedLayouts.length === 0 && publishedLayers.length === 0 && (
@@ -310,13 +343,6 @@ const LayoutsPanel: FC = () => {
                     </div>
                 </div>
 
-                {/* Layer Preview Modal */}
-                <LayerPreviewModal
-                    layer={previewLayer}
-                    isOpen={isPreviewOpen}
-                    onClose={closePreview}
-                    onCopy={handleCopyPublished}
-                />
             </section>
         );
     }
@@ -416,30 +442,24 @@ const LayoutsPanel: FC = () => {
                             group={layout}
                             defaultExpanded={true}
                             onDelete={handleDeleteLayout}
+                            onDeleteLayer={handleDeleteImportedLayer}
                             onPlaceLayer={handlePlaceLayer}
                             searchQuery={searchQuery}
                         />
                     ))
                 }
 
-                {/* Published Layers */}
-                {filteredPublishedLayers.length > 0 && (
-                    <>
-                        {importedLayouts.length > 0 && (
-                            <div className="text-xs font-medium text-gray-400 uppercase tracking-wider pt-2">
-                                Published Layers
-                            </div>
-                        )}
-                        {filteredPublishedLayers.map(layer => (
-                            <LayerCard
-                                key={layer.id}
-                                layer={layer}
-                                onCopy={handleCopyPublished}
-                                onClick={openPreview}
-                                onDelete={() => { deleteLayer(layer.id); }}
-                            />
-                        ))}
-                    </>
+                {/* Saved Layers */}
+                {savedLayerGroup && (
+                    <LayoutGroupCard
+                        key={savedLayerGroup.id}
+                        group={savedLayerGroup}
+                        defaultExpanded={true}
+                        onDelete={handleDeleteSavedLayersGroup}
+                        onPlaceLayer={handlePlaceLayer}
+                        onDeleteLayer={handleDeleteSavedLayer}
+                        searchQuery={searchQuery}
+                    />
                 )}
 
                 {/* Empty State */}
@@ -474,15 +494,6 @@ const LayoutsPanel: FC = () => {
                     </div>
                 )}
             </div>
-
-
-            {/* Layer Preview Modal */}
-            <LayerPreviewModal
-                layer={previewLayer}
-                isOpen={isPreviewOpen}
-                onClose={closePreview}
-                onCopy={handleCopyPublished}
-            />
         </section >
     );
 };

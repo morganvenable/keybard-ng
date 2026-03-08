@@ -4,7 +4,6 @@
 
 import type { FC } from "react";
 import { useState, useEffect } from "react";
-import { Upload, Check } from "lucide-react";
 
 import {
     Dialog,
@@ -45,7 +44,6 @@ export const PublishLayerDialog: FC<PublishLayerDialogProps> = ({
 
     // UI state
     const [isPublishing, setIsPublishing] = useState(false);
-    const [published, setPublished] = useState(false);
 
     // Initialize form with layer name when dialog opens
     useEffect(() => {
@@ -54,12 +52,10 @@ export const PublishLayerDialog: FC<PublishLayerDialogProps> = ({
             setName(layerName);
             setDescription("");
             setTags("");
-            setPublished(false);
         }
     }, [isOpen, keyboard, layerIndex]);
 
     const handleClose = () => {
-        setPublished(false);
         onClose();
     };
 
@@ -96,7 +92,7 @@ export const PublishLayerDialog: FC<PublishLayerDialogProps> = ({
             // Refresh the layer library context so the new layer appears
             await refreshLayers();
 
-            setPublished(true);
+            handleClose();
         } catch (error) {
             console.error("Failed to publish layer:", error);
         } finally {
@@ -105,19 +101,15 @@ export const PublishLayerDialog: FC<PublishLayerDialogProps> = ({
     };
 
     // Get layer info for display
-    const layerName = keyboard ? svalService.getLayerName(keyboard, layerIndex) : `Layer ${layerIndex}`;
     const keyCount = keyboard?.keymap?.[layerIndex]?.length || 0;
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <Upload className="w-5 h-5" />
-                        Publish Layer
-                    </DialogTitle>
+                    <DialogTitle>Save Layer</DialogTitle>
                     <DialogDescription>
-                        Save "{layerName}" to your local layer library.
+                        Layer will be saved locally to the Layouts panel.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -125,26 +117,12 @@ export const PublishLayerDialog: FC<PublishLayerDialogProps> = ({
                     <div className="py-6 text-center text-gray-500">
                         No keyboard loaded.
                     </div>
-                ) : published ? (
-                    <div className="py-6 text-center">
-                        <div className="flex justify-center mb-4">
-                            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-                                <Check className="w-6 h-6 text-green-600 dark:text-green-400" />
-                            </div>
-                        </div>
-                        <p className="text-lg font-medium text-green-800 dark:text-green-200 mb-2">
-                            Layer Published!
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                            "{name}" has been saved to your layer library.
-                        </p>
-                    </div>
                 ) : (
                     <div className="space-y-4 py-2">
                         {/* Layer Info */}
                         <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-sm">
                             <p className="text-gray-600 dark:text-gray-400">
-                                Publishing layer {layerIndex} with {keyCount} keys
+                                Saving layer {layerIndex} with {keyCount} keys
                             </p>
                         </div>
 
@@ -195,34 +173,28 @@ export const PublishLayerDialog: FC<PublishLayerDialogProps> = ({
                     </div>
                 )}
 
-                <DialogFooter>
-                    {published ? (
-                        <Button onClick={handleClose}>
-                            Done
-                        </Button>
-                    ) : (
-                        <>
-                            <Button variant="outline" onClick={handleClose}>
-                                Cancel
-                            </Button>
-                            <Button
-                                onClick={handlePublish}
-                                disabled={!keyboard || isPublishing || !name.trim()}
-                            >
-                                {isPublishing ? (
-                                    <>
-                                        <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                        Publishing...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Upload className="w-4 h-4 mr-2" />
-                                        Publish
-                                    </>
-                                )}
-                            </Button>
-                        </>
-                    )}
+                <DialogFooter className="mt-8 flex-col sm:flex-row gap-3">
+                    <Button
+                        variant="outline"
+                        onClick={handleClose}
+                        className="rounded-full px-8 py-5 text-base font-medium border-gray-200 hover:bg-gray-50 flex-1 sm:flex-none"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={handlePublish}
+                        disabled={!keyboard || isPublishing || !name.trim()}
+                        className="rounded-full px-8 py-5 text-base font-bold bg-gray-900 hover:bg-black text-white flex-1 sm:flex-none"
+                    >
+                        {isPublishing ? (
+                            <>
+                                <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Saving...
+                            </>
+                        ) : (
+                            "Save"
+                        )}
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

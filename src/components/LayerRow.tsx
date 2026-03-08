@@ -6,7 +6,7 @@
 
 import type { FC } from "react";
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
-import { GripVertical, Check } from "lucide-react";
+import { GripHorizontal, Check, Trash2 } from "lucide-react";
 import CopyIcon from "@/components/icons/CopyIcon";
 
 import type { ImportedLayer } from "@/types/layer-library";
@@ -18,6 +18,13 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { colorClasses } from "@/utils/colors";
 import { useVial } from "@/contexts/VialContext";
 import { useDrag } from "@/contexts/DragContext";
@@ -32,6 +39,8 @@ interface LayerRowProps {
     sourceLayout: string;
     /** Callback when Place button is clicked */
     onPlace: () => void;
+    /** Optional callback to delete this layer from imported layouts */
+    onDelete?: () => void;
     /** Optional search query for highlighting matches */
     searchQuery?: string;
     /** Compact mode for horizontal layout */
@@ -45,6 +54,7 @@ export const LayerRow: FC<LayerRowProps> = ({
     layer,
     sourceLayout,
     onPlace,
+    onDelete,
     searchQuery = "",
     compact = false,
 }) => {
@@ -53,6 +63,7 @@ export const LayerRow: FC<LayerRowProps> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(0.5);
     const [justCopied, setJustCopied] = useState(false);
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
     // Handle drag start for the entire layer
     const handleDragStart = useCallback((e: React.MouseEvent) => {
@@ -155,6 +166,13 @@ export const LayerRow: FC<LayerRowProps> = ({
     // Calculate the scaled container height plus 8px extra below the keys
     const extraHeight = 8;
     const scaledHeight = (dimensions.height * scale) + extraHeight;
+    const canDelete = typeof onDelete === "function";
+
+    const handleDeleteConfirm = () => {
+        if (!onDelete) return;
+        onDelete();
+        setIsDeleteConfirmOpen(false);
+    };
 
     return (
         <div
@@ -169,20 +187,17 @@ export const LayerRow: FC<LayerRowProps> = ({
                 "rounded-sm bg-kb-gray dark:bg-gray-800/80 flex flex-col",
                 compact ? "p-1.5 h-full" : "p-2"
             )}>
-                {/* Layer header with info and Place button moved inside the gray box */}
+                {/* Layer header */}
                 <div className={cn(
-                    "flex items-center justify-between px-1",
-                    compact ? "mb-1 scale-95 origin-left" : "mb-2"
-                )}>
+                    "relative flex items-center justify-start transition-colors hover:bg-black/5 group-hover/row:bg-black/5 rounded-t-md rounded-b-none cursor-grab active:cursor-grabbing",
+                    compact
+                        ? "-mx-1.5 -mt-1.5 px-2.5 pt-1.5 pb-1 mb-1 scale-95 origin-left"
+                        : "-mx-2 -mt-2 px-3 pt-2 pb-1.5 mb-2"
+                )}
+                    onMouseDown={handleDragStart}
+                    title="Drag to replace a layer"
+                >
                     <div className="flex items-center gap-2">
-                        {/* Drag handle */}
-                        <div
-                            className="cursor-grab active:cursor-grabbing p-0.5 -ml-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                            onMouseDown={handleDragStart}
-                            title="Drag to place on current layer"
-                        >
-                            <GripVertical className="w-4 h-4 text-gray-400" />
-                        </div>
                         {/* Layer color indicator - shows LED hardware color if available */}
                         <div
                             className={cn(
@@ -200,9 +215,36 @@ export const LayerRow: FC<LayerRowProps> = ({
                         </span>
                     </div>
 
-                    {/* Place button - only appears on hover of this specific row */}
-                    {/* Copy/Place button - round icon button */}
-                    <div className="opacity-0 group-hover/row:opacity-100 transition-all flex items-center">
+                    {/* Centered drag handle indicator */}
+                    <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none text-gray-400">
+                        <GripHorizontal className="w-4 h-4" />
+                    </div>
+                </div>
+
+                {/* Full-width keyboard preview with scaling */}
+                <div
+                    className="overflow-hidden relative"
+                    style={{
+                        height: compact ? "100%" : `${scaledHeight}px`,
+                    }}
+                >
+                    <div
+                        className={compact ? "flex items-center justify-center h-full" : ""}
+                        style={{
+                            transform: `scale(${scale})`,
+                            transformOrigin: compact ? "center center" : "top left",
+                            width: `${dimensions.width}px`,
+                            height: `${dimensions.height}px`,
+                        }}
+                    >
+                        <MiniKeyboardPreview
+                            keymap={layer.keymap}
+                            layerColor={resolvedColorName}
+                        />
+                    </div>
+
+                    {/* Hover action: copy in bottom-left */}
+                    <div className="absolute bottom-1 left-1 opacity-0 group-hover/row:opacity-100 transition-all z-10">
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
@@ -232,31 +274,58 @@ export const LayerRow: FC<LayerRowProps> = ({
                             </TooltipContent>
                         </Tooltip>
                     </div>
-                </div>
 
-                {/* Full-width keyboard preview with scaling */}
-                <div
-                    className="overflow-hidden"
-                    style={{
-                        height: compact ? "100%" : `${scaledHeight}px`,
-                    }}
-                >
-                    <div
-                        className={compact ? "flex items-center justify-center h-full" : ""}
-                        style={{
-                            transform: `scale(${scale})`,
-                            transformOrigin: compact ? "center center" : "top left",
-                            width: `${dimensions.width}px`,
-                            height: `${dimensions.height}px`,
-                        }}
-                    >
-                        <MiniKeyboardPreview
-                            keymap={layer.keymap}
-                            layerColor={resolvedColorName}
-                        />
-                    </div>
+                    {/* Hover action: delete in bottom-right */}
+                    {canDelete && (
+                        <div className="absolute bottom-1 right-1 opacity-0 group-hover/row:opacity-100 transition-all z-10">
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsDeleteConfirmOpen(true);
+                                        }}
+                                        className="h-8 w-8 rounded-full flex items-center justify-center p-0 text-kb-gray-border transition-all hover:bg-red-500 hover:text-white focus:outline-none cursor-pointer bg-kb-gray-medium"
+                                        title="Delete layer"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Delete Layer</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </div>
+                    )}
                 </div>
             </div>
+
+            <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold">
+                            Clear {layer.name}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <DialogFooter className="gap-3 sm:gap-4 mt-4">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsDeleteConfirmOpen(false)}
+                            className="rounded-full px-8 py-5 text-base border-slate-300 hover:bg-slate-50 transition-colors"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleDeleteConfirm}
+                            className="rounded-full px-8 py-5 text-base font-bold bg-red-600 hover:bg-red-700 transition-colors border-none"
+                        >
+                            Clear
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

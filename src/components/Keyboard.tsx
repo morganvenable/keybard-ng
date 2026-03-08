@@ -47,6 +47,7 @@ interface KeyboardProps {
     activeLayerIndex?: number | null;
     isConnected?: boolean;
     isToggling3D?: boolean;
+    showDropTargetHighlight?: boolean;
 }
 
 /**
@@ -63,6 +64,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
     instanceId,
     activeLayerIndex,
     isToggling3D = false,
+    showDropTargetHighlight = false,
 }) => {
     const {
         selectKeyboardKey,
@@ -736,8 +738,9 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                     xPos += layoutOffsets.offsetX;
 
                     const isSelected = isKeySelected(row, col);
+                    const isSelectedOrDropTarget = isSelected || showDropTargetHighlight;
                     const standardKeyClassName = isGhostKey
-                        ? cn("transition-opacity duration-200 pointer-events-auto", isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100")
+                        ? cn("transition-opacity duration-200 pointer-events-auto", isSelectedOrDropTarget ? "opacity-100" : "opacity-0 group-hover:opacity-100")
                         : "pointer-events-auto";
 
                     const THUMB_3D_SHIFT_PX = (is3DMode && isThumb3DOffsetActive) ? 900 : 0;
@@ -773,7 +776,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                             data-key-h={layout.h}
                             data-key-label={label}
                             data-keycode={keycodeName}
-                            selected={isKeySelected(row, col)}
+                            selected={isSelectedOrDropTarget}
                             onClick={handleKeyClick}
                             onDoubleClick={isGhostKey ? () => {
                                 if (onGhostNavigate) {
@@ -864,7 +867,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                             layerColor={ghostLayerColor}
                             headerClassName={ghostHeaderClassFull}
                             // Ghost styles
-                            className={cn("border-solid border-[3px] transition-opacity", isSelected ? "opacity-0" : "opacity-50 group-hover:opacity-0")}
+                            className={cn("border-solid border-[3px] transition-opacity", isSelectedOrDropTarget ? "opacity-0" : "opacity-50 group-hover:opacity-0")}
                             // Override border color via style to match the specific darkened color
                             style={{ borderColor: darkBorderColor, pointerEvents: "none" }}
                             // Dragging a ghost key should behave like dragging the real transparent key slot
