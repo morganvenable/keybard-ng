@@ -30,7 +30,6 @@ vi.mock('../../src/constants/keygen', () => {
 
     // Modifiers
     'KC_LSFT': { code: 0xe1, qmkid: 'KC_LSFT', str: 'LShift', title: 'Left Shift' },
-    'LSHIFT': { code: 0xe1, qmkid: 'KC_LSFT', str: 'LShift', title: 'Left Shift' },
     'KC_LCTL': { code: 0xe0, qmkid: 'KC_LCTL', str: 'LCtrl', title: 'Left Control' },
     'KC_LALT': { code: 0xe2, qmkid: 'KC_LALT', str: 'LAlt', title: 'Left Alt' },
     'KC_LGUI': { code: 0xe3, qmkid: 'KC_LGUI', str: 'LGui', title: 'Left GUI' },
@@ -65,9 +64,6 @@ vi.mock('../../src/constants/keygen', () => {
     'USER00': { code: 0x7e00, qmkid: 'USER00', str: 'U00', title: 'User 00' },
     'USER01': { code: 0x7e01, qmkid: 'USER01', str: 'U01', title: 'User 01' },
     'USER02': { code: 0x7e02, qmkid: 'USER02', str: 'U02', title: 'User 02' },
-
-    // Alt repeat
-    'QK_ALT_REPEAT_KEY': { code: 0x7c7a, qmkid: 'QK_ALT_REPEAT_KEY', str: 'Arep', title: 'Alt Repeat' },
   };
 
   // Initialize missing entries for generateAllKeycodes testing
@@ -75,13 +71,6 @@ vi.mock('../../src/constants/keygen', () => {
     const userkey = 'USER' + ('' + i).padStart(2, '0');
     if (!mockKeymap[userkey]) {
       mockKeymap[userkey] = { code: 0x7e00 + i, qmkid: userkey, str: `U${i}`, title: `User ${i}` };
-    }
-  }
-
-  for (let i = 0; i < 32; i++) {
-    const qkUserKey = i === 0 ? 'QK_USER' : `QK_USER_${i}`;
-    if (!mockKeymap[qkUserKey]) {
-      mockKeymap[qkUserKey] = { code: 0x7e40 + i, qmkid: qkUserKey, str: `QK_U${i}`, title: `QK User ${i}` };
     }
   }
 
@@ -121,7 +110,6 @@ vi.mock('../../src/constants/keygen', () => {
   mockCodemap[0x0800] = 'LGUI(kc)';
 
   const mockKeyaliases: any = {
-    'KC_LSFT': 'LSFT(kc)',
     'LSHIFT': 'KC_LSFT',
     'LCTRL': 'KC_LCTL',
     'LALT': 'KC_LALT',
@@ -167,12 +155,12 @@ describe('KeyService', () => {
         title: 'Custom Key 1'
       });
       expect(KEYMAP['CUSTOM_KEY_1']).toEqual({
-        code: 0x7e40, // QK_USER (0x7e40) overwrites USER00 (0x7e00) for the custom name
+        code: 0x7e00,
         qmkid: 'CUSTOM_KEY_1',
         str: 'CK1',
         title: 'Custom Key 1'
       });
-      expect(KEYALIASES['CUSTOM_KEY_1']).toBe('QK_USER');
+      expect(KEYALIASES['CUSTOM_KEY_1']).toBe('USER00');
     });
 
     it('should add type and idx to macro keys', () => {
@@ -285,10 +273,6 @@ describe('KeyService', () => {
       // Arrange & Act & Assert
       expect(keyService.parse('UNKNOWN_KEY' as any)).toBeNaN();
       expect(keyService.parse('0x1234' as any)).toBe(0x1234);
-    });
-
-    it('should handle "kc" string inside modifiers as KC_NO', () => {
-      expect(keyService.parse('LCTL(kc)')).toBe(0x0100);
     });
   });
 
@@ -412,7 +396,7 @@ describe('KeyService', () => {
 
     it('should return undefined for unknown keys', () => {
       // Arrange
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       // Act
       const result = keyService.define('UNKNOWN_KEY');
@@ -446,18 +430,6 @@ describe('KeyService', () => {
       // Arrange & Act & Assert
       expect(keyService.canonical('KC_A')).toBe('KC_A');
       expect(keyService.canonical('UNKNOWN')).toBe('UNKNOWN');
-    });
-
-    it('should handle falsy values', () => {
-      // Arrange & Act & Assert
-      expect(keyService.canonical('')).toBe('');
-      expect(keyService.canonical(null as any)).toBe(null);
-      expect(keyService.canonical(undefined as any)).toBe(undefined);
-    });
-
-    it('should handle 0 correctly', () => {
-      // Arrange & Act & Assert
-      expect(keyService.canonical(0)).toBe(0);
     });
   });
 

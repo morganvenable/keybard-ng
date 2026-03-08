@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { vi, beforeEach, beforeAll, afterAll } from 'vitest';
+import { vi } from 'vitest';
 
 // Mock WebHID API globally
 export const createMockHIDDevice = () => ({
@@ -40,8 +40,6 @@ Object.defineProperty(global.navigator, 'hid', {
 // Reset all mocks before each test
 beforeEach(() => {
   vi.clearAllMocks();
-  localStorage.clear();
-  sessionStorage.clear();
   // Reset the mock implementations to defaults
   const hid = global.navigator.hid as any;
   hid.getDevices.mockResolvedValue([]);
@@ -64,7 +62,7 @@ beforeAll(() => {
   console.error = (...args: any[]) => {
     // Suppress expected errors during tests
     if (args[0]?.includes?.('Failed to connect') ||
-      args[0]?.includes?.('USB device not connected')) {
+        args[0]?.includes?.('USB device not connected')) {
       return;
     }
     originalConsoleError(...args);
@@ -88,4 +86,4 @@ declare global {
   }
 }
 
-export { };
+export {};
