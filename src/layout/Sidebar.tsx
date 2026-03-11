@@ -1,7 +1,8 @@
-import { HelpCircle, Keyboard, ListOrdered, LucideIcon, Mouse, Piano, Repeat, Settings } from "lucide-react";
+import { HelpCircle, Keyboard, ListOrdered, LucideIcon, Mouse, Piano, Settings } from "lucide-react";
 import KeybardLogo from "@/components/icons/KeybardLogo";
 import PointingDeviceBall01Icon from "@/components/icons/PointingDeviceBall01Icon";
 import LayoutLayersIcon from "@/components/icons/LayoutLayersIcon";
+import AltRepeatArrowsIcon from "@/components/icons/AltRepeatArrowsIcon";
 import { useCallback, useMemo } from "react";
 
 import ComboIcon from "@/components/ComboIcon";
@@ -72,10 +73,10 @@ const SHOW_ALT_REPEAT = true;
 const SHOW_LEADERS = true;
 
 const featureSidebarItems: SidebarItem[] = [
+    ...(SHOW_ALT_REPEAT ? [{ title: "Alt-Repeat", url: "altrepeat", icon: AltRepeatArrowsIcon }] : []),
+    ...(SHOW_LEADERS ? [{ title: "Leaders", url: "leaders", icon: ListOrdered }] : []),
     { title: "Combos", url: "combos", icon: ComboIcon },
     { title: "Overrides", url: "overrides", icon: OverridesIcon },
-    ...(SHOW_ALT_REPEAT ? [{ title: "Alt-Repeat", url: "altrepeat", icon: Repeat }] : []),
-    ...(SHOW_LEADERS ? [{ title: "Leaders", url: "leaders", icon: ListOrdered }] : []),
 ];
 
 const footerItems: SidebarItem[] = [
@@ -124,7 +125,7 @@ const SidebarNavItem = ({
         >
             <button type="button" onClick={() => onClick(item)} className={cn("flex w-full items-center", getIconJustify(isCollapsed))}>
                 <div className={cn(getIconGutterWidth(isCollapsed), "h-full flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
-                    <item.icon className="h-4 w-4 shrink-0" />
+                    <item.icon className="h-5 w-5 shrink-0" />
                 </div>
                 <span className={cn("truncate", isCollapsed && "hidden")}>
                     {item.title}

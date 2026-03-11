@@ -45,7 +45,7 @@ const SpecialKeyboard: FunctionComponent<IProps> = ({ onChange, onKeyPress: onKe
         // Map display labels to make keys readable. QMK keycodes are preserved as key names.
         display: {
             QK_REPEAT_KEY: "Repeat",
-            QK_ALT_REPEAT_KEY: "Alt Repeat",
+            QK_ALT_REPEAT_KEY: "Alt-Rep",
             QK_LAYER_LOCK: "Layer Lock",
         },
     };

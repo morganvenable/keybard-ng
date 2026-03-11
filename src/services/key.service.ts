@@ -87,6 +87,9 @@ export class KeyService {
       KEYALIASES[`PDF(${i})`] = `DF(${i})`;
     }
 
+    // Assign types to other special keys
+    KEYMAP['QK_ALT_REPEAT_KEY'].type = 'altrepeat';
+
     // 255 tap dances
     for (let i = 0; i < 255; i++) {
       const key = `TD(${i})`;

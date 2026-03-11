@@ -454,6 +454,31 @@ export class ViableService {
         return kmpressed;
     }
 
+    async getLayerStateMask(): Promise<number> {
+        const mask = await this.usb.sendViable(ViableUSB.CMD_VIABLE_LAYER_STATE_GET, [], {
+            uint32: true,
+            index: 1,
+        }) as number;
+        return mask >>> 0;
+    }
+
+    getActiveLayerIndexFromMask(mask: number): number {
+        const unsignedMask = mask >>> 0;
+        if (unsignedMask === 0) return 0;
+        for (let i = 31; i >= 0; i--) {
+            if ((unsignedMask & (1 << i)) !== 0) {
+                return i;
+            }
+        }
+        /* v8 ignore next */
+        return 0;
+    }
+
+    async getActiveLayerIndex(): Promise<number> {
+        const mask = await this.getLayerStateMask();
+        return this.getActiveLayerIndexFromMask(mask);
+    }
+
     // API methods for updating keyboard settings
     async updateKey(layer: number, row: number, col: number, keymask: number): Promise<void> {
         const BE16 = (num: number) => [(num >> 8) & 0xff, num & 0xff];

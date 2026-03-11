@@ -8,7 +8,7 @@ export type KeyMapEntry = {
     qmkid: KeyString;
     str: string;
     title: string;
-    type?: 'macro' | 'layer' | 'tapdance';
+    type?: 'macro' | 'layer' | 'tapdance' | 'altrepeat' | 'leaders';
     idx?: number;
     subtype?: string;
 };

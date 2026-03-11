@@ -1,0 +1,62 @@
+diff --git a/src/layout/KeyboardViewInstance.tsx b/src/layout/KeyboardViewInstance.tsx
+index 6de753d..85d3439 100644
+--- a/src/layout/KeyboardViewInstance.tsx
++++ b/src/layout/KeyboardViewInstance.tsx
+@@ -158,6 +158,12 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
+     if (!keyboard) return null;
+ 
+ 
++
++
++
++
++
++
+     const handleSelectLayer = (layer: number) => () => {
+         setSelectedLayer(layer);
+         clearSelection();
+@@ -408,7 +414,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
+     return (
+         <div
+             ref={containerRef}
+-            className="w-full flex-shrink-0"
++            className="w-full flex-shrink-0 pointer-events-none"
+             style={{
+                 opacity: (isRevealing || isHiding) ? 0 : 1,
+                 transition: 'opacity 200ms ease-in-out',
+@@ -416,7 +422,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
+         >
+             {/* Layer Controls Row: Hide-blank-layers toggle + layer tabs + (optional) remove button */}
+             <div
+-                className="flex items-center gap-2 pl-5 pb-2 whitespace-nowrap"
++                className="flex items-center gap-2 pl-5 pb-2 whitespace-nowrap pointer-events-auto"
+                 style={isPrimary && multiLayerHeaderOffset > 0 ? { marginTop: -multiLayerHeaderOffset } : undefined}
+             >
+                 {!hideLayerTabs && (
+@@ -515,7 +521,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
+             {/* Layer Name Badge Row */}
+             <div
+                 ref={badgeRowRef}
+-                className="pl-5 pt-[7px] pb-2 flex items-center gap-2"
++                className="pl-5 pt-[7px] pb-2 flex items-center gap-2 pointer-events-auto"
+                 style={is3DMode
+                     ? { transform: `translateY(${badgeOffsetY}px)`, transition: 'transform 500ms ease-in-out' }
+                     : undefined}
+@@ -567,7 +573,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
+             {/* Keyboard */}
+             <div
+                 className={cn(
+-                    "flex items-start justify-center max-w-full",
++                    "flex items-start justify-center max-w-full pointer-events-none",
+                     is3DMode && "keyboard-3d-wrapper"
+                 )}
+                 style={is3DMode
+@@ -579,7 +585,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
+             >
+                 <div
+                     className={cn(
+-                        "transition-transform duration-500 ease-in-out",
++                        "transition-transform duration-500 ease-in-out pointer-events-none",
+                         is3DMode && "keyboard-3d-active"
+                     )}
+                     style={{

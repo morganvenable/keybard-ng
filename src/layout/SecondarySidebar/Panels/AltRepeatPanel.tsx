@@ -139,7 +139,7 @@ const AltRepeatPanel: React.FC = () => {
     };
 
     // Custom key contents for the placeable key with explicit label
-    const altRepeatKeyContents: KeyContent = { str: "Alt-Repeat", type: "special" };
+    const altRepeatKeyContents: KeyContent = { str: "Alt-Repeat", type: "altrepeat" };
 
     // Horizontal layout for bottom panel
     if (isHorizontal) {

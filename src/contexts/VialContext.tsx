@@ -29,6 +29,7 @@ interface VialContextType {
     updateKey: (layer: number, row: number, col: number, keymask: number) => Promise<void>;
     pollMatrix: () => Promise<boolean[][]>;
     lastHeartbeat: number;
+    activeLayerIndex: number | null;
 }
 
 const VialContext = createContext<VialContextType | undefined>(undefined);
@@ -40,6 +41,7 @@ export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [loadedFrom, setLoadedFrom] = useState<string | null>(null);
     const [isImporting, setIsImporting] = useState(false);
     const [lastHeartbeat, setLastHeartbeat] = useState<number>(0);
+    const [activeLayerIndex, setActiveLayerIndex] = useState<number | null>(null);
     const isWebHIDSupported = VialService.isWebHIDSupported();
     useEffect(() => {
         console.log("keyboard changed", keyboard);
@@ -200,6 +202,40 @@ export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return result;
     }, [keyboard, isConnected]);
 
+    useEffect(() => {
+        let isActive = true;
+        let timeoutId: number | undefined;
+
+        const pollLayerState = async () => {
+            if (!isActive) return;
+            if (isConnected && keyboard && usbInstance.getDeviceName()) {
+                try {
+                    const activeLayer = await vialService.getActiveLayerIndex();
+                    if (isActive) {
+                        setActiveLayerIndex(activeLayer);
+                    }
+                } catch (error) {
+                    console.warn("Layer state polling error:", error);
+                }
+            } else if (isActive) {
+                setActiveLayerIndex(null);
+            }
+
+            if (isActive) {
+                timeoutId = window.setTimeout(pollLayerState, 120);
+            }
+        };
+
+        pollLayerState();
+
+        return () => {
+            isActive = false;
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+        };
+    }, [isConnected, keyboard]);
+
     // Reset keyboard to original state (used by revert)
     const resetToOriginal = useCallback(() => {
         if (originalKeyboard) {
@@ -239,6 +275,7 @@ export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateKey,
         pollMatrix,
         lastHeartbeat,
+        activeLayerIndex,
     };
 
     return <VialContext.Provider value={value}>{children}</VialContext.Provider>;

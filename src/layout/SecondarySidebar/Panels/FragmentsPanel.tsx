@@ -1,10 +1,11 @@
 import { useState, useCallback } from "react";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { useVial } from "@/contexts/VialContext";
 import { vialService } from "@/services/vial.service";
-import type { FragmentInstance } from "@/types/vial.types";
+import type { FragmentInstance, KeyboardInfo } from "@/types/vial.types";
 
 /**
  * Safely get a value from something that might be a Map or a plain object
@@ -31,11 +32,47 @@ function safeMapGet<K extends string | number, V>(
  */
 const FragmentsPanel: React.FC = () => {
     const { keyboard, setKeyboard } = useVial();
-    const [updating, setUpdating] = useState<number | null>(null);
+    const [updating, setUpdating] = useState<number | "bulk" | null>(null);
     const { layoutMode } = useLayoutSettings();
 
     const isHorizontal = layoutMode === "bottombar";
     const fragmentService = vialService.getFragmentService();
+
+    const applyLocalSelections = useCallback((
+        baseKeyboard: KeyboardInfo,
+        selections: Array<{ instanceId: string; fragmentName: string }>
+    ) => {
+        const newKeyboard = { ...baseKeyboard };
+        const oldState = baseKeyboard.fragmentState;
+        const newHwDetection: Map<number, number> = oldState?.hwDetection instanceof Map
+            ? new Map(oldState.hwDetection)
+            : new Map(Object.entries(oldState?.hwDetection ?? {}).map(([k, v]) => [Number(k), v as number]));
+        const newEepromSelections: Map<number, number> = oldState?.eepromSelections instanceof Map
+            ? new Map(oldState.eepromSelections)
+            : new Map(Object.entries(oldState?.eepromSelections ?? {}).map(([k, v]) => [Number(k), v as number]));
+        const newUserSelections: Map<string, string> = oldState?.userSelections instanceof Map
+            ? new Map(oldState.userSelections)
+            : new Map(Object.entries(oldState?.userSelections ?? {}).map(([k, v]) => [k, v as string]));
+
+        newKeyboard.fragmentState = {
+            hwDetection: newHwDetection,
+            eepromSelections: newEepromSelections,
+            userSelections: newUserSelections,
+        };
+
+        selections.forEach(({ instanceId, fragmentName }) => {
+            newKeyboard.fragmentState?.userSelections.set(instanceId, fragmentName);
+        });
+
+        const fragmentComposer = vialService.getFragmentComposer();
+        const composedLayout = fragmentComposer.composeLayout(newKeyboard);
+        if (Object.keys(composedLayout).length > 0) {
+            newKeyboard.keylayout = { ...composedLayout };
+            console.log("Fragment layout recomposed:", Object.keys(composedLayout).length, "keys");
+        }
+
+        setKeyboard(newKeyboard);
+    }, [setKeyboard]);
 
     // Handle fragment selection change
     const handleSelectionChange = useCallback(async (
@@ -60,39 +97,8 @@ const FragmentsPanel: React.FC = () => {
             }
 
             // Always update local state (works in demo mode and connected mode)
-            const newKeyboard = { ...keyboard };
-
-            // Clone fragmentState and its Maps to ensure React detects the change
-            // Need to create new Map references, not just shallow copy the object
-            const oldState = keyboard.fragmentState;
-            const newHwDetection: Map<number, number> = oldState?.hwDetection instanceof Map
-                ? new Map(oldState.hwDetection)
-                : new Map(Object.entries(oldState?.hwDetection ?? {}).map(([k, v]) => [Number(k), v as number]));
-            const newEepromSelections: Map<number, number> = oldState?.eepromSelections instanceof Map
-                ? new Map(oldState.eepromSelections)
-                : new Map(Object.entries(oldState?.eepromSelections ?? {}).map(([k, v]) => [Number(k), v as number]));
-            const newUserSelections: Map<string, string> = oldState?.userSelections instanceof Map
-                ? new Map(oldState.userSelections)
-                : new Map(Object.entries(oldState?.userSelections ?? {}).map(([k, v]) => [k, v as string]));
-
-            newKeyboard.fragmentState = {
-                hwDetection: newHwDetection,
-                eepromSelections: newEepromSelections,
-                userSelections: newUserSelections,
-            };
-
-            newKeyboard.fragmentState.userSelections.set(instance.id, newFragmentName);
-
-            // Recompose keyboard layout with new fragment selection
-            const fragmentComposer = vialService.getFragmentComposer();
-            const composedLayout = fragmentComposer.composeLayout(newKeyboard);
-            if (Object.keys(composedLayout).length > 0) {
-                // Create a new object reference to ensure React detects the change
-                newKeyboard.keylayout = { ...composedLayout };
-                console.log("Fragment layout recomposed:", Object.keys(composedLayout).length, "keys", deviceSuccess ? "(saved to device)" : "(local only)");
-            }
-
-            setKeyboard(newKeyboard);
+            applyLocalSelections(keyboard, [{ instanceId: instance.id, fragmentName: newFragmentName }]);
+            console.log("Fragment selection updated", deviceSuccess ? "(saved to device)" : "(local only)");
 
             if (deviceSuccess) {
                 try {
@@ -106,7 +112,90 @@ const FragmentsPanel: React.FC = () => {
         } finally {
             setUpdating(null);
         }
-    }, [keyboard, setKeyboard, fragmentService]);
+    }, [keyboard, fragmentService, applyLocalSelections]);
+
+    const resolveDefaultFragmentName = useCallback((instance: FragmentInstance): string | undefined => {
+        const options = instance.fragment_options ?? [];
+        if (options.length === 0) return undefined;
+
+        const isThumb = instance.id.toLowerCase().includes("thumb");
+        const findByName = (pattern: RegExp) => options.find((opt) => pattern.test(opt.fragment))?.fragment;
+        const findByMatrixSize = (size: number) => options.find((opt) => opt.matrix_map.length === size)?.fragment;
+        const fallback = options.find((opt) => opt.default)?.fragment ?? options[0]?.fragment;
+
+        if (isThumb) {
+            return (
+                findByName(/thumb/i) ||
+                findByName(/finger[_-]?6|6key|_6\b|6\b/i) ||
+                findByMatrixSize(6) ||
+                fallback
+            );
+        }
+
+        return (
+            findByName(/finger[_-]?5|5key|_5\b|5\b/i) ||
+            findByMatrixSize(5) ||
+            fallback
+        );
+    }, []);
+
+    const handleApplyDefault = useCallback(async () => {
+        if (!keyboard) return;
+
+        const instances = fragmentService.getSelectableInstances(keyboard);
+        const updates: Array<{
+            idx: number;
+            instance: FragmentInstance;
+            fragmentName: string;
+        }> = [];
+
+        for (const { idx, instance } of instances) {
+            const hwFragmentId = safeMapGet(keyboard.fragmentState?.hwDetection, idx);
+            const hwDetected = hwFragmentId !== undefined && hwFragmentId !== 0xff;
+            const allowOverride = instance.allow_override !== false;
+            if (hwDetected && !allowOverride) {
+                continue;
+            }
+
+            const targetFragment = resolveDefaultFragmentName(instance);
+            if (!targetFragment) continue;
+
+            const currentFragment = fragmentService.resolveFragment(keyboard, idx, instance);
+            if (currentFragment === targetFragment) continue;
+
+            updates.push({ idx, instance, fragmentName: targetFragment });
+        }
+
+        if (updates.length === 0) return;
+
+        setUpdating("bulk");
+
+        let deviceUpdated = false;
+        for (const update of updates) {
+            const optionIdx = fragmentService.getOptionIndex(update.instance, update.fragmentName);
+            try {
+                const success = await vialService.updateFragmentSelection(keyboard, update.idx, optionIdx);
+                deviceUpdated = deviceUpdated || success;
+            } catch {
+                // Continue updating local state even if device is not connected
+            }
+        }
+
+        applyLocalSelections(
+            keyboard,
+            updates.map(({ instance, fragmentName }) => ({ instanceId: instance.id, fragmentName }))
+        );
+
+        if (deviceUpdated) {
+            try {
+                await vialService.saveViable();
+            } catch (e) {
+                console.error("Failed to save default fragment selections:", e);
+            }
+        }
+
+        setUpdating(null);
+    }, [keyboard, fragmentService, resolveDefaultFragmentName, applyLocalSelections]);
 
     // Check if keyboard has fragments
     if (!keyboard || !fragmentService.hasFragments(keyboard)) {
@@ -149,6 +238,18 @@ const FragmentsPanel: React.FC = () => {
     if (isHorizontal) {
         return (
             <div className="flex flex-row gap-3 h-full items-start flex-wrap content-start">
+                <div className="w-full">
+                    <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        className="rounded-full px-4 bg-black text-white hover:bg-gray-800"
+                        onClick={handleApplyDefault}
+                        disabled={updating !== null}
+                    >
+                        Default
+                    </Button>
+                </div>
                 {leftInstances.length > 0 && (
                     <div className="flex flex-col gap-2">
                         <span className="text-[10px] font-bold text-black uppercase">Left</span>
@@ -157,7 +258,7 @@ const FragmentsPanel: React.FC = () => {
                                 const options = fragmentService.getFragmentOptions(instance);
                                 const currentFragment = fragmentService.resolveFragment(keyboard, idx, instance);
                                 const instanceDisplayName = formatInstanceLabel(fragmentService.getInstanceDisplayName(instance.id));
-                                const isUpdating = updating === idx;
+                                const isUpdating = updating === idx || updating === "bulk";
 
                                 return (
                                     <div key={instance.id} className="flex flex-col gap-1 min-w-[120px]">
@@ -194,7 +295,7 @@ const FragmentsPanel: React.FC = () => {
                                 const options = fragmentService.getFragmentOptions(instance);
                                 const currentFragment = fragmentService.resolveFragment(keyboard, idx, instance);
                                 const instanceDisplayName = formatInstanceLabel(fragmentService.getInstanceDisplayName(instance.id));
-                                const isUpdating = updating === idx;
+                                const isUpdating = updating === idx || updating === "bulk";
 
                                 return (
                                     <div key={instance.id} className="flex flex-col gap-1 min-w-[120px]">
@@ -227,7 +328,7 @@ const FragmentsPanel: React.FC = () => {
                     const options = fragmentService.getFragmentOptions(instance);
                     const currentFragment = fragmentService.resolveFragment(keyboard, idx, instance);
                     const instanceDisplayName = fragmentService.getInstanceDisplayName(instance.id);
-                    const isUpdating = updating === idx;
+                    const isUpdating = updating === idx || updating === "bulk";
 
                     return (
                         <div key={instance.id} className="flex flex-col gap-1 min-w-[120px]">
@@ -260,6 +361,18 @@ const FragmentsPanel: React.FC = () => {
     return (
         <div className="flex flex-col h-full overflow-hidden">
             <div className="flex flex-col overflow-auto scrollbar-thin px-4 gap-3 py-2">
+                <div>
+                    <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        className="rounded-full px-4 bg-black text-white hover:bg-gray-800"
+                        onClick={handleApplyDefault}
+                        disabled={updating !== null}
+                    >
+                        Default
+                    </Button>
+                </div>
                 {leftInstances.length > 0 && (
                     <div className="flex flex-col gap-2">
                         <div className="text-sm font-semibold text-black">Left</div>
@@ -276,7 +389,7 @@ const FragmentsPanel: React.FC = () => {
 
                             const allowOverride = instance.allow_override !== false;
                             const isLocked = hwDetected && !allowOverride;
-                            const isUpdating = updating === idx;
+                            const isUpdating = updating === idx || updating === "bulk";
 
                             // Build label with detection info
                             const instanceDisplayName = formatInstanceLabel(fragmentService.getInstanceDisplayName(instance.id));
@@ -341,7 +454,7 @@ const FragmentsPanel: React.FC = () => {
 
                             const allowOverride = instance.allow_override !== false;
                             const isLocked = hwDetected && !allowOverride;
-                            const isUpdating = updating === idx;
+                            const isUpdating = updating === idx || updating === "bulk";
 
                             // Build label with detection info
                             const instanceDisplayName = formatInstanceLabel(fragmentService.getInstanceDisplayName(instance.id));
@@ -403,7 +516,7 @@ const FragmentsPanel: React.FC = () => {
 
                     const allowOverride = instance.allow_override !== false;
                     const isLocked = hwDetected && !allowOverride;
-                    const isUpdating = updating === idx;
+                    const isUpdating = updating === idx || updating === "bulk";
 
                     // Build label with detection info
                     const instanceDisplayName = fragmentService.getInstanceDisplayName(instance.id);

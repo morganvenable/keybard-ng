@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import { colorClasses } from "@/utils/colors";
 import { KeyContent } from "@/types/vial.types";
 import { getHeaderIcons, getCenterContent, getTypeIcon } from "@/utils/key-icons";
+import { useKeyDrag } from "@/hooks/useKeyDrag";
+import { useId } from "react";
 
 export interface PreviewKeyProps {
     x: number;
@@ -19,19 +21,39 @@ export interface PreviewKeyProps {
     label: string;
     keyContents?: KeyContent;
     layerColor?: string;
+    layerColorStyle?: React.CSSProperties;
     unitSize?: number;
     /** Use tiny text for very small previews */
     tiny?: boolean;
+    /** Position in the matrix (for drag payload) */
+    pos?: number;
 }
 
 // Full-size key for hover popup
 const POPUP_UNIT_SIZE = 60;
 
 export const PreviewKey: React.FC<PreviewKeyProps> = ({
-    x, y, w, h, keycode, label, keyContents, layerColor = "primary", unitSize = 30, tiny = false,
+    x, y, w, h, keycode, label, keyContents, layerColor = "primary", layerColorStyle, unitSize = 30, tiny = false, pos = 0
 }) => {
     const [isHovered, setIsHovered] = useState(false);
     const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+    const uniqueId = useId();
+
+    const drag = useKeyDrag({
+        uniqueId,
+        keycode,
+        label,
+        row: 0,
+        col: pos,
+        layerIndex: 0,
+        layerColor,
+        isRelative: true,
+        keyContents,
+        w,
+        h,
+        variant: "small",
+        unitSize
+    });
 
     // --- Data processing (simplified from Key.tsx) ---
     const keyData = useMemo(() => {
@@ -137,16 +159,25 @@ export const PreviewKey: React.FC<PreviewKeyProps> = ({
                 <div
                     className={cn(
                         "absolute flex flex-col items-center justify-between cursor-default uppercase overflow-hidden select-none rounded-[5px] border",
-                        colorClass, "border-kb-gray"
+                        !layerColorStyle && colorClass, "border-kb-gray"
                     )}
                     style={{
+                        ...layerColorStyle,
                         left: `${x * unitSize}px`,
                         top: `${y * unitSize}px`,
                         width: `${w * unitSize}px`,
                         height: `${h * unitSize}px`,
                     }}
-                    onMouseEnter={handleMouseEnter}
-                    onMouseLeave={handleMouseLeave}
+                    onMouseEnter={(e) => {
+                        handleMouseEnter(e);
+                        drag.handleMouseEnter();
+                    }}
+                    onMouseLeave={() => {
+                        handleMouseLeave();
+                        drag.handleMouseLeave();
+                    }}
+                    onMouseDown={drag.handleMouseDown}
+                    onMouseUp={drag.handleMouseUp}
                 >
                     <span className={cn(
                         "whitespace-nowrap w-full text-center font-semibold py-0 text-white bg-black/30",
@@ -178,9 +209,10 @@ export const PreviewKey: React.FC<PreviewKeyProps> = ({
                         <div
                             className={cn(
                                 "flex flex-col items-center justify-between uppercase overflow-hidden select-none rounded-md border-2 shadow-lg",
-                                colorClass, "border-kb-gray"
+                                !layerColorStyle && colorClass, "border-kb-gray"
                             )}
                             style={{
+                                ...layerColorStyle,
                                 width: `${w * POPUP_UNIT_SIZE}px`,
                                 height: `${h * POPUP_UNIT_SIZE}px`,
                             }}
@@ -208,16 +240,25 @@ export const PreviewKey: React.FC<PreviewKeyProps> = ({
             <div
                 className={cn(
                     "absolute flex flex-col items-center justify-between cursor-default uppercase overflow-hidden select-none rounded-[5px] border",
-                    colorClass, "border-kb-gray"
+                    !layerColorStyle && colorClass, "border-kb-gray"
                 )}
                 style={{
+                    ...layerColorStyle,
                     left: `${x * unitSize}px`,
                     top: `${y * unitSize}px`,
                     width: `${w * unitSize}px`,
                     height: `${h * unitSize}px`,
                 }}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
+                onMouseEnter={(e) => {
+                    handleMouseEnter(e);
+                    drag.handleMouseEnter();
+                }}
+                onMouseLeave={() => {
+                    handleMouseLeave();
+                    drag.handleMouseLeave();
+                }}
+                onMouseDown={drag.handleMouseDown}
+                onMouseUp={drag.handleMouseUp}
             >
                 {renderKeyContent(tiny ? "tiny" : "small")}
             </div>
@@ -235,9 +276,10 @@ export const PreviewKey: React.FC<PreviewKeyProps> = ({
                     <div
                         className={cn(
                             "flex flex-col items-center justify-between uppercase overflow-hidden select-none rounded-md border-2 shadow-lg",
-                            colorClass, "border-kb-gray"
+                            !layerColorStyle && colorClass, "border-kb-gray"
                         )}
                         style={{
+                            ...layerColorStyle,
                             width: `${w * POPUP_UNIT_SIZE}px`,
                             height: `${h * POPUP_UNIT_SIZE}px`,
                         }}

@@ -26,6 +26,7 @@ export interface UseKeyDragProps {
     disableHover?: boolean;
     disableDrag?: boolean;
     dragItemData?: Partial<DragItem>;
+    unitSize?: number;
 }
 
 /**
@@ -35,7 +36,7 @@ export const useKeyDrag = (props: UseKeyDragProps) => {
     const {
         uniqueId, keycode, label, row, col, layerIndex, layerColor,
         isRelative, keyContents, w, h, dragW, dragH, variant, onClick, disableHover, disableDrag,
-        dragItemData
+        dragItemData, unitSize
     } = props;
 
     const { startDrag, dragSourceId, isDragging, draggedItem, markDropConsumed } = useDrag();
@@ -47,10 +48,11 @@ export const useKeyDrag = (props: UseKeyDragProps) => {
     const [isDragHover, setIsDragHover] = useState(false);
 
     const currentUnitSize = useMemo(() => {
+        if (unitSize !== undefined) return unitSize;
         if (variant === "small") return 30;
         if (variant === "medium") return 45;
         return UNIT_SIZE;
-    }, [variant]);
+    }, [variant, unitSize]);
 
     // Calculate the target unit size for the drag payload based on the global key variant
     const targetUnitSize = useMemo(() => {
@@ -142,16 +144,20 @@ export const useKeyDrag = (props: UseKeyDragProps) => {
         window.addEventListener("mouseup", handleUp);
     }, [keycode, label, keyContents, uniqueId, w, currentUnitSize, h, row, col, layerColor, variant, isRelative, layerIndex, startDrag, dragW, dragH, dragItemData]);
 
-    const handleMouseUp = useCallback(() => {
+    const handleMouseUp = useCallback((e: React.MouseEvent) => {
         if (canDrop && isDragHover && draggedItem) {
             markDropConsumed();
 
             if (draggedItem.row !== undefined && draggedItem.col !== undefined && draggedItem.layer !== undefined) {
                 if (draggedItem.row !== row || draggedItem.col !== col || draggedItem.layer !== layerIndex) {
-                    swapKeys(
-                        { type: "keyboard", row: draggedItem.row, col: draggedItem.col, layer: draggedItem.layer },
-                        { type: "keyboard", row, col, layer: layerIndex }
-                    );
+                    if (e.altKey) {
+                        assignKeycodeTo({ type: "keyboard", layer: layerIndex, row, col }, draggedItem.keycode);
+                    } else {
+                        swapKeys(
+                            { type: "keyboard", row: draggedItem.row, col: draggedItem.col, layer: draggedItem.layer },
+                            { type: "keyboard", row, col, layer: layerIndex }
+                        );
+                    }
                 }
             } else {
                 const dragKc = draggedItem.keycode;

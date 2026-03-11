@@ -36,10 +36,10 @@ export class QMKService {
         { uint16: true, skipBytes: 1 }
       );
 
-      console.log('[QMK] Query response (cur', cur, '):', data);
+      if (!data) break;
 
       // data should be a Uint16Array
-      const dataArray = Array.isArray(data) ? data : Array.from(data);
+      const dataArray = Array.isArray(data) ? data : Array.from(data as Iterable<any>);
 
       let gotAny = false;
       for (const qsid of dataArray) {

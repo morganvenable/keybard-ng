@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { EllipsisVertical, Settings } from "lucide-react";
+import { EllipsisVertical } from "lucide-react";
+import Settings2Icon from "@/components/icons/Settings2Icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,8 +15,6 @@ import { useChanges } from "@/contexts/ChangesContext";
 import { svalService } from "@/services/sval.service";
 import { usbInstance } from "@/services/usb.service";
 import { layerColors } from "@/utils/colors";
-import MiniZapIcon from "@/components/icons/MiniZap";
-import MiniZapDefaultIcon from "@/components/icons/MiniZapDefault";
 import { getPresetHsv, hsvToHex, hexToHsv } from "@/utils/color-conversion";
 
 import { cn } from "@/lib/utils";
@@ -33,6 +32,7 @@ interface LayerNameBadgeProps {
     isActive?: boolean;
     onToggleLayerOn?: (layer: number) => void;
     defaultLayerIndex?: number;
+    trailingAction?: React.ReactNode;
 }
 
 /**
@@ -47,6 +47,7 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
     isActive,
     onToggleLayerOn,
     defaultLayerIndex = 0,
+    trailingAction,
 }) => {
     const { keyboard, setKeyboard, isConnected, updateKey } = useVial();
     const { queue } = useChanges();
@@ -93,6 +94,11 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
     // const hardwareColorHex = getHardwareColorHex();
 
     const allColors = [...layerColors];
+    const isDefaultLayer = selectedLayer === defaultLayerIndex;
+    const isLayerActive = !!isActive;
+    const showStatusRing = isDefaultLayer || isLayerActive;
+    const useInsetDotStyle = isLayerActive && !isDefaultLayer;
+    const layerDotTooltipText = isDefaultLayer ? "Default Layer" : "Layer Color";
 
     const handleStartEditing = () => {
         const currentName = svalService.getLayerName(keyboard, selectedLayer);
@@ -272,60 +278,57 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
         left: `${x}px`,
         top: `${y}px`,
         transform: "translate(-50%, -50%)",
-        position: 'absolute'
+        position: 'absolute',
+        marginLeft: "24px",
     } : {
-        position: 'relative'
+        position: 'relative',
+        marginLeft: "24px",
     };
 
     return (
         <>
             <div
                 className={cn(
-                    "flex items-center gap-2 z-50",
+                    "group/layer-badge flex items-center gap-2 z-50 transition-[margin] duration-150",
                     className
                 )}
                 style={style}
                 onClick={(e) => e.stopPropagation()}
             >
                 <div
-                    className="w-6 h-6 flex items-center justify-center flex-shrink-0 mr-[-3px]"
-                    onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        onToggleLayerOn?.(selectedLayer);
-                    }}
+                    className="relative"
+                    ref={pickerRef}
                 >
-                    {isActive ? (
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <span className="flex items-center">
-                                    {selectedLayer === defaultLayerIndex ? (
-                                        <MiniZapDefaultIcon className="w-6 h-6 text-gray-300" />
-                                    ) : (
-                                        <MiniZapIcon className="w-6 h-6 text-gray-300" />
-                                    )}
-                                </span>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                                {selectedLayer === defaultLayerIndex ? "Default Layer" : "Active Layer"}
-                            </TooltipContent>
-                        </Tooltip>
-                    ) : null}
-                </div>
-
-                {/* Display Color Dot with Picker */}
-                <div className="relative" ref={pickerRef}>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <div
+                            <button
+                                type="button"
                                 className={cn(
-                                    "w-5 h-5 rounded-full shadow-sm cursor-pointer transition-transform hover:scale-110 border-2",
-                                    isColorPickerOpen ? "border-black" : "border-transparent"
+                                    "relative w-7 h-7 rounded-full cursor-pointer transition-transform hover:scale-110 flex items-center justify-center",
+                                    isColorPickerOpen && "z-30"
                                 )}
-                                style={{ backgroundColor: displayColorHex }}
+                                style={showStatusRing ? { border: `2px solid ${displayColorHex}` } : undefined}
+                                onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleLayerOn?.(selectedLayer);
+                                }}
                                 onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-                            />
+                            >
+                                <span
+                                    className="w-[18px] h-[18px] rounded-full shadow-sm"
+                                    style={useInsetDotStyle
+                                        ? {
+                                            backgroundColor: "transparent",
+                                            boxShadow: `inset 0 0 0 6px ${displayColorHex}`,
+                                        }
+                                        : { backgroundColor: displayColorHex }}
+                                />
+                                {isColorPickerOpen && (
+                                    <span className="absolute -inset-[3px] rounded-full border-2 border-black pointer-events-none z-20" />
+                                )}
+                            </button>
                         </TooltipTrigger>
-                        <TooltipContent side="top">Display Color</TooltipContent>
+                        <TooltipContent side="top">{layerDotTooltipText}</TooltipContent>
                     </Tooltip>
 
                     {isColorPickerOpen && (
@@ -349,7 +352,7 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
                                     setIsCustomColorOpen(true);
                                 }}
                             >
-                                <Settings className="w-3 h-3 text-gray-600" />
+                                <Settings2Icon className="w-3 h-3 text-gray-600" />
                             </button>
                         </div>
                     )}
@@ -385,7 +388,7 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
                             <EllipsisVertical size={16} strokeWidth={1.5} />
                         </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-56">
+                    <DropdownMenuContent align="start" className="w-56 z-[1000]">
                         <DropdownMenuItem onSelect={handleCopyLayer}>
                             Copy Layer
                         </DropdownMenuItem>
@@ -408,10 +411,12 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={() => setIsPublishDialogOpen(true)}>
-                            Publish Layer...
+                            Save Layer...
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
+
+                {trailingAction}
 
                 {/* LED Color Indicator - Hidden per user request */}
                 {/* <Tooltip>

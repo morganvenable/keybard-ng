@@ -174,6 +174,7 @@ const KeyboardConnector: React.FC = () => {
                             onKeyClick={(layer, row, col) => {
                                 console.log(`Clicked key at layer ${layer}, row ${row}, col ${col}`);
                             }}
+                            isConnected={isConnected}
                         />
                     )}
                 </div>

@@ -403,10 +403,24 @@ export class FileService {
         if (kbinfo.composition?.instances && kbinfo.fragments) {
             const fragmentService = new FragmentService(null as any); // No USB needed
             const resolvedSelections: Record<string, string> = {};
+            const getUserSelection = (instanceId: string): string | undefined => {
+                const selections = kbinfo.fragmentState?.userSelections;
+                if (!selections) return undefined;
+                if (selections instanceof Map) {
+                    return selections.get(instanceId);
+                }
+                return (selections as Record<string, string>)[instanceId];
+            };
 
             kbinfo.composition.instances.forEach((instance, idx) => {
                 if (instance.fragment_options) {
-                    const resolved = fragmentService.resolveFragment(kbinfo, idx, instance);
+                    const userSelection = getUserSelection(instance.id);
+                    const hasUserSelection = userSelection
+                        ? instance.fragment_options.some((opt) => opt.fragment === userSelection)
+                        : false;
+                    const resolved = hasUserSelection
+                        ? userSelection!
+                        : fragmentService.resolveFragment(kbinfo, idx, instance);
                     if (resolved) {
                         resolvedSelections[instance.id] = resolved;
                     }

@@ -53,6 +53,13 @@ interface LayoutSettingsContextType {
     setMeasuredDimensions: (dimensions: MeasuredDimensions) => void;
     // Dynamic finger cluster squeeze: amount to shift each side toward center (in key units)
     fingerClusterSqueeze: number;
+    // 3D isometric view mode
+    is3DMode: boolean;
+    setIs3DMode: (mode: boolean) => void;
+    isThumb3DOffsetActive: boolean;
+    setIsThumb3DOffsetActive: (active: boolean) => void;
+    backdropOpacity: number;
+    setBackdropOpacity: (opacity: number) => void;
 }
 
 const LayoutSettingsContext = createContext<LayoutSettingsContextType | undefined>(undefined);
@@ -71,6 +78,9 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
     const [expandPrimarySidebar, setExpandPrimarySidebar] = useState<(() => void) | null>(null);
     const [userManuallyCollapsedSidebar, setUserManuallyCollapsedSidebar] = useState<boolean>(false);
     const [measuredDimensions, setMeasuredDimensionsState] = useState<MeasuredDimensions | null>(null);
+    const [is3DMode, setIs3DMode] = useState<boolean>(false);
+    const [isThumb3DOffsetActive, setIsThumb3DOffsetActive] = useState<boolean>(false);
+    const [backdropOpacity, setBackdropOpacity] = useState<number>(0.25);
 
     // Use refs to track current values without triggering re-renders during calculation
     const secondarySidebarOpenRef = useRef(false);
@@ -400,6 +410,12 @@ export const LayoutSettingsProvider: React.FC<{ children: ReactNode }> = ({ chil
             registerPrimarySidebarControl,
             setMeasuredDimensions,
             fingerClusterSqueeze,
+            is3DMode,
+            setIs3DMode,
+            isThumb3DOffsetActive,
+            setIsThumb3DOffsetActive,
+            backdropOpacity,
+            setBackdropOpacity,
         }}>
             {children}
         </LayoutSettingsContext.Provider>

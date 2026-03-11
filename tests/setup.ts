@@ -1,5 +1,8 @@
-import '@testing-library/jest-dom';
 import { vi } from 'vitest';
+
+if (typeof document !== 'undefined') {
+  await import('@testing-library/jest-dom');
+}
 
 // Mock WebHID API globally
 export const createMockHIDDevice = () => ({
@@ -26,7 +29,15 @@ export const createMockHIDDevice = () => ({
 });
 
 // Setup global navigator.hid mock
-Object.defineProperty(global.navigator, 'hid', {
+if (!(globalThis as { navigator?: Navigator }).navigator) {
+  Object.defineProperty(globalThis, 'navigator', {
+    value: {},
+    writable: true,
+    configurable: true,
+  });
+}
+
+Object.defineProperty(globalThis.navigator, 'hid', {
   value: {
     requestDevice: vi.fn(),
     getDevices: vi.fn().mockResolvedValue([]),
@@ -41,7 +52,7 @@ Object.defineProperty(global.navigator, 'hid', {
 beforeEach(() => {
   vi.clearAllMocks();
   // Reset the mock implementations to defaults
-  const hid = global.navigator.hid as any;
+  const hid = globalThis.navigator.hid as any;
   hid.getDevices.mockResolvedValue([]);
   hid.requestDevice.mockResolvedValue([createMockHIDDevice()]);
 });

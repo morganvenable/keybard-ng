@@ -1,17 +1,9 @@
-/**
- * PasteLayerDialog - Confirmation dialog for pasting a copied layer
- *
- * Shows when user presses Ctrl+V with a layer in the clipboard.
- * Asks for confirmation before replacing the current layer.
- */
-
 import type { FC } from "react";
-import { AlertTriangle } from "lucide-react";
+import ClipboardIcon from "@/components/icons/ClipboardIcon";
 
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -20,14 +12,13 @@ import { Button } from "@/components/ui/button";
 import { useLayoutLibrary } from "@/contexts/LayoutLibraryContext";
 
 interface PasteLayerDialogProps {
-    /** Current layer name (the one being replaced) */
-    currentLayerName: string;
+    /** Current layer name (the one being replaced) - No longer used in new design but kept for prop compatibility if needed */
+    currentLayerName?: string;
     /** Callback when paste is confirmed */
     onConfirm: () => void;
 }
 
 export const PasteLayerDialog: FC<PasteLayerDialogProps> = ({
-    currentLayerName,
     onConfirm,
 }) => {
     const { layerClipboard, isPasteDialogOpen, closePasteDialog } = useLayoutLibrary();
@@ -41,35 +32,33 @@ export const PasteLayerDialog: FC<PasteLayerDialogProps> = ({
 
     return (
         <Dialog open={isPasteDialogOpen} onOpenChange={(open) => !open && closePasteDialog()}>
-            <DialogContent className="sm:max-w-[400px]">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-yellow-500" />
-                        Paste Layer?
+            <DialogContent className="sm:max-w-[420px] p-8">
+                <DialogHeader className="space-y-4">
+                    <DialogTitle className="flex items-center gap-3 text-xl font-bold text-gray-900">
+                        <ClipboardIcon className="w-6 h-6 text-black" />
+                        {layerClipboard.layer.name} layer is in the clipboard
                     </DialogTitle>
-                    <DialogDescription>
-                        Replace <strong>"{currentLayerName}"</strong> with{" "}
-                        <strong>"{layerClipboard.layer.name}"</strong>?
-                    </DialogDescription>
                 </DialogHeader>
 
-                <div className="py-4">
-                    <p className="text-sm text-gray-600">
-                        This will overwrite all keys on the current layer. This action cannot be undone.
+                <div className="py-2">
+                    <p className="text-gray-600 leading-relaxed">
+                        Paste Now into the currently selected layer, or press Cancel and then paste it into any layer using that layer's contextual menu.
                     </p>
-                    {layerClipboard.layer.description && (
-                        <p className="text-sm text-gray-500 mt-2 italic">
-                            "{layerClipboard.layer.description}"
-                        </p>
-                    )}
                 </div>
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={closePasteDialog}>
+                <DialogFooter className="mt-8 flex-col sm:flex-row gap-3">
+                    <Button
+                        variant="outline"
+                        onClick={closePasteDialog}
+                        className="rounded-full px-8 py-5 text-base font-medium border-gray-200 hover:bg-gray-50 flex-1 sm:flex-none"
+                    >
                         Cancel
                     </Button>
-                    <Button onClick={handlePaste}>
-                        Paste
+                    <Button
+                        onClick={handlePaste}
+                        className="rounded-full px-8 py-5 text-base font-bold bg-gray-900 hover:bg-black text-white flex-1 sm:flex-none"
+                    >
+                        Paste Now
                     </Button>
                 </DialogFooter>
             </DialogContent>

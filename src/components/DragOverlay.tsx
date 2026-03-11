@@ -47,14 +47,14 @@ export const DragOverlay: React.FC = () => {
         if (draggedItem.component === "Layer" && draggedItem.layerData) {
             // Layer drag visualization
             const layerColor = draggedItem.layerData.layerColor;
-            const colorClass = layerColor ? colorClasses[layerColor] || "bg-blue-500" : "bg-blue-500";
+            const colorClass = layerColor ? colorClasses[layerColor] || colorClasses.blue : colorClasses.blue;
             return (
                 <div className={cn(
                     "flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg border-2 border-white",
                     colorClass
                 )}>
-                    <Layers className="w-5 h-5 text-white" />
-                    <span className="text-white font-medium text-sm whitespace-nowrap">
+                    <Layers className="w-5 h-5" />
+                    <span className="font-medium text-sm whitespace-nowrap">
                         {draggedItem.layerData.name}
                     </span>
                 </div>

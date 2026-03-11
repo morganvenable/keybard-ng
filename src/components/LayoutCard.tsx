@@ -5,8 +5,14 @@
 
 import type { FC } from "react";
 import { Check, Clock, Copy, Loader2, Tag, Trash2, User, Keyboard } from "lucide-react";
-import { useState } from "react";
+import CopyIcon from "@/components/icons/CopyIcon";
+import { useState, useMemo } from "react";
 
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { LayerEntry } from "@/types/layer-library";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,9 +26,10 @@ import { getKeyLabel, getKeycodeName } from "@/utils/layers";
 const MiniKeyboardPreview: FC<{
     keymap: number[];
     layerColor?: string;
+    layerColorStyle?: React.CSSProperties;
     unitSize?: number;
     className?: string;
-}> = ({ keymap, layerColor = "primary", unitSize = 15, className }) => {
+}> = ({ keymap, layerColor = "primary", layerColorStyle, unitSize = 15, className }) => {
     const { keyboard } = useVial();
     const layout = (keyboard?.keylayout && Object.keys(keyboard.keylayout).length > 0)
         ? keyboard.keylayout as Record<number, { x: number; y: number; w: number; h: number; row?: number; col?: number }>
@@ -47,24 +54,6 @@ const MiniKeyboardPreview: FC<{
             {Object.entries(layout).map(([matrixPos, k]) => {
                 const pos = Number(matrixPos);
                 const keycode = keymap[pos] || 0;
-                const isEmpty = keycode === 0 || keycode === 1; // KC_NO or KC_TRNS
-
-                if (isEmpty) {
-                    // Gray placeholder for unassigned keys
-                    return (
-                        <div
-                            key={pos}
-                            className="absolute rounded-[3px] bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600"
-                            style={{
-                                left: k.x * unitSize,
-                                top: k.y * unitSize,
-                                width: k.w * unitSize,
-                                height: k.h * unitSize,
-                            }}
-                        />
-                    );
-                }
-
                 const { label, keyContents } = getKeyLabel(mockKeyboard as any, keycode);
                 const keycodeName = getKeycodeName(keycode);
 
@@ -79,8 +68,10 @@ const MiniKeyboardPreview: FC<{
                         label={label}
                         keyContents={keyContents}
                         layerColor={layerColor}
+                        layerColorStyle={layerColorStyle}
                         unitSize={unitSize}
                         tiny={unitSize <= 18}
+                        pos={pos}
                     />
                 );
             })}
@@ -146,9 +137,11 @@ export const LayerCard: FC<LayerCardProps> = ({
     };
 
     // Get layer color class
-    const layerColorClass = layer.layerColor
-        ? colorClasses[layer.layerColor] || "bg-kb-primary"
-        : "bg-kb-primary";
+    const layerColorClass = useMemo(() => {
+        const colorName = layer.layerColor || "primary";
+        return colorClasses[colorName] || "bg-kb-primary";
+    }, [layer.layerColor]);
+
 
     // Compact mode for horizontal/bottom bar layout - wide card with mini keyboard preview
     if (compact) {
@@ -156,7 +149,7 @@ export const LayerCard: FC<LayerCardProps> = ({
             <div
                 onClick={handleClick}
                 className={cn(
-                    "border rounded-lg p-2 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow",
+                    "border rounded-lg p-2 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow group/card",
                     "border-gray-200 dark:border-gray-700 w-[340px] h-full flex-shrink-0 flex flex-col",
                     onClick && "cursor-pointer",
                     className
@@ -164,7 +157,9 @@ export const LayerCard: FC<LayerCardProps> = ({
             >
                 {/* Header row: color dot + name + key count + delete */}
                 <div className="flex items-center gap-1.5 mb-1">
-                    <div className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", layerColorClass)} />
+                    <div
+                        className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-sm", layerColorClass)}
+                    />
                     <h3 className="font-semibold text-xs text-gray-900 dark:text-gray-100 truncate flex-1">
                         {layer.name}
                     </h3>
@@ -192,29 +187,34 @@ export const LayerCard: FC<LayerCardProps> = ({
 
                 {/* Footer: place button */}
                 <div className="flex items-center justify-end gap-1 mt-1">
-                    <Button
-                        variant={justCopied ? "default" : error ? "destructive" : "outline"}
-                        size="sm"
-                        className="h-5 text-[10px] px-2"
-                        onClick={handleCopy}
-                        disabled={isLoading}
-                    >
-                        {isLoading ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : justCopied ? (
-                            <>
-                                <Check className="w-3 h-3 mr-0.5" />
-                                Placed
-                            </>
-                        ) : error ? (
-                            "Error"
-                        ) : (
-                            <>
-                                <Copy className="w-3 h-3 mr-0.5" />
-                                Place
-                            </>
-                        )}
-                    </Button>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant={justCopied ? "default" : error ? "destructive" : "outline"}
+                                size="icon"
+                                className={cn(
+                                    "h-7 w-7 rounded-full flex items-center justify-center p-0 opacity-0 group-hover/card:opacity-100 transition-all",
+                                    justCopied && "bg-green-500 hover:bg-green-600 border-green-500 text-white"
+                                )}
+                                onClick={handleCopy}
+                                disabled={isLoading}
+                                title="" // Clear native title
+                            >
+                                {isLoading ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : justCopied ? (
+                                    <Check className="w-3.5 h-3.5" />
+                                ) : error ? (
+                                    <span className="text-[8px]">!</span>
+                                ) : (
+                                    <CopyIcon className="w-3.5 h-3.5" />
+                                )}
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Copy Layer</p>
+                        </TooltipContent>
+                    </Tooltip>
                 </div>
             </div>
         );
@@ -237,7 +237,7 @@ export const LayerCard: FC<LayerCardProps> = ({
                         {/* Layer color indicator */}
                         <div
                             className={cn(
-                                "w-3 h-3 rounded-full flex-shrink-0",
+                                "w-3 h-3 rounded-full flex-shrink-0 shadow-sm",
                                 layerColorClass
                             )}
                         />

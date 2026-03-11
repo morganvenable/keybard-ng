@@ -1,4 +1,4 @@
-import { FC, useEffect, useRef, useState } from "react";
+import { FC, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Keyboard } from "@/components/Keyboard";
 import { LayerNameBadge } from "@/components/LayerNameBadge";
@@ -7,14 +7,16 @@ import LayersDefaultIcon from "@/components/icons/LayersDefault";
 import LayersMinusIcon from "@/components/icons/LayersMinusIcon";
 import SquareArrowLeftIcon from "@/components/icons/SquareArrowLeft";
 import SquareArrowRightIcon from "@/components/icons/SquareArrowRight";
-import { Microscope } from "lucide-react";
 import { useVial } from "@/contexts/VialContext";
 import { useKeyBinding } from "@/contexts/KeyBindingContext";
 import { useChanges } from "@/contexts/ChangesContext";
 import { cn } from "@/lib/utils";
+import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { svalService } from "@/services/sval.service";
 import { MATRIX_COLS } from "@/constants/svalboard-layout";
+import { KEYMAP } from "@/constants/keygen";
 import { usePanels } from "@/contexts/PanelsContext";
+import { LEGACY_FORWARD_ENTRY_MS, type LayerScenePose } from "./layer-scene";
 import {
     ContextMenu,
     ContextMenuContent,
@@ -29,7 +31,7 @@ interface KeyboardViewInstanceProps {
     setSelectedLayer: (layer: number) => void;
     isPrimary: boolean;
     hideLayerTabs?: boolean;
-    layerActiveState: boolean[];
+    layerActiveState?: boolean[];
     onToggleLayerOn: (layer: number) => void;
     transparencyByLayer: Record<number, boolean>;
     onToggleTransparency: (layer: number, next: boolean) => void;
@@ -37,10 +39,24 @@ interface KeyboardViewInstanceProps {
     onToggleShowLayers: () => void;
     isLayerOrderReversed: boolean;
     onToggleLayerOrder: () => void;
+    isOverviewSceneActive: boolean;
+    show3DScene: boolean;
+    scenePose: LayerScenePose;
+    legacyForwardEntryActive?: boolean;
+    isAllTransparencyActive: boolean;
+    isTransparencyRestoring?: boolean;
+    multiLayerHeaderOffset?: number;
     onRemove?: () => void;
     onGhostNavigate?: (sourceLayer: number) => void;
     isRevealing?: boolean;
     isHiding?: boolean;
+    stackIndex?: number;
+    baseBadgeOffsetY?: number | null;
+    onBaseBadgeOffsetY?: (offset: number | null) => void;
+    isLayerDragActive?: boolean;
+    hoveredDropLayer?: number | null;
+    onLayerDropHover?: (layer: number | null) => void;
+    onLayerDrop?: (layer: number) => void;
 }
 
 /**
@@ -61,30 +77,239 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
     onToggleShowLayers,
     isLayerOrderReversed,
     onToggleLayerOrder,
+    isOverviewSceneActive,
+    show3DScene,
+    scenePose,
+    legacyForwardEntryActive = false,
+    isAllTransparencyActive,
+    isTransparencyRestoring = false,
+    multiLayerHeaderOffset = 0,
     onRemove,
     onGhostNavigate,
     isRevealing = false,
     isHiding = false,
+    stackIndex = 0,
+    baseBadgeOffsetY = null,
+    onBaseBadgeOffsetY,
+    isLayerDragActive = false,
+    hoveredDropLayer = null,
+    onLayerDropHover,
+    onLayerDrop,
 }) => {
-    const { keyboard, updateKey, setKeyboard } = useVial();
+    const { keyboard, updateKey, setKeyboard, activeLayerIndex, isConnected } = useVial();
+    const transparentKeyGlyph = KEYMAP["KC_TRNS"]?.str || "▽";
     const { clearSelection } = useKeyBinding();
     const { queue } = useChanges();
     const { activePanel } = usePanels();
+    const { is3DMode, keyVariant } = useLayoutSettings();
+    const badgeRowRef = useRef<HTMLDivElement | null>(null);
+    const [badgeOffsetY, setBadgeOffsetY] = useState(() => {
+        if (!show3DScene) return 0;
+        if (baseBadgeOffsetY !== null) return baseBadgeOffsetY;
+        const unitSize = keyVariant === "small" ? 30 : keyVariant === "medium" ? 45 : 60;
+        return unitSize * 7.7;
+    });
+    const [badgeTransitionEnabled, setBadgeTransitionEnabled] = useState(false);
+    const hasMeasuredRef = useRef(false);
+    const hasInitialized3DToggleRef = useRef(false);
+    const cachedBaseOffset = useRef<number | null>(null);
+    const [layerAnimatingIn, setLayerAnimatingIn] = useState(() => !isPrimary && legacyForwardEntryActive);
+    const [isToggling3D, setIsToggling3D] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const TOGGLE_3D_TRANSITION_MS = 500;
+    const LEGACY_FORWARD_ENTRY_TRANSITION = `opacity ${LEGACY_FORWARD_ENTRY_MS}ms ease-in-out, transform ${LEGACY_FORWARD_ENTRY_MS}ms ease-in-out`;
+    const LEGACY_FORWARD_ENTRY_TRANSFORM_TRANSITION = `transform ${LEGACY_FORWARD_ENTRY_MS}ms ease-in-out`;
+    const transitionDurationMs = scenePose.transitionMs ?? 500;
+    const transitionEasing = scenePose.easing;
+    const effectiveTransitionMs = transitionDurationMs > 0
+        ? transitionDurationMs
+        : (isToggling3D ? TOGGLE_3D_TRANSITION_MS : 0);
+    const sceneTransitionStyle = effectiveTransitionMs > 0
+        ? `opacity ${effectiveTransitionMs}ms ${transitionEasing}, transform ${effectiveTransitionMs}ms ${transitionEasing}`
+        : "none";
+    const transformTransitionStyle = effectiveTransitionMs > 0
+        ? `transform ${effectiveTransitionMs}ms ${transitionEasing}`
+        : "none";
+    const badgeUnitSize = keyVariant === "small" ? 30 : keyVariant === "medium" ? 45 : 60;
+    const badgeBaseGuess = badgeUnitSize * 7.7;
+    const nonPrimaryBadgeOffsetY = (baseBadgeOffsetY ?? badgeBaseGuess) + scenePose.projectedY;
+    const useLegacyForwardEntry = show3DScene && legacyForwardEntryActive && !isPrimary;
+    const isLegacyForwardEntryAnimating = show3DScene && legacyForwardEntryActive && !isPrimary && layerAnimatingIn;
+    const renderedBadgeOffsetY = show3DScene && stackIndex !== 0
+        ? nonPrimaryBadgeOffsetY
+        : badgeOffsetY;
 
-    const [isTransparencyActive, setIsTransparencyActive] = useState(false);
+    useEffect(() => {
+        if (isPrimary) return;
+        if (!legacyForwardEntryActive) {
+            setLayerAnimatingIn(false);
+            return;
+        }
+
+        let raf1 = 0;
+        let raf2 = 0;
+        setLayerAnimatingIn(true);
+        raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(() => {
+                setLayerAnimatingIn(false);
+            });
+        });
+
+        return () => {
+            cancelAnimationFrame(raf1);
+            cancelAnimationFrame(raf2);
+        };
+    }, [isPrimary, legacyForwardEntryActive]);
+
+    useEffect(() => {
+        if (!hasInitialized3DToggleRef.current) {
+            hasInitialized3DToggleRef.current = true;
+            return;
+        }
+
+        setIsToggling3D(true);
+        setBadgeTransitionEnabled(true);
+        if (show3DScene) {
+            hasMeasuredRef.current = false;
+        }
+
+        const timer = setTimeout(() => {
+            setIsToggling3D(false);
+            if (!show3DScene) {
+                hasMeasuredRef.current = false;
+            }
+        }, TOGGLE_3D_TRANSITION_MS);
+        return () => clearTimeout(timer);
+    }, [show3DScene]);
+
+    useLayoutEffect(() => {
+        if (!show3DScene) return;
+
+        if (stackIndex === 0) {
+            const unitSize = keyVariant === "small" ? 30 : keyVariant === "medium" ? 45 : 60;
+            const guess = unitSize * 7.7;
+            const initialOffset = cachedBaseOffset.current ?? guess;
+            setBadgeOffsetY(initialOffset);
+        }
+    }, [show3DScene, stackIndex, keyVariant]);
+
+    useEffect(() => {
+        if (show3DScene) return;
+
+        setBadgeOffsetY(0);
+
+        const resetTimer = window.setTimeout(() => {
+            setBadgeTransitionEnabled(false);
+            if (stackIndex === 0) {
+                onBaseBadgeOffsetY?.(null);
+                cachedBaseOffset.current = null;
+            }
+        }, Math.max(effectiveTransitionMs, TOGGLE_3D_TRANSITION_MS));
+
+        return () => window.clearTimeout(resetTimer);
+    }, [show3DScene, stackIndex, onBaseBadgeOffsetY, effectiveTransitionMs]);
+
+    useLayoutEffect(() => {
+        if (!show3DScene || stackIndex !== 0) return;
+        const container = containerRef.current;
+        const badgeEl = badgeRowRef.current;
+        if (!container || !badgeEl) return;
+
+        const measureBase = () => {
+            const labelEl = container.querySelector('[data-layer-label="true"]') as HTMLElement | null;
+            if (!labelEl) return null;
+            const badgeRect = badgeEl.getBoundingClientRect();
+            const labelRect = labelEl.getBoundingClientRect();
+
+            const computedTransform = window.getComputedStyle(badgeEl).transform;
+            let currentTranslateY = 0;
+            if (computedTransform && computedTransform !== 'none') {
+                const matrix = new DOMMatrix(computedTransform);
+                currentTranslateY = matrix.m42;
+            }
+
+            const badgeNaturalCenter = (badgeRect.top + badgeRect.height / 2) - currentTranslateY;
+            const labelCenter = labelRect.top + (labelRect.height / 2);
+            return labelCenter - badgeNaturalCenter;
+        };
+
+        let correctionRafId = 0;
+
+        const snapMeasuredOffset = () => {
+            const desiredOffset = measureBase();
+            if (desiredOffset === null) return;
+
+            const cached = cachedBaseOffset.current;
+            cachedBaseOffset.current = desiredOffset;
+            onBaseBadgeOffsetY?.(desiredOffset);
+            hasMeasuredRef.current = true;
+
+            if (cached !== null && Math.abs(desiredOffset - cached) <= 2) {
+                return;
+            }
+
+            setBadgeTransitionEnabled(false);
+            setBadgeOffsetY(desiredOffset);
+            correctionRafId = requestAnimationFrame(() => {
+                setBadgeTransitionEnabled(true);
+            });
+        };
+
+        const settleTimer = window.setTimeout(snapMeasuredOffset, 500);
+        const handleResize = () => {
+            if (!hasMeasuredRef.current) return;
+            snapMeasuredOffset();
+        };
+        window.addEventListener('resize', handleResize);
+        return () => {
+            window.clearTimeout(settleTimer);
+            cancelAnimationFrame(correctionRafId);
+            window.removeEventListener('resize', handleResize);
+        };
+    }, [show3DScene, stackIndex, onBaseBadgeOffsetY, keyVariant]);
+
     const [isHudMode, setIsHudMode] = useState(false);
+    const [suppressTransparencyHover, setSuppressTransparencyHover] = useState(false);
     const layerOrderClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const KC_TRNS = 1;
+    const isTransparencyActive = !!transparencyByLayer[selectedLayer];
+    const tabRefs = useRef<Map<number, HTMLButtonElement | null>>(new Map());
+    const prevTabRectsRef = useRef<Map<number, DOMRect>>(new Map());
+    const prevDisplayOrderRef = useRef<number[] | null>(null);
+    const prevVisibleIdsRef = useRef<Set<number>>(new Set());
+    const prevShowAllLayersRef = useRef<boolean>(showAllLayers);
+    const prevIsLayerOrderReversed = useRef<boolean>(isLayerOrderReversed);
+    const TAB_FLIP_STAGGER_MS = 25;
+    const TAB_FLIP_DURATION_MS = 260;
+    const TAB_REVEAL_DURATION_MS = 260;
 
-    // Track transparency per-layer when switching tabs
+    // Briefly suppress hover styles after restoring transparency to avoid a flash
     useEffect(() => {
-        setIsTransparencyActive(!!transparencyByLayer[selectedLayer]);
-    }, [selectedLayer, transparencyByLayer]);
-
-    // Ref for container
-    const containerRef = useRef<HTMLDivElement>(null);
+        if (isAllTransparencyActive || isTransparencyRestoring) return;
+        setSuppressTransparencyHover(true);
+        const t = setTimeout(() => setSuppressTransparencyHover(false), 120);
+        return () => clearTimeout(t);
+    }, [isAllTransparencyActive, isTransparencyRestoring]);
 
     if (!keyboard) return null;
+
+    const isLayoutDropTarget = isLayerDragActive && hoveredDropLayer === selectedLayer;
+    const isLayerDropSurfaceActive = isLayerDragActive && !is3DMode;
+
+    const handleDropHoverEnter = () => {
+        if (!isLayerDragActive) return;
+        onLayerDropHover?.(selectedLayer);
+    };
+
+    const handleDropHoverLeave = () => {
+        if (!isLayerDragActive || hoveredDropLayer !== selectedLayer) return;
+        onLayerDropHover?.(null);
+    };
+
+    const handleDropOnLayer = () => {
+        if (!isLayerDragActive) return;
+        onLayerDrop?.(selectedLayer);
+    };
 
     const handleSelectLayer = (layer: number) => () => {
         setSelectedLayer(layer);
@@ -158,33 +383,66 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
         }
     };
 
-    const renderLayerTab = (i: number) => {
+    const shouldRenderLayerTab = (i: number) => {
         const layerData = keyboard.keymap?.[i];
         const isTransparentLayer = layerData ? layerData.every((keycode) => keycode === KC_TRNS) : true;
-        const isLayerActive = !!layerActiveState?.[i];
+        const isLayerActive = typeof activeLayerIndex === "number"
+            ? activeLayerIndex === i
+            : !!layerActiveState?.[i];
 
         const shouldHideTransparent = !showAllLayers;
         if (shouldHideTransparent && isTransparentLayer && i !== selectedLayer && !isLayerActive) {
-            return null;
+            return false;
         }
+        return true;
+    };
+
+    const renderLayerTab = (i: number) => {
+        if (!shouldRenderLayerTab(i)) return null;
 
         const layerShortName = svalService.getLayerNameNoLabel(keyboard, i);
         const isActive = selectedLayer === i;
+        const isDropTarget = isLayerDragActive && hoveredDropLayer === i;
+        const isLayerActive = typeof activeLayerIndex === "number"
+            ? activeLayerIndex === i
+            : !!layerActiveState?.[i];
 
         return (
             <ContextMenu key={`${instanceId}-layer-tab-${i}`}>
                 <ContextMenuTrigger asChild>
                     <button
+                        ref={(el) => {
+                            if (el) {
+                                tabRefs.current.set(i, el);
+                            } else {
+                                tabRefs.current.delete(i);
+                            }
+                        }}
                         onClick={handleSelectLayer(i)}
                         onDoubleClick={(e) => {
                             e.stopPropagation();
                             onToggleLayerOn(i);
                         }}
+                        onMouseEnter={() => {
+                            if (!isLayerDragActive) return;
+                            onLayerDropHover?.(i);
+                        }}
+                        onMouseLeave={() => {
+                            if (!isLayerDragActive || hoveredDropLayer !== i) return;
+                            onLayerDropHover?.(null);
+                        }}
+                        onMouseUp={() => {
+                            if (!isLayerDragActive) return;
+                            onLayerDrop?.(i);
+                        }}
                         className={cn(
-                            "px-4 py-1 rounded-full transition-all text-sm font-medium cursor-pointer border-none outline-none whitespace-nowrap",
-                            isActive
-                                ? "bg-gray-800 text-white shadow-md scale-105"
-                                : "bg-transparent text-gray-600 hover:bg-gray-200",
+                            "px-4 py-1 rounded-full transition-colors text-sm font-medium cursor-pointer border-none outline-none whitespace-nowrap",
+                            isDropTarget
+                                ? "bg-red-500 text-white shadow-md scale-105 ring-2 ring-red-500 ring-offset-1 ring-offset-background"
+                                : isActive
+                                    ? "bg-gray-800 text-white shadow-md scale-105"
+                                    : "bg-transparent text-gray-600 hover:bg-gray-200",
+                            isDropTarget && "hover:bg-red-500",
                             isHudMode && !isActive && !isLayerActive && "text-gray-300"
                         )}
                     >
@@ -209,171 +467,353 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
         );
     };
 
+    const allLayerIds = Array.from({ length: keyboard.layers || 16 }, (_, i) => i);
+    const visibleLayerIds = useMemo(
+        () => allLayerIds.filter(shouldRenderLayerTab),
+        [keyboard.layers, keyboard.keymap, showAllLayers, selectedLayer, layerActiveState, activeLayerIndex]
+    );
+    const displayOrder = useMemo(
+        () => (isLayerOrderReversed ? [...visibleLayerIds].reverse() : visibleLayerIds),
+        [isLayerOrderReversed, visibleLayerIds]
+    );
+
+    useLayoutEffect(() => {
+        const currentRects = new Map<number, DOMRect>();
+        visibleLayerIds.forEach((layerId) => {
+            const el = tabRefs.current.get(layerId);
+            if (!el) return;
+            currentRects.set(layerId, el.getBoundingClientRect());
+        });
+
+        const prevRects = prevTabRectsRef.current;
+        const prevDisplayOrder = prevDisplayOrderRef.current;
+        const hasSameOrder =
+            !!prevDisplayOrder &&
+            prevDisplayOrder.length === displayOrder.length &&
+            prevDisplayOrder.every((layerId, index) => layerId === displayOrder[index]);
+
+        if (prevRects.size > 0 && !hasSameOrder) {
+            // Stagger from the leftmost visible tab, regardless of order
+            const delayOrder = [...displayOrder];
+            const delayIndexByLayer = new Map<number, number>();
+            delayOrder.forEach((layerId, index) => {
+                delayIndexByLayer.set(layerId, index);
+            });
+
+            // First frame: pin tabs to their previous positions
+            displayOrder.forEach((layerId) => {
+                const el = tabRefs.current.get(layerId);
+                const prev = prevRects.get(layerId);
+                const next = currentRects.get(layerId);
+                if (!el || !prev || !next) return;
+                const deltaX = prev.left - next.left;
+                if (Math.abs(deltaX) < 0.5) return;
+                el.style.transition = "none";
+                el.style.transform = `translateX(${deltaX}px)`;
+            });
+
+            // Force reflow once after all transforms are set
+            void document.body.offsetHeight;
+
+            // Second frame: animate to the new positions with stagger
+            displayOrder.forEach((layerId) => {
+                const el = tabRefs.current.get(layerId);
+                const prev = prevRects.get(layerId);
+                const next = currentRects.get(layerId);
+                if (!el || !prev || !next) return;
+                const deltaX = prev.left - next.left;
+                if (Math.abs(deltaX) < 0.5) return;
+                const delayIndex = delayIndexByLayer.get(layerId) ?? 0;
+                const delayMs = delayIndex * TAB_FLIP_STAGGER_MS;
+                requestAnimationFrame(() => {
+                    el.style.transition = `transform ${TAB_FLIP_DURATION_MS}ms ease-in-out ${delayMs}ms`;
+                    el.style.transform = "translateX(0px)";
+                });
+            });
+        }
+
+        prevTabRectsRef.current = currentRects;
+        prevDisplayOrderRef.current = displayOrder;
+        prevIsLayerOrderReversed.current = isLayerOrderReversed;
+    }, [
+        displayOrder,
+        visibleLayerIds,
+    ]);
+
+    useLayoutEffect(() => {
+        const prevVisible = prevVisibleIdsRef.current;
+        const currentVisible = new Set(visibleLayerIds);
+        const showAllToggledOn = !prevShowAllLayersRef.current && showAllLayers;
+        const leftmostId = displayOrder[0];
+        const leftmostRect = leftmostId !== undefined
+            ? (tabRefs.current.get(leftmostId)?.getBoundingClientRect() ?? null)
+            : null;
+
+        if (showAllToggledOn && leftmostRect) {
+            // Stagger from the leftmost visible tab, regardless of order
+            const delayOrder = [...displayOrder];
+            const delayIndexByLayer = new Map<number, number>();
+            delayOrder.forEach((layerId, index) => {
+                delayIndexByLayer.set(layerId, index);
+            });
+
+            visibleLayerIds.forEach((layerId) => {
+                if (prevVisible.has(layerId)) return;
+                const el = tabRefs.current.get(layerId);
+                if (!el) return;
+                const nextRect = el.getBoundingClientRect();
+                const deltaX = leftmostRect.left - nextRect.left;
+                const delayIndex = delayIndexByLayer.get(layerId) ?? 0;
+                const delayMs = delayIndex * TAB_FLIP_STAGGER_MS;
+                el.style.transition = "none";
+                el.style.transform = `translateX(${deltaX}px)`;
+                el.style.opacity = "0";
+                void el.offsetWidth;
+                requestAnimationFrame(() => {
+                    el.style.transition = `transform ${TAB_REVEAL_DURATION_MS}ms ease-in-out ${delayMs}ms, opacity ${TAB_REVEAL_DURATION_MS}ms ease-in-out ${delayMs}ms`;
+                    el.style.transform = "translateX(0px)";
+                    el.style.opacity = "1";
+                });
+            });
+        }
+
+        prevVisibleIdsRef.current = currentVisible;
+        prevShowAllLayersRef.current = showAllLayers;
+    }, [visibleLayerIds, showAllLayers]);
+
+    const isSelectedLayerActive = isConnected
+        ? activeLayerIndex === selectedLayer
+        : !!layerActiveState?.[selectedLayer];
+    const effectiveRootOpacity = isLegacyForwardEntryAnimating ? 0 : scenePose.opacity;
+    const effectiveRootTransform = isLegacyForwardEntryAnimating
+        ? `translateY(calc(-100% * ${stackIndex}))`
+        : `translateY(${scenePose.rootTranslateY}px)`;
+    const effectiveRootTransition = useLegacyForwardEntry
+        ? LEGACY_FORWARD_ENTRY_TRANSITION
+        : ((show3DScene || isToggling3D) ? sceneTransitionStyle : "opacity 200ms ease-in-out");
+    const effectiveBadgeOffsetY = isLegacyForwardEntryAnimating
+        ? (baseBadgeOffsetY ?? badgeBaseGuess)
+        : renderedBadgeOffsetY;
+    const effectiveBadgeTransition = useLegacyForwardEntry
+        ? LEGACY_FORWARD_ENTRY_TRANSFORM_TRANSITION
+        : (badgeTransitionEnabled ? transformTransitionStyle : "none");
+    const effectiveKeyboardTranslateZ = isLegacyForwardEntryAnimating ? 0 : scenePose.translateZ;
+    const effectiveKeyboardTransition = useLegacyForwardEntry
+        ? LEGACY_FORWARD_ENTRY_TRANSFORM_TRANSITION
+        : transformTransitionStyle;
+
     return (
         <div
             ref={containerRef}
-            className="w-full flex-shrink-0"
+            data-keyboard-view-instance={instanceId}
+            className="w-full flex-shrink-0 pointer-events-none"
             style={{
-                opacity: (isRevealing || isHiding) ? 0 : 1,
-                transition: 'opacity 200ms ease-in-out',
+                opacity: (isRevealing || isHiding) ? 0 : effectiveRootOpacity,
+                transform: effectiveRootTransform,
+                transition: effectiveRootTransition,
             }}
         >
             {/* Layer Controls Row: Hide-blank-layers toggle + layer tabs + (optional) remove button */}
-            <div className="flex items-center gap-2 pl-5 pb-2 whitespace-nowrap">
-                {!hideLayerTabs && (
-                    <>
-                        <div className="flex items-center gap-1">
-                            <Tooltip delayDuration={500}>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={toggleShowLayers}
-                                        disabled={activePanel === "matrixtester"}
-                                        className={cn(
-                                            "p-2 rounded-full transition-colors flex-shrink-0",
-                                            activePanel === "matrixtester"
-                                                ? "text-gray-400 cursor-not-allowed opacity-30"
-                                                : "text-black hover:bg-gray-200"
-                                        )}
-                                        aria-label={showAllLayers ? "Hide Transparent Layers" : "Show All Layers"}
-                                    >
-                                        {!showAllLayers ? <LayersActiveIcon className="h-5 w-5" /> : <LayersDefaultIcon className="h-5 w-5" />}
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                    {showAllLayers ? "Hide Transparent Layers" : "Show All Layers"}
-                                </TooltipContent>
-                            </Tooltip>
-
-                        </div>
-
-                        <div className={cn("flex items-center gap-1", activePanel === "matrixtester" && "opacity-30 pointer-events-none")}>
-                            {(isLayerOrderReversed
-                                ? Array.from({ length: keyboard.layers || 16 }, (_, i) => i).reverse()
-                                : Array.from({ length: keyboard.layers || 16 }, (_, i) => i)
-                            ).map((i) => renderLayerTab(i))}
-                        </div>
-
+            {!hideLayerTabs && !isOverviewSceneActive && !show3DScene && (
+                <div
+                    className="flex items-center gap-2 pl-5 pb-2 whitespace-nowrap pointer-events-auto"
+                    style={isPrimary && multiLayerHeaderOffset > 0 ? { marginTop: -multiLayerHeaderOffset } : undefined}
+                >
+                    <div className="flex items-center gap-1">
                         <Tooltip delayDuration={500}>
                             <TooltipTrigger asChild>
                                 <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (layerOrderClickTimer.current) {
-                                            clearTimeout(layerOrderClickTimer.current);
-                                            layerOrderClickTimer.current = null;
-                                        }
-                                        if (e.detail >= 2) {
-                                            setIsHudMode((prev) => !prev);
-                                            return;
-                                        }
-                                        layerOrderClickTimer.current = setTimeout(() => {
-                                            onToggleLayerOrder();
-                                            layerOrderClickTimer.current = null;
-                                        }, 200);
-                                    }}
+                                    onClick={toggleShowLayers}
+                                    disabled={activePanel === "matrixtester"}
                                     className={cn(
-                                        "p-2 rounded-full transition-colors",
-                                        isHudMode
-                                            ? "bg-black text-kb-gray"
-                                            : "text-gray-500 hover:text-gray-800 hover:bg-gray-200"
+                                        "p-2 rounded-full transition-colors flex-shrink-0",
+                                        activePanel === "matrixtester"
+                                            ? "text-gray-400 cursor-not-allowed opacity-30"
+                                            : "text-black hover:bg-gray-200"
                                     )}
-                                    aria-label="Reverse Layer Order"
+                                    aria-label={showAllLayers ? "Hide Transparent Layers" : "Show All Layers"}
                                 >
-                                    {isLayerOrderReversed
-                                        ? <SquareArrowRightIcon className="h-5 w-5" />
-                                        : <SquareArrowLeftIcon className="h-5 w-5" />}
+                                    {!showAllLayers ? <LayersActiveIcon className="h-5 w-5" /> : <LayersDefaultIcon className="h-5 w-5" />}
                                 </button>
                             </TooltipTrigger>
                             <TooltipContent side="top">
-                                Flip Layer View
+                                {showAllLayers ? "Hide Transparent Layers" : "Show All Layers"}
                             </TooltipContent>
                         </Tooltip>
-                    </>
-                )}
 
+                    </div>
 
+                    <div className={cn("flex items-center gap-1", activePanel === "matrixtester" && "opacity-30 pointer-events-none")}>
+                        {displayOrder.map((i) => renderLayerTab(i))}
+                    </div>
 
-
-
-                {/* Remove button for non-primary views */}
-                {!isPrimary && onRemove && (
                     <Tooltip delayDuration={500}>
                         <TooltipTrigger asChild>
                             <button
-                                onClick={(e) => { e.stopPropagation(); onRemove(); }}
-                                className="p-2 rounded-full transition-colors text-gray-400 hover:text-black hover:bg-gray-200 ml-auto mr-4 flex-shrink-0"
-                                aria-label="Hide layer view"
-                                disabled={selectedLayer === 0}
-                                data-remove-view={instanceId}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (layerOrderClickTimer.current) {
+                                        clearTimeout(layerOrderClickTimer.current);
+                                        layerOrderClickTimer.current = null;
+                                    }
+                                    if (e.detail >= 2) {
+                                        setIsHudMode((prev) => !prev);
+                                        return;
+                                    }
+                                    layerOrderClickTimer.current = setTimeout(() => {
+                                        onToggleLayerOrder();
+                                        layerOrderClickTimer.current = null;
+                                    }, 200);
+                                }}
+                                className={cn(
+                                    "p-2 rounded-full transition-colors",
+                                    isHudMode
+                                        ? "bg-black text-kb-gray"
+                                        : "text-gray-500 hover:text-gray-800 hover:bg-gray-200"
+                                )}
+                                aria-label="Reverse Layer Order"
                             >
-                                <LayersMinusIcon className="h-5 w-5" />
+                                {isLayerOrderReversed
+                                    ? <SquareArrowRightIcon className="h-5 w-5" />
+                                    : <SquareArrowLeftIcon className="h-5 w-5" />}
                             </button>
                         </TooltipTrigger>
                         <TooltipContent side="top">
-                            Hide layer view
+                            Flip Layer View
                         </TooltipContent>
                     </Tooltip>
-                )}
-            </div>
 
-            {/* Layer Name Badge Row */}
-            <div className="pl-5 pt-[7px] pb-2 flex items-center gap-2">
-                <div style={{ marginLeft: -20 }}>
-                    <LayerNameBadge
-                        selectedLayer={selectedLayer}
-                        isActive={!!layerActiveState?.[selectedLayer]}
-                        onToggleLayerOn={onToggleLayerOn}
-                        // TODO: when firmware reports default layer, pass it here.
-                        defaultLayerIndex={0}
-                    />
-                </div>
-
-                {/* Transparency Button (reserve space for layer 0 to avoid layout shift) */}
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <button
-                            onClick={() => {
-                                if (selectedLayer === 0) return;
-                                const next = !isTransparencyActive;
-                                setIsTransparencyActive(next);
-                                onToggleTransparency(selectedLayer, next);
-                            }}
-                            disabled={activePanel === "matrixtester" || selectedLayer === 0}
-                            className={cn(
-                                "p-1.5 rounded-full transition-all flex-shrink-0 ml-[-4px]",
-                                activePanel === "matrixtester"
-                                    ? "text-gray-400 cursor-not-allowed opacity-30"
-                                    : isTransparencyActive
-                                        ? "bg-black hover:bg-gray-800"
-                                        : "hover:bg-gray-200",
-                                selectedLayer === 0 && "opacity-0 pointer-events-none"
-                            )}
-                            aria-label={isTransparencyActive ? "Show Transparent Keys" : "Hide Transparent Keys"}
-                        >
-                            <Microscope className={cn(
-                                "h-4 w-4",
-                                isTransparencyActive ? "text-kb-gray" : "text-black"
-                            )} />
-                        </button>
-                    </TooltipTrigger>
-                    {selectedLayer !== 0 && (
-                        <TooltipContent side="top">
-                            {isTransparencyActive ? "Show Transparent Keys" : "Hide Transparent Keys"}
-                        </TooltipContent>
+                    {/* Remove button for non-primary views */}
+                    {!isPrimary && onRemove && (
+                        <Tooltip delayDuration={500}>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                                    className="p-2 rounded-full transition-colors text-gray-400 hover:text-black hover:bg-gray-200 ml-auto mr-4 flex-shrink-0"
+                                    aria-label="Hide layer view"
+                                    disabled={selectedLayer === 0}
+                                    data-remove-view={instanceId}
+                                >
+                                    <LayersMinusIcon className="h-5 w-5" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                                Hide Layer
+                            </TooltipContent>
+                        </Tooltip>
                     )}
-                </Tooltip>
-            </div>
+                </div>
+            )}
 
-            {/* Keyboard */}
-            <div className="flex items-start justify-center max-w-full">
-                <Keyboard
-                    keyboard={keyboard}
-                    selectedLayer={selectedLayer}
-                    setSelectedLayer={setSelectedLayer}
-                    showTransparency={isTransparencyActive}
-                    onGhostNavigate={onGhostNavigate}
-                    layerActiveState={layerActiveState}
-                />
+            <div
+                data-layer-drop-surface={selectedLayer}
+                data-drop-surface-active={isLayerDropSurfaceActive ? "true" : "false"}
+                className={cn(
+                    "relative isolate rounded-lg",
+                    isLayerDropSurfaceActive ? "pointer-events-auto" : "pointer-events-none"
+                )}
+                onMouseEnter={handleDropHoverEnter}
+                onMouseLeave={handleDropHoverLeave}
+                onMouseUp={handleDropOnLayer}
+            >
+                {/* Layer Name Badge Row */}
+                <div
+                    ref={badgeRowRef}
+                    className="relative z-20 pl-5 pt-[7px] pb-2 flex items-center gap-2 pointer-events-auto"
+                    style={{
+                        transform: `translateY(${effectiveBadgeOffsetY}px)`,
+                        transition: effectiveBadgeTransition,
+                    }}
+                >
+                    <div style={{ marginLeft: -20 }}>
+                        <LayerNameBadge
+                            selectedLayer={selectedLayer}
+                            isActive={isSelectedLayerActive}
+                            onToggleLayerOn={onToggleLayerOn}
+                            // TODO: when firmware reports default layer, pass it here.
+                            defaultLayerIndex={0}
+                            trailingAction={selectedLayer !== 0 && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={() => {
+                                                if (selectedLayer === 0) return;
+                                                const next = !isTransparencyActive;
+                                                onToggleTransparency(selectedLayer, next);
+                                            }}
+                                            disabled={activePanel === "matrixtester" || isTransparencyRestoring}
+                                            className={cn(
+                                                "w-8 h-8 rounded-full transition-all duration-150 flex-shrink-0 ml-[-4px] flex items-center justify-center",
+                                                activePanel === "matrixtester"
+                                                    ? "text-gray-400 cursor-not-allowed opacity-30"
+                                                    : isTransparencyActive
+                                                        ? "opacity-100 bg-black hover:bg-gray-800"
+                                                        : cn(
+                                                            "opacity-0 pointer-events-none scale-95",
+                                                            !suppressTransparencyHover && "group-hover/layer-badge:opacity-100 group-hover/layer-badge:pointer-events-auto group-hover/layer-badge:scale-100 hover:bg-gray-200"
+                                                        ),
+                                                isTransparencyRestoring && "invisible pointer-events-none"
+                                            )}
+                                            aria-label={isTransparencyActive ? "Show Transparent Keys" : "Hide Transparent Keys"}
+                                        >
+                                            <span className={cn(
+                                                "text-base leading-none font-semibold translate-y-[1px]",
+                                                isTransparencyActive ? "text-kb-gray" : "text-black"
+                                            )}>
+                                                {transparentKeyGlyph}
+                                            </span>
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                        {isTransparencyActive ? "Show Transparent Keys" : "Hide Transparent Keys"}
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
+                        />
+                    </div>
+                </div>
+                {/* Keyboard */}
+                <div
+                    className={cn(
+                        "relative z-0 flex items-start justify-center max-w-full pointer-events-none",
+                        show3DScene && "keyboard-3d-wrapper"
+                    )}
+                    style={show3DScene
+                        ? {
+                            transformStyle: "preserve-3d",
+                        }
+                        : undefined
+                    }
+                >
+                    <div
+                        className={cn(
+                            "pointer-events-none",
+                            show3DScene && "keyboard-3d-active"
+                        )}
+                        style={{
+                            transform: show3DScene
+                                ? `rotateX(${scenePose.rotateX}deg) rotateZ(${scenePose.rotateZ}deg) translateZ(${effectiveKeyboardTranslateZ}px)`
+                                : "rotateX(0deg) rotateZ(0deg) translateZ(0px)",
+                            transition: effectiveKeyboardTransition,
+                        }}
+                    >
+                        <Keyboard
+                            keyboard={keyboard}
+                            selectedLayer={selectedLayer}
+                            setSelectedLayer={setSelectedLayer}
+                            showTransparency={isTransparencyActive}
+                            onGhostNavigate={onGhostNavigate}
+                            layerActiveState={layerActiveState}
+                            instanceId={instanceId}
+                            show3DBackdrop={show3DScene}
+                            activeLayerIndex={activeLayerIndex}
+                            isConnected={isConnected}
+                            isToggling3D={isToggling3D}
+                            showDropTargetHighlight={isLayoutDropTarget}
+                            isLayerDragActive={isLayerDragActive}
+                        />
+                    </div>
+                </div>
             </div>
         </div>
     );

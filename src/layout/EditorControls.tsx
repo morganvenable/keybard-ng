@@ -42,7 +42,7 @@ export const EditorControls: React.FC<EditorControlsProps> = ({
                             setKeyVariant(variant);
                         }}
                         className={cn(
-                            "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-semibold border",
+                            "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-semibold border select-none",
                             keyVariant === variant && !isAutoKeySize
                                 ? "bg-black text-white shadow-sm border-black"
                                 : keyVariant === variant && isAutoKeySize
@@ -60,7 +60,7 @@ export const EditorControls: React.FC<EditorControlsProps> = ({
                         setIsAutoKeySize(true);
                     }}
                     className={cn(
-                        "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-semibold border",
+                        "px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-semibold border select-none",
                         isAutoKeySize
                             ? "bg-black text-white shadow-sm border-black"
                             : "text-gray-500 border-transparent hover:text-gray-900 hover:bg-gray-300/50"
@@ -110,7 +110,7 @@ export const EditorControls: React.FC<EditorControlsProps> = ({
                         setIsAutoLayoutMode(true);
                     }}
                     className={cn(
-                        "px-1.5 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-semibold border",
+                        "px-1.5 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px] transition-all font-semibold border select-none",
                         isAutoLayoutMode
                             ? "bg-black text-white shadow-sm border-black"
                             : "text-gray-500 border-transparent hover:text-gray-900 hover:bg-gray-300/50"

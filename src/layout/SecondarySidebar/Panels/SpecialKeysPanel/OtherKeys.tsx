@@ -27,7 +27,7 @@ const OtherKeys = ({ compact, variant: variantOverride }: Props) => {
 
     const keys = [
         { keycode: "QK_REPEAT_KEY", label: "Repeat" },
-        { keycode: "QK_ALT_REPEAT_KEY", label: "Alt-Rpt" },
+        { keycode: "QK_ALT_REPEAT_KEY", label: "Alt-Rep" },
         { keycode: "QK_LAYER_LOCK", label: "Lyr Lock" },
         { keycode: "QK_LEADER", label: "Leader" },
     ];

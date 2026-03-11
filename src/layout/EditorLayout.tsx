@@ -20,6 +20,8 @@ import AppSidebar from "./Sidebar";
 import { LayerProvider, useLayer } from "@/contexts/LayerContext";
 import { useLayoutLibrary } from "@/contexts/LayoutLibraryContext";
 import { PasteLayerDialog } from "@/components/PasteLayerDialog";
+import { DragReplaceLayerDialog } from "@/components/DragReplaceLayerDialog";
+import type { LayerEntry } from "@/types/layer-library";
 
 import { LayoutSettingsProvider, useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { UNIT_SIZE, SVALBOARD_LAYOUT } from "@/constants/svalboard-layout";
@@ -36,19 +38,32 @@ import { MATRIX_COLS } from "@/constants/svalboard-layout";
 import EditorSidePanel, { PickerMode } from "./SecondarySidebar/components/EditorSidePanel";
 import { InfoPanelWidget } from "@/components/InfoPanelWidget";
 import { EditorControls } from "./EditorControls";
+import { getBackdropLayerFromElements } from "@/utils/layer-drop-target";
+import { svalService } from "@/services/sval.service";
+import {
+    getLayerScenePose,
+    sceneShowsGuides,
+    sceneUses3D,
+    LEGACY_FORWARD_ENTRY_MS,
+    SCENE_COLLAPSE_MS,
+    SCENE_ROTATE_IN_SPREAD_MS,
+    SCENE_SPREAD_MS,
+    type LayerSceneState,
+} from "./layer-scene";
 
 const EditorLayout = () => {
     const { assignKeycodeTo } = useKeyBinding();
 
-    const handleUnhandledDrop = React.useCallback((item: DragItem) => {
+    const handleUnhandledDrop = React.useCallback((item: DragItem, event: MouseEvent) => {
         if (item.row !== undefined && item.col !== undefined && item.layer !== undefined) {
-            console.log("Unhandled drop for keyboard key, assigning KC_NO", item);
+            const targetKeycode = event.altKey ? "KC_TRNS" : "KC_NO";
+            console.log(`Unhandled drop for keyboard key, assigning ${targetKeycode}`, item);
             assignKeycodeTo({
                 type: "keyboard",
                 row: item.row,
                 col: item.col,
                 layer: item.layer
-            }, "KC_NO");
+            }, targetKeycode);
         }
     }, [assignKeycodeTo]);
 
@@ -69,34 +84,68 @@ const EditorLayout = () => {
 };
 
 const EditorLayoutInner = () => {
+    type ViewInstance = {
+        id: string;
+        selectedLayer: number;
+    };
+
     const { keyboard, setKeyboard, updateKey /*, resetToOriginal*/ } = useVial();
     const { selectedLayer, setSelectedLayer } = useLayer();
     const { clearSelection } = useKeyBinding();
-    const { keyVariant, layoutMode, setSecondarySidebarOpen, setPrimarySidebarExpanded, registerPrimarySidebarControl, setMeasuredDimensions } = useLayoutSettings();
-    const { layerClipboard, copyLayer, openPasteDialog } = useLayoutLibrary();
+    const {
+        keyVariant,
+        layoutMode,
+        setSecondarySidebarOpen,
+        setPrimarySidebarExpanded,
+        registerPrimarySidebarControl,
+        setMeasuredDimensions,
+        is3DMode,
+        fingerClusterSqueeze,
+        isThumb3DOffsetActive,
+    } = useLayoutSettings();
+    const { layerClipboard, openPasteDialog } = useLayoutLibrary();
     const { isDragging, draggedItem, markDropConsumed } = useDrag();
-    const KC_TRNS = 1;
 
-    // Track if we're dragging a layer over the keyboard area
-    const [isLayerDragOver, setIsLayerDragOver] = React.useState(false);
+    const KC_TRNS = 1;
+    const [hoveredDropLayer, setHoveredDropLayer] = React.useState<number | null>(null);
+    const [pendingLayerDrop, setPendingLayerDrop] = React.useState<{
+        targetLayer: number;
+        targetLayerName: string;
+        sourceLayerName: string;
+        sourceLayerData: LayerEntry;
+    } | null>(null);
     const isDraggingLayer = isDragging && draggedItem?.type === "layer" && draggedItem?.component === "Layer";
 
     // Dynamic view instances for stacking keyboard views
-    interface ViewInstance {
-        id: string;
-        selectedLayer: number;
-    }
     const [viewInstances, setViewInstances] = React.useState<ViewInstance[]>([
         { id: "primary", selectedLayer: 0 }
     ]);
     const [showAllLayers, setShowAllLayers] = React.useState(true);
+    const [deferGuidesRender, setDeferGuidesRender] = React.useState(false);
     const [isMultiLayersActive, setIsMultiLayersActive] = React.useState(false);
+    const [sceneState, setSceneState] = React.useState<LayerSceneState>(() => (
+        is3DMode ? "single3d" : "single2d"
+    ));
+    const [sceneTransitionViews, setSceneTransitionViews] = React.useState<ViewInstance[] | null>(null);
+    const [sceneCollapseToSingle, setSceneCollapseToSingle] = React.useState(false);
+    const [legacyForwardEntryActive, setLegacyForwardEntryActive] = React.useState(false);
     const [isLayerOrderReversed, setIsLayerOrderReversed] = React.useState(false);
+    const layerSpacingAdjust = 410;
+    const [baseBadgeOffsetY, setBaseBadgeOffsetY] = React.useState<number | null>(null);
+    const handleBaseBadgeOffsetY = React.useCallback((offset: number | null) => {
+        setBaseBadgeOffsetY(offset);
+    }, []);
     // UI-only layer on/off state. TODO: replace with device-provided layer state when available.
     const [layerActiveState, setLayerActiveState] = React.useState<boolean[]>([]);
     const [transparencyByLayer, setTransparencyByLayer] = React.useState<Record<number, boolean>>({});
+    const [isAllTransparencyActive, setIsAllTransparencyActive] = React.useState(false);
+    const [isTransparencyRestoring, setIsTransparencyRestoring] = React.useState(false);
     const viewsScrollRef = React.useRef<HTMLDivElement>(null);
     const layerViewRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
+    const sceneViewRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
+    const showLayersTransitionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const previousSceneTargetRef = React.useRef<LayerSceneState>(is3DMode ? "single3d" : "single2d");
+    const [sceneFlowOffsets, setSceneFlowOffsets] = React.useState<Record<string, number>>({});
     let nextViewId = React.useRef(1);
 
     // Animation: flying icon between layers-plus and layers-minus
@@ -117,6 +166,7 @@ const EditorLayoutInner = () => {
     React.useEffect(() => {
         return () => {
             if (animationTimerRef.current) clearTimeout(animationTimerRef.current);
+            if (showLayersTransitionTimerRef.current) clearTimeout(showLayersTransitionTimerRef.current);
         };
     }, []);
 
@@ -235,16 +285,35 @@ const EditorLayoutInner = () => {
     }, []);
 
     const handleToggleShowLayers = React.useCallback(() => {
+        if (showLayersTransitionTimerRef.current) {
+            clearTimeout(showLayersTransitionTimerRef.current);
+        }
+        // Hide guide trapezoids while layer stack animates to avoid "flash" at stale positions.
+        setDeferGuidesRender(true);
         setShowAllLayers(prev => !prev);
+        showLayersTransitionTimerRef.current = setTimeout(() => {
+            setDeferGuidesRender(false);
+            showLayersTransitionTimerRef.current = null;
+        }, 560);
     }, []);
 
     const handleSetViewLayer = React.useCallback((id: string, layer: number) => {
         setViewInstances(prev => prev.map(v =>
             v.id === id ? { ...v, selectedLayer: layer } : v
         ));
-        // Always sync LayerContext so sidebar panels reflect the last-interacted view
-        setSelectedLayer(layer);
+        // Keep global layer selection tied to the primary view only.
+        if (id === "primary") {
+            setSelectedLayer(layer);
+        }
     }, [setSelectedLayer]);
+
+    React.useEffect(() => {
+        setViewInstances(prev => prev.map(v =>
+            v.id === "primary" && v.selectedLayer !== selectedLayer
+                ? { ...v, selectedLayer }
+                : v
+        ));
+    }, [selectedLayer]);
 
     // UI toggle for layer on/off. TODO: when hardware supports this, send the command
     // and update state from the device response instead of flipping locally.
@@ -268,6 +337,51 @@ const EditorLayoutInner = () => {
         setTransparencyByLayer(prev => ({ ...prev, [layerIndex]: next }));
     }, []);
 
+    const handleToggleAllTransparency = React.useCallback(() => {
+        const next = !isAllTransparencyActive;
+        const totalLayers = keyboard?.layers || 16;
+        const allLayersState = Array.from({ length: totalLayers }, (_, i) => i)
+            .reduce<Record<number, boolean>>((acc, layerIndex) => {
+                if (layerIndex > 0) acc[layerIndex] = next;
+                return acc;
+            }, {});
+        setTransparencyByLayer(allLayersState);
+
+        if (!next) setIsTransparencyRestoring(true);
+        setIsAllTransparencyActive(next);
+        if (!next) {
+            requestAnimationFrame(() => {
+                setIsTransparencyRestoring(false);
+            });
+        }
+    }, [isAllTransparencyActive, keyboard?.layers]);
+
+    // Synchronize the "All Transparency" state with individual layer states
+    React.useEffect(() => {
+        if (!keyboard) return;
+        const totalLayers = keyboard.layers || 16;
+        let allOn = true;
+        let allOff = true;
+
+        // Check layers 1 to N (layer 0 never has transparency toggle)
+        for (let i = 1; i < totalLayers; i++) {
+            if (transparencyByLayer[i]) {
+                allOff = false;
+            } else {
+                allOn = false;
+            }
+        }
+
+        if (allOn && !isAllTransparencyActive) {
+            setIsAllTransparencyActive(true);
+        } else if (allOff && isAllTransparencyActive) {
+            setIsAllTransparencyActive(false);
+        } else if (!allOn && !allOff && isAllTransparencyActive) {
+            // Mixed state but button shows as active - sync it to off
+            setIsAllTransparencyActive(false);
+        }
+    }, [transparencyByLayer, keyboard?.layers, isAllTransparencyActive]);
+
     const handleGhostNavigate = React.useCallback((sourceLayer: number) => {
         const targetEl = layerViewRefs.current.get(sourceLayer);
         const container = viewsScrollRef.current;
@@ -277,10 +391,13 @@ const EditorLayoutInner = () => {
         }
         setSelectedLayer(sourceLayer);
     }, [setSelectedLayer]);
+    const primaryLayerIndex = isMultiLayersActive
+        ? selectedLayer
+        : (viewInstances.find(v => v.id === "primary")?.selectedLayer ?? selectedLayer);
 
     const primaryView = React.useMemo(
-        () => viewInstances.find(v => v.id === "primary") ?? { id: "primary", selectedLayer },
-        [viewInstances, selectedLayer]
+        () => ({ id: "primary", selectedLayer: primaryLayerIndex }),
+        [primaryLayerIndex]
     );
 
     const multiLayerIds = React.useMemo(() => {
@@ -295,15 +412,14 @@ const EditorLayoutInner = () => {
         return Array.from({ length: totalLayers }, (_, i) => i).filter((layerIndex) => {
             const layerData = keymap[layerIndex];
             const isTransparentLayer = layerData ? layerData.every((keycode) => keycode === KC_TRNS) : true;
-            return !isTransparentLayer || layerIndex === primaryView.selectedLayer;
+            return !isTransparentLayer || layerIndex === primaryLayerIndex;
         });
-    }, [keyboard, showAllLayers, primaryView.selectedLayer]);
+    }, [keyboard, showAllLayers, primaryLayerIndex]);
 
-    const renderedViews = React.useMemo(() => {
-        if (!isMultiLayersActive) {
-            return viewInstances;
-        }
-        const extraLayers = multiLayerIds.filter(layerIndex => layerIndex !== primaryView.selectedLayer);
+    // In 3D multilayer mode, we keep ordering identical to 2D multilayer.
+
+    const stackedMultiLayerViews = React.useMemo(() => {
+        const extraLayers = multiLayerIds.filter(layerIndex => layerIndex !== primaryLayerIndex);
         const orderedExtras = isLayerOrderReversed ? [...extraLayers].reverse() : extraLayers;
         return [
             primaryView,
@@ -312,19 +428,483 @@ const EditorLayoutInner = () => {
                 selectedLayer: layerIndex
             }))
         ];
-    }, [isMultiLayersActive, viewInstances, primaryView, multiLayerIds, isLayerOrderReversed]);
+    }, [primaryView, multiLayerIds, isLayerOrderReversed, primaryLayerIndex]);
+    const cloneViews = React.useCallback((views: ViewInstance[]) => (
+        views.map((view) => ({ ...view }))
+    ), []);
+
+    const sceneTimeoutRefs = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+    const sceneRafRef = React.useRef<number | null>(null);
+
+    const clearSceneTransitionWork = React.useCallback((key?: string) => {
+        if (key) {
+            if (sceneTimeoutRefs.current[key]) {
+                clearTimeout(sceneTimeoutRefs.current[key]);
+                delete sceneTimeoutRefs.current[key];
+            }
+        } else {
+            Object.values(sceneTimeoutRefs.current).forEach(clearTimeout);
+            sceneTimeoutRefs.current = {};
+        }
+
+        if (sceneRafRef.current) {
+            cancelAnimationFrame(sceneRafRef.current);
+            sceneRafRef.current = null;
+        }
+    }, [sceneTimeoutRefs, sceneRafRef]);
+
+    const scheduleSceneTimeout = React.useCallback(
+        (keyOrMs: string | number, msOrCallback: number | (() => void), maybeCallback?: () => void) => {
+            let key: string;
+            let ms: number;
+            let cb: () => void;
+            if (typeof keyOrMs === 'string') {
+                key = keyOrMs;
+                ms = msOrCallback as number;
+                cb = maybeCallback!;
+            } else {
+                key = "default";
+                ms = keyOrMs;
+                cb = msOrCallback as () => void;
+            }
+            clearSceneTransitionWork(key);
+            sceneTimeoutRefs.current[key] = setTimeout(() => {
+                delete sceneTimeoutRefs.current[key];
+                cb();
+            }, ms);
+        },
+        [clearSceneTransitionWork]
+    );
+
+    const requiredSceneFlowOffsetsReady = React.useCallback((views: ViewInstance[]) => (
+        views.every((view) => view.id === "primary" || sceneFlowOffsets[view.id] !== undefined)
+    ), [sceneFlowOffsets]);
+
+    const sceneTargetState = React.useMemo<LayerSceneState>(() => {
+        if (isMultiLayersActive) {
+            return is3DMode ? "multi3d" : "multi2d";
+        }
+        return is3DMode ? "single3d" : "single2d";
+    }, [is3DMode, isMultiLayersActive]);
+
+    const renderedViews = React.useMemo(() => {
+        if (sceneTransitionViews) {
+            return sceneTransitionViews;
+        }
+        if (isMultiLayersActive) {
+            return stackedMultiLayerViews;
+        }
+        return viewInstances;
+    }, [isMultiLayersActive, sceneTransitionViews, stackedMultiLayerViews, viewInstances]);
+
+    const handleToggleMultiLayers = React.useCallback(() => {
+        setIsMultiLayersActive((prev) => !prev);
+    }, []);
+
+    React.useLayoutEffect(() => {
+        const previousSceneTarget = previousSceneTargetRef.current;
+        if (previousSceneTarget === sceneTargetState) {
+            return;
+        }
+
+        clearSceneTransitionWork();
+
+        // Proactively clear legacy entry when switching to a multi-layer state
+        // that isn't the initial expansion/spread entry.
+        if (sceneTargetState.startsWith("multi") && 
+            sceneTargetState !== "multi3d_pre_expand" && 
+            sceneTargetState !== "multi3d_pre_spread") {
+            setLegacyForwardEntryActive(false);
+        }
+
+        // Always ensure legacy entry is cleared when we start any serious multi-layer movement.
+        // This is a safety fallback for environments (like tests) where 3D transitions might skip phases.
+        if (sceneTargetState.startsWith("multi")) {
+            setLegacyForwardEntryActive(false);
+        }
+
+        previousSceneTargetRef.current = sceneTargetState;
+
+        const currentMultiViews = cloneViews(sceneTransitionViews ?? stackedMultiLayerViews);
+
+        switch (`${previousSceneTarget}->${sceneTargetState}`) {
+            case "single3d->multi3d":
+                setLegacyForwardEntryActive(true);
+                setSceneCollapseToSingle(false);
+                setSceneTransitionViews(cloneViews(stackedMultiLayerViews));
+                setSceneState("multi3d_pre_expand");
+                return;
+            case "single2d->multi3d":
+                setLegacyForwardEntryActive(true);
+                setSceneCollapseToSingle(false);
+                setSceneFlowOffsets({});
+                setSceneTransitionViews(cloneViews(stackedMultiLayerViews));
+                setSceneState("multi3d_pre_spread");
+                return;
+            case "multi2d->multi3d":
+                setLegacyForwardEntryActive(false);
+                setSceneCollapseToSingle(false);
+                setSceneTransitionViews(cloneViews(stackedMultiLayerViews));
+                setSceneState("multi3d_rotating_in");
+                scheduleSceneTimeout("spread", SCENE_SPREAD_MS, () => {
+                    setSceneState("multi3d_spreading");
+                });
+                scheduleSceneTimeout("settle", SCENE_SPREAD_MS + SCENE_ROTATE_IN_SPREAD_MS, () => {
+                    setSceneState("multi3d");
+                    setSceneTransitionViews(null);
+                });
+                return;
+            case "multi3d->single3d":
+            case "multi3d->single2d":
+                setLegacyForwardEntryActive(false);
+                setSceneCollapseToSingle(true);
+                setSceneTransitionViews(currentMultiViews);
+                setSceneState("multi3d_pre_collapse");
+                return;
+            case "multi3d->multi2d":
+                setLegacyForwardEntryActive(false);
+                setSceneCollapseToSingle(false);
+                setSceneTransitionViews(currentMultiViews);
+                setSceneState("multi3d_collapsing");
+                scheduleSceneTimeout("rotate-out", SCENE_SPREAD_MS, () => {
+                    setSceneState("multi2d_rotating_out");
+                });
+                scheduleSceneTimeout("settle", SCENE_SPREAD_MS + SCENE_SPREAD_MS, () => {
+                    setSceneState("multi2d");
+                    setSceneTransitionViews(null);
+                });
+                return;
+            default:
+                setLegacyForwardEntryActive(false);
+                setSceneCollapseToSingle(false);
+                setSceneTransitionViews(null);
+                setSceneState(sceneTargetState);
+        }
+    }, [
+        clearSceneTransitionWork,
+        cloneViews,
+        sceneTargetState,
+        sceneTransitionViews,
+        scheduleSceneTimeout,
+        stackedMultiLayerViews,
+    ]);
+
+    // Safety fallback: ensure legacy forward entry is cleared even if 3D transitions
+    // are blocked or skipped (common in test environments with zero offsets).
+    // This effect is independent and won't be cleared by clearSceneTransitionWork().
+    React.useLayoutEffect(() => {
+        if (!legacyForwardEntryActive) return;
+
+        const timeout = setTimeout(() => {
+            setLegacyForwardEntryActive(false);
+            // If we're stuck in a pre-spread/pre-expand state, force-settle to multi3d
+            // so guides can at least render.
+            setSceneState((current) => {
+                if (current === "multi3d_pre_spread" || current === "multi3d_pre_expand") {
+                    return "multi3d";
+                }
+                return current;
+            });
+        }, LEGACY_FORWARD_ENTRY_MS);
+
+        return () => clearTimeout(timeout);
+    }, [legacyForwardEntryActive]);
+
+    React.useLayoutEffect(() => {
+        if (legacyForwardEntryActive || sceneState !== "multi3d_pre_spread" || !sceneTransitionViews) {
+            return;
+        }
+        if (!requiredSceneFlowOffsetsReady(sceneTransitionViews)) {
+            return;
+        }
+
+        clearSceneTransitionWork();
+        sceneRafRef.current = requestAnimationFrame(() => {
+            sceneRafRef.current = requestAnimationFrame(() => {
+                setLegacyForwardEntryActive(false);
+                setSceneState("multi3d_spreading");
+                sceneRafRef.current = null;
+                scheduleSceneTimeout("settle", SCENE_SPREAD_MS, () => {
+                    setLegacyForwardEntryActive(false);
+                    setSceneState("multi3d");
+                    setSceneTransitionViews(null);
+                });
+            });
+        });
+    }, [
+        clearSceneTransitionWork,
+        legacyForwardEntryActive,
+        requiredSceneFlowOffsetsReady,
+        sceneState,
+        sceneTransitionViews,
+        scheduleSceneTimeout,
+    ]);
+
+    // multi3d_pre_expand: layers rendered at spread positions but invisible.
+    // Wait for flow offsets, then imperatively snap to collapsed position before paint,
+    // then animate to spread via single rAF.
+    React.useLayoutEffect(() => {
+        if (sceneState !== "multi3d_pre_expand" || !sceneTransitionViews) {
+            return;
+        }
+        if (!requiredSceneFlowOffsetsReady(sceneTransitionViews)) {
+            return;
+        }
+
+        clearSceneTransitionWork();
+
+        // Imperatively snap non-primary views to collapsed position BEFORE browser paints.
+        // This avoids the bounce caused by views appearing at spread positions.
+        // Note: sceneViewRefs points to the outer wrapper div, but rootTranslateY/opacity
+        // are applied on the KVI root div (data-keyboard-view-instance), so we target that.
+        sceneTransitionViews.forEach((view) => {
+            if (view.id === "primary") return;
+            const outerEl = sceneViewRefs.current.get(view.id);
+            if (!outerEl) return;
+            const kviRoot = outerEl.querySelector(`[data-keyboard-view-instance="${view.id}"]`) as HTMLElement | null;
+            if (!kviRoot) return;
+            const flowOffset = sceneFlowOffsets[view.id] ?? 0;
+            // KVI root: snap to collapsed position (at primary), no transition
+            kviRoot.style.transition = "none";
+            kviRoot.style.opacity = "0";
+            kviRoot.style.transform = `translateY(${-flowOffset}px)`;
+            // Inner keyboard wrapper: snap translateZ to 0
+            const kbWrapper = outerEl.querySelector(".keyboard-3d-active") as HTMLElement | null;
+            if (kbWrapper) {
+                kbWrapper.style.transition = "none";
+                kbWrapper.style.transform = `rotateX(55deg) rotateZ(-45deg) translateZ(0px)`;
+            }
+        });
+
+        // Force style resolution so the browser registers collapsed positions
+        void document.body.offsetHeight;
+
+        // Single rAF: apply spreading transition imperatively from collapsed positions.
+        // React will sync to multi3d_spreading state, but the imperative styles ensure
+        // the transition starts from the correct collapsed positions.
+        sceneRafRef.current = requestAnimationFrame(() => {
+            const easing = "cubic-bezier(0.22, 1, 0.36, 1)";
+            const ms = SCENE_SPREAD_MS;
+            sceneTransitionViews?.forEach((view, index) => {
+                if (view.id === "primary") return;
+                const outerEl = sceneViewRefs.current.get(view.id);
+                if (!outerEl) return;
+                const kviRoot = outerEl.querySelector(`[data-keyboard-view-instance="${view.id}"]`) as HTMLElement | null;
+                if (!kviRoot) return;
+                // Animate KVI root to natural position
+                kviRoot.style.transition = `opacity ${ms}ms ${easing}, transform ${ms}ms ${easing}`;
+                kviRoot.style.opacity = "1";
+                kviRoot.style.transform = "translateY(0px)";
+                // Animate keyboard wrapper to spread depth
+                const kbWrapper = outerEl.querySelector(".keyboard-3d-active") as HTMLElement | null;
+                if (kbWrapper) {
+                    const stackIdx = index;
+                    // Compute the same effective spacing used by getLayerScenePose
+                    const spacing = keyVariant === "medium" ? 330 : keyVariant === "small" ? 260 : layerSpacingAdjust;
+                    const layeredZ = stackIdx * spacing;
+                    kbWrapper.style.transition = `transform ${ms}ms ${easing}`;
+                    kbWrapper.style.transform = `rotateX(55deg) rotateZ(-45deg) translateZ(${layeredZ}px)`;
+                }
+            });
+            // Sync React state (rendered values will match imperative values)
+            setLegacyForwardEntryActive(false);
+            setSceneState("multi3d_spreading");
+            sceneRafRef.current = null;
+            scheduleSceneTimeout("settle", ms, () => {
+                setLegacyForwardEntryActive(false);
+                // Don't clear imperative styles — React's style reconciliation is
+                // prop-based (compares old vs new style props, not DOM values).
+                // Since multi3d and multi3d_spreading have the same transform/opacity
+                // prop values, React won't re-set them if we clear them from the DOM.
+                // Just remove the transition so it doesn't interfere with future changes.
+                sceneTransitionViews?.forEach((view) => {
+                    if (view.id === "primary") return;
+                    const outerEl = sceneViewRefs.current.get(view.id);
+                    if (!outerEl) return;
+                    const kviRoot = outerEl.querySelector(`[data-keyboard-view-instance="${view.id}"]`) as HTMLElement | null;
+                    if (kviRoot) {
+                        kviRoot.style.transition = "none";
+                    }
+                    const kbWrapper = outerEl.querySelector(".keyboard-3d-active") as HTMLElement | null;
+                    if (kbWrapper) {
+                        kbWrapper.style.transition = "none";
+                    }
+                });
+                setSceneState("multi3d");
+                setSceneTransitionViews(null);
+            });
+        });
+    }, [
+        clearSceneTransitionWork,
+        keyVariant,
+        layerSpacingAdjust,
+        requiredSceneFlowOffsetsReady,
+        sceneFlowOffsets,
+        sceneState,
+        sceneTransitionViews,
+        scheduleSceneTimeout,
+    ]);
+
+    React.useLayoutEffect(() => {
+        if (sceneState !== "multi3d_pre_collapse" || !sceneTransitionViews) {
+            return;
+        }
+
+        clearSceneTransitionWork();
+        sceneRafRef.current = requestAnimationFrame(() => {
+            setSceneState("multi3d_collapsing");
+            sceneRafRef.current = null;
+            scheduleSceneTimeout("settle", SCENE_COLLAPSE_MS, () => {
+                setSceneState(sceneTargetState);
+                setSceneTransitionViews(null);
+                setSceneCollapseToSingle(false);
+            });
+        });
+    }, [
+        clearSceneTransitionWork,
+        sceneState,
+        sceneTargetState,
+        sceneTransitionViews,
+        scheduleSceneTimeout,
+    ]);
+
+    React.useEffect(() => {
+        return () => {
+            clearSceneTransitionWork();
+        };
+    }, [clearSceneTransitionWork]);
+
+    const isScene3D = sceneUses3D(sceneState);
+    const isSceneInMultiStack = renderedViews.length > 1 && (
+        sceneTransitionViews !== null ||
+        isMultiLayersActive ||
+        sceneState === "multi3d_pre_spread" ||
+        sceneState === "multi3d_pre_expand" ||
+        sceneState === "multi3d_rotating_in" ||
+        sceneState === "multi3d_spreading" ||
+        sceneState === "multi3d" ||
+        sceneState === "multi3d_pre_collapse" ||
+        sceneState === "multi3d_collapsing" ||
+        sceneState === "multi2d_rotating_out"
+    );
+
+    React.useLayoutEffect(() => {
+        if (!isSceneInMultiStack) {
+            setSceneFlowOffsets((prev) => (
+                Object.keys(prev).length === 0 ? prev : {}
+            ));
+            return;
+        }
+
+        const primaryEl = sceneViewRefs.current.get("primary");
+        if (!primaryEl) return;
+
+        const primaryOffsetTop = primaryEl.offsetTop;
+        const nextOffsets: Record<string, number> = {};
+        renderedViews.forEach((view) => {
+            const el = sceneViewRefs.current.get(view.id);
+            if (!el) return;
+            nextOffsets[view.id] = el.offsetTop - primaryOffsetTop;
+        });
+        setSceneFlowOffsets((prev) => {
+            const prevKeys = Object.keys(prev);
+            const nextKeys = Object.keys(nextOffsets);
+            const hasSameKeys = prevKeys.length === nextKeys.length && nextKeys.every((key) => prev[key] !== undefined);
+            if (hasSameKeys && nextKeys.every((key) => prev[key] === nextOffsets[key])) {
+                return prev;
+            }
+            return nextOffsets;
+        });
+    }, [isSceneInMultiStack, renderedViews]);
+
+    const effectiveLayerSpacing = React.useMemo(() => {
+        if (isScene3D && isSceneInMultiStack) {
+            if (keyVariant === "medium") return 330;
+            if (keyVariant === "small") return 260;
+        }
+        return layerSpacingAdjust;
+    }, [isScene3D, isSceneInMultiStack, keyVariant, layerSpacingAdjust]);
+
+    const threeDTopScrollReservePx = React.useMemo(() => {
+        if (!isScene3D) return 0;
+        return 260;
+    }, [isScene3D]);
+
+    const threeDBottomScrollReservePx = React.useMemo(() => {
+        if (!isScene3D) return 0;
+        return isSceneInMultiStack ? 120 : 900;
+    }, [isScene3D, isSceneInMultiStack]);
+
+    const threeDEntryCompensationPx = React.useMemo(() => {
+        if (!is3DMode) return 0;
+        // Single-layer 3D uses fixed layer tabs outside the scroll flow,
+        // so it needs less entry compensation to keep all keys visible.
+        return isMultiLayersActive ? threeDTopScrollReservePx : 180;
+    }, [is3DMode, isMultiLayersActive, threeDTopScrollReservePx]);
+
+    const was3DModeRef = React.useRef(is3DMode);
+    const last3DEntryCompensationRef = React.useRef(0);
+    const pending3DAdjustRafRef = React.useRef<number | null>(null);
+
+    React.useLayoutEffect(() => {
+        const container = viewsScrollRef.current;
+        const was3D = was3DModeRef.current;
+        if (!container) {
+            was3DModeRef.current = is3DMode;
+            return;
+        }
+
+        if (pending3DAdjustRafRef.current !== null) {
+            cancelAnimationFrame(pending3DAdjustRafRef.current);
+            pending3DAdjustRafRef.current = null;
+        }
+
+        // Preserve the exact visual entry position when toggling 3D while
+        // still adding extra scroll room above the scene.
+        if (!was3D && is3DMode) {
+            const targetTop = container.scrollTop + threeDEntryCompensationPx;
+            last3DEntryCompensationRef.current = threeDEntryCompensationPx;
+            const raf1 = requestAnimationFrame(() => {
+                const raf2 = requestAnimationFrame(() => {
+                    const current = viewsScrollRef.current;
+                    if (!current) return;
+                    current.scrollTop = targetTop;
+                    pending3DAdjustRafRef.current = null;
+                });
+                pending3DAdjustRafRef.current = raf2;
+            });
+            pending3DAdjustRafRef.current = raf1;
+        } else if (was3D && !is3DMode) {
+            container.scrollTop = Math.max(0, container.scrollTop - last3DEntryCompensationRef.current);
+            last3DEntryCompensationRef.current = 0;
+        }
+
+        was3DModeRef.current = is3DMode;
+
+        return () => {
+            if (pending3DAdjustRafRef.current !== null) {
+                cancelAnimationFrame(pending3DAdjustRafRef.current);
+                pending3DAdjustRafRef.current = null;
+            }
+        };
+    }, [is3DMode, threeDEntryCompensationPx]);
+
+    // Badge positioning handled per-layer in KeyboardViewInstance to keep layout/badge relationship consistent.
 
     // Ref for measuring container dimensions
     const contentContainerRef = React.useRef<HTMLDivElement>(null);
+
+    // Use dynamic keylayout if available, otherwise fallback to hardcoded layout
+    const keyboardLayout = React.useMemo(() => (
+        (keyboard?.keylayout && Object.keys(keyboard.keylayout).length > 0)
+            ? keyboard.keylayout as Record<number, { x: number; y: number; w: number; h: number }>
+            : SVALBOARD_LAYOUT
+    ), [keyboard]);
 
     // Calculate keyboard layout extents (independent of current keyVariant)
     const keyboardExtents = React.useMemo(() => {
         if (!keyboard) return { maxX: 20, maxY: 10 }; // default estimate
 
-        // Use dynamic keylayout if available, otherwise fallback to hardcoded layout
-        const keyboardLayout = (keyboard.keylayout && Object.keys(keyboard.keylayout).length > 0)
-            ? keyboard.keylayout as Record<number, { x: number; y: number; w: number; h: number }>
-            : SVALBOARD_LAYOUT;
         const useFragmentLayout = keyboard.keylayout && Object.keys(keyboard.keylayout).length > 0;
 
         // Find max X and Y extents
@@ -424,20 +1004,24 @@ const EditorLayoutInner = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [layerClipboard, openPasteDialog]);
 
-    // Handler for when paste is confirmed
-    const handlePasteConfirm = React.useCallback(() => {
-        if (!keyboard || !layerClipboard || !keyboard.keymap) return;
+    const getLayerName = React.useCallback((layerIndex: number) => {
+        if (!keyboard) return `Layer ${layerIndex}`;
+        return svalService.getLayerName(keyboard, layerIndex);
+    }, [keyboard]);
 
-        const sourceKeymap = layerClipboard.layer.keymap;
-        const sourceLayerColor = layerClipboard.layer.layerColor;
-        const sourceLedColor = layerClipboard.layer.ledColor;
-        const targetLayerKeymap = keyboard.keymap[selectedLayer] || [];
+    const applyLayerToTarget = React.useCallback((sourceLayer: LayerEntry, targetLayer: number) => {
+        if (!keyboard || !keyboard.keymap) return;
+
+        const sourceKeymap = sourceLayer.keymap;
+        const sourceLayerColor = sourceLayer.layerColor;
+        const sourceLedColor = sourceLayer.ledColor;
+        const targetLayerKeymap = keyboard.keymap[targetLayer] || [];
         const cols = keyboard.cols || MATRIX_COLS;
 
         // Create ONE copy and batch all changes to avoid React state batching issues
         const updatedKeyboard = JSON.parse(JSON.stringify(keyboard));
-        if (!updatedKeyboard.keymap[selectedLayer]) {
-            updatedKeyboard.keymap[selectedLayer] = [];
+        if (!updatedKeyboard.keymap[targetLayer]) {
+            updatedKeyboard.keymap[targetLayer] = [];
         }
 
         // Copy cosmetic layer color if the source layer has one
@@ -448,7 +1032,7 @@ const EditorLayoutInner = () => {
             if (!updatedKeyboard.cosmetic.layer_colors) {
                 updatedKeyboard.cosmetic.layer_colors = {};
             }
-            updatedKeyboard.cosmetic.layer_colors[selectedLayer] = sourceLayerColor;
+            updatedKeyboard.cosmetic.layer_colors[targetLayer] = sourceLayerColor;
         }
 
         // Copy LED hardware color if the source layer has one
@@ -457,10 +1041,10 @@ const EditorLayoutInner = () => {
                 updatedKeyboard.layer_colors = [];
             }
             // Ensure array is long enough
-            while (updatedKeyboard.layer_colors.length <= selectedLayer) {
+            while (updatedKeyboard.layer_colors.length <= targetLayer) {
                 updatedKeyboard.layer_colors.push({ hue: 0, sat: 0, val: 0 });
             }
-            updatedKeyboard.layer_colors[selectedLayer] = { ...sourceLedColor };
+            updatedKeyboard.layer_colors[targetLayer] = { ...sourceLedColor };
         }
 
         // Collect all changes and apply to the single copy
@@ -473,18 +1057,18 @@ const EditorLayoutInner = () => {
 
             if (newValue !== currentValue) {
                 // Apply to the single copy
-                updatedKeyboard.keymap[selectedLayer][matrixPos] = newValue;
+                updatedKeyboard.keymap[targetLayer][matrixPos] = newValue;
 
                 // Queue change for push to device
-                const changeDesc = `key_${selectedLayer}_${row}_${col}`;
+                const changeDesc = `key_${targetLayer}_${row}_${col}`;
                 queue(
                     changeDesc,
                     async () => {
-                        await updateKey(selectedLayer, row, col, newValue);
+                        await updateKey(targetLayer, row, col, newValue);
                     },
                     {
                         type: "key",
-                        layer: selectedLayer,
+                        layer: targetLayer,
                         row,
                         col,
                         keycode: newValue,
@@ -496,25 +1080,82 @@ const EditorLayoutInner = () => {
 
         // Update state ONCE with all changes
         setKeyboard(updatedKeyboard);
-    }, [keyboard, layerClipboard, selectedLayer, queue, updateKey, setKeyboard]);
+    }, [keyboard, queue, updateKey, setKeyboard]);
 
-    // Handle layer drop on keyboard area
-    const handleLayerDrop = React.useCallback(() => {
+    // Handler for when clipboard paste is confirmed
+    const handlePasteConfirm = React.useCallback(() => {
+        if (!layerClipboard) return;
+        applyLayerToTarget(layerClipboard.layer, selectedLayer);
+    }, [layerClipboard, selectedLayer, applyLayerToTarget]);
+
+    const handleLayerDropHover = React.useCallback((layer: number | null) => {
+        if (!isDraggingLayer) return;
+        setHoveredDropLayer(layer);
+    }, [isDraggingLayer]);
+
+    const getLayerDropTargetAtPoint = React.useCallback((clientX: number, clientY: number) => {
+        if (!isDraggingLayer) return null;
+
+        return getBackdropLayerFromElements(
+            document.elementsFromPoint(clientX, clientY) as HTMLElement[],
+        );
+    }, [isDraggingLayer]);
+
+    const handleLayerDrop = React.useCallback((targetLayer: number) => {
         if (!isDraggingLayer || !draggedItem?.layerData) return;
-
-        // Copy the layer to clipboard and open paste dialog
-        copyLayer(draggedItem.layerData);
         markDropConsumed();
+        setHoveredDropLayer(null);
+        setPendingLayerDrop({
+            targetLayer,
+            targetLayerName: getLayerName(targetLayer),
+            sourceLayerName: draggedItem.layerData.name,
+            sourceLayerData: draggedItem.layerData,
+        });
+    }, [isDraggingLayer, draggedItem, markDropConsumed, getLayerName]);
 
-        // Open paste dialog after a brief delay to ensure clipboard is set
-        setTimeout(() => openPasteDialog(), 0);
-    }, [isDraggingLayer, draggedItem, copyLayer, markDropConsumed, openPasteDialog]);
+    React.useEffect(() => {
+        if (!isDraggingLayer) {
+            setHoveredDropLayer(null);
+        }
+    }, [isDraggingLayer]);
+
+    React.useEffect(() => {
+        if (!isDraggingLayer || !is3DMode) return;
+
+        const handleMouseMove = (event: MouseEvent) => {
+            setHoveredDropLayer(getLayerDropTargetAtPoint(event.clientX, event.clientY));
+        };
+
+        const handleMouseUp = (event: MouseEvent) => {
+            const targetLayer = getLayerDropTargetAtPoint(event.clientX, event.clientY);
+            if (targetLayer !== null) {
+                handleLayerDrop(targetLayer);
+            } else {
+                setHoveredDropLayer(null);
+            }
+        };
+
+        window.addEventListener('mousemove', handleMouseMove, true);
+        window.addEventListener('mouseup', handleMouseUp, true);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove, true);
+            window.removeEventListener('mouseup', handleMouseUp, true);
+        };
+    }, [isDraggingLayer, is3DMode, getLayerDropTargetAtPoint, handleLayerDrop]);
+
+    const handleDragReplaceConfirm = React.useCallback(() => {
+        if (!pendingLayerDrop) return;
+        applyLayerToTarget(pendingLayerDrop.sourceLayerData, pendingLayerDrop.targetLayer);
+        setPendingLayerDrop(null);
+    }, [pendingLayerDrop, applyLayerToTarget]);
+
+    const handleDragReplaceCancel = React.useCallback(() => {
+        setPendingLayerDrop(null);
+    }, []);
 
     // Get current layer name for the paste dialog
-    const currentLayerName = React.useMemo(() => {
-        if (!keyboard?.cosmetic?.layer) return `Layer ${selectedLayer}`;
-        return keyboard.cosmetic.layer[String(selectedLayer)] || `Layer ${selectedLayer}`;
-    }, [keyboard, selectedLayer]);
+    const currentLayerName = React.useMemo(() => getLayerName(selectedLayer), [getLayerName, selectedLayer]);
 
 
 
@@ -538,10 +1179,27 @@ const EditorLayoutInner = () => {
     }, [showEditorOverlay]);
 
     const [showInfoPanel, setShowInfoPanel] = React.useState(false);
+    const [gitBranchLabel, setGitBranchLabel] = React.useState<string>(__GIT_BRANCH__);
 
     React.useEffect(() => {
         if (itemToEdit === null) setIsClosingEditor(false);
     }, [itemToEdit]);
+
+    React.useEffect(() => {
+        if (!import.meta.env.DEV) return;
+        let isMounted = true;
+        fetch("/__git_branch")
+            .then(res => res.json())
+            .then(data => {
+                if (isMounted && data?.branch) {
+                    setGitBranchLabel(String(data.branch));
+                }
+            })
+            .catch(() => undefined);
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     // Layout mode determines whether we use sidebar or bottom panel
     const useSidebarLayout = layoutMode === "sidebar";
@@ -692,130 +1350,227 @@ const EditorLayoutInner = () => {
                 ref={contentContainerRef}
                 className={cn(
                     "relative flex-1 px-4 h-screen max-h-screen flex flex-col max-w-full w-full overflow-hidden bg-kb-gray border-none",
-                    isDraggingLayer && "ring-4 ring-inset ring-blue-400 ring-opacity-50 bg-blue-50/10"
+                    isDraggingLayer && "ring-4 ring-inset ring-blue-400 ring-opacity-50"
                 )}
                 style={contentStyle}
                 onClick={() => clearSelection()}
-                onMouseEnter={() => isDraggingLayer && setIsLayerDragOver(true)}
-                onMouseLeave={() => setIsLayerDragOver(false)}
-                onMouseUp={() => {
-                    if (isDraggingLayer && isLayerDragOver) {
-                        handleLayerDrop();
-                        setIsLayerDragOver(false);
-                    }
-                }}
             >
-                {/* Layer drop indicator - covers entire content area */}
-                {isDraggingLayer && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-                        <div className="bg-blue-500/90 text-white px-6 py-3 rounded-lg shadow-lg text-lg font-medium">
-                            Drop to place on Layer {selectedLayer}
-                        </div>
-                    </div>
-                )}
-
                 <LayerSelector
                     selectedLayer={selectedLayer}
                     setSelectedLayer={setSelectedLayer}
                     isMultiLayersActive={isMultiLayersActive}
-                    onToggleMultiLayers={() => setIsMultiLayersActive(prev => !prev)}
+                    onToggleMultiLayers={handleToggleMultiLayers}
+                    showAllLayers={showAllLayers}
+                    onToggleShowLayers={handleToggleShowLayers}
+                    isLayerOrderReversed={isLayerOrderReversed}
+                    onToggleLayerOrder={() => setIsLayerOrderReversed(prev => !prev)}
+                    layerActiveState={layerActiveState}
+                    onToggleLayerOn={handleToggleLayerOn}
+                    isAllTransparencyActive={isAllTransparencyActive}
+                    onToggleAllTransparency={handleToggleAllTransparency}
                 />
 
                 <div
-                    className="flex-1 overflow-y-auto flex flex-col items-center max-w-full relative"
+                    className={cn(
+                        "flex-1 overflow-y-auto flex flex-col items-center max-w-full relative",
+                        isMultiLayersActive && !isScene3D && "pt-11"
+                    )}
                     ref={viewsScrollRef}
                 >
+                    {threeDTopScrollReservePx > 0 && (
+                        <div
+                            aria-hidden="true"
+                            className="w-full shrink-0 pointer-events-none"
+                            style={{ height: `${threeDTopScrollReservePx}px` }}
+                        />
+                    )}
 
                     {activePanel === "matrixtester" ? (
                         <MatrixTester />
                     ) : (
                         <>
-                            {renderedViews.map((view) => (
-                                <div
-                                    key={view.id}
-                                    ref={(el) => {
-                                        if (el) {
-                                            const existing = layerViewRefs.current.get(view.selectedLayer);
-                                            if (view.id === "primary" || !existing) {
-                                                layerViewRefs.current.set(view.selectedLayer, el);
-                                            }
-                                        } else {
-                                            layerViewRefs.current.delete(view.selectedLayer);
-                                        }
-                                    }}
-                                    className="w-full"
-                                >
-                                    <KeyboardViewInstance
-                                        instanceId={view.id}
-                                        selectedLayer={view.selectedLayer}
-                                        setSelectedLayer={(layer) => handleSetViewLayer(view.id, layer)}
-                                        isPrimary={view.id === "primary"}
-                                        hideLayerTabs={isMultiLayersActive && view.id !== "primary"}
-                                        layerActiveState={layerActiveState}
-                                        onToggleLayerOn={handleToggleLayerOn}
-                                        transparencyByLayer={transparencyByLayer}
-                                        onToggleTransparency={handleToggleTransparency}
-                                        showAllLayers={showAllLayers}
-                                        onToggleShowLayers={handleToggleShowLayers}
-                                        isLayerOrderReversed={isLayerOrderReversed}
-                                        onToggleLayerOrder={() => setIsLayerOrderReversed(prev => !prev)}
-                                        onRemove={!isMultiLayersActive && view.id !== "primary" ? () => handleRemoveView(view.id) : undefined}
-                                        onGhostNavigate={isMultiLayersActive ? handleGhostNavigate : undefined}
-                                        isRevealing={view.id === revealingViewId}
-                                        isHiding={view.id === hidingViewId}
-                                    />
-                                </div>
-                            ))}
+                            {/* Vertical 3D Guide Lines - now in 2D container to ensure verticality */}
+                            {(() => {
+                                // Calculate precisely how far down the lines should go
+                                // Distance between layers = (KeyboardHeight + 20 padding) - 310 overlap + translateZ(15) projection
+                                const useFragmentLayout = keyboardLayout !== SVALBOARD_LAYOUT;
+                                let maxYUnits = 0;
+                                Object.values(keyboardLayout).forEach((key: any) => {
+                                    const yPos = (!useFragmentLayout && key.y >= 6) ? key.y + 0.3 : key.y;
+                                    maxYUnits = Math.max(maxYUnits, yPos + key.h);
+                                });
+                                const zStep = effectiveLayerSpacing;
+                                const stepYValue = zStep * 0.8192; // 0.8192 is sin(55deg)
 
-                            {/* Add View Button */}
-                            {!isMultiLayersActive && (
-                                <div
-                                    className="flex items-center pl-5 pb-2 w-full"
-                                    style={{
-                                        opacity: hideAddButton ? 0 : 1,
-                                        transition: hideAddButton ? 'none' : 'opacity 150ms ease-in-out',
-                                    }}
-                                >
-                                    <Tooltip delayDuration={500}>
-                                        <TooltipTrigger asChild>
-                                            <button
-                                                ref={addViewButtonRef}
-                                                onClick={handleAddView}
-                                                className="p-2 rounded-full transition-colors text-gray-500 hover:text-gray-800 hover:bg-gray-200"
-                                                aria-label="Add keyboard layer view"
-                                            >
-                                                <LayersPlusIcon className="h-5 w-5" />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="right">
-                                            Show another layer view
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </div>
-                            )}
+                                const viewsToDisplay = renderedViews;
+                                const isOverviewSceneActive = isSceneInMultiStack;
 
-                            {/* Flying icon animation (add: plus→minus, remove: minus→plus) */}
-                            {flyingIcon && !isMultiLayersActive && (
-                                <div
-                                    className="fixed pointer-events-none"
-                                    style={{
-                                        left: flyingIcon.endX !== undefined ? flyingIcon.endX : flyingIcon.startX,
-                                        top: flyingIcon.endY !== undefined ? flyingIcon.endY : flyingIcon.startY,
-                                        transition: flyingIcon.endX !== undefined
-                                            ? 'left 400ms cubic-bezier(0.42, 0, 0.58, 1), top 400ms cubic-bezier(0.42, 0, 0.58, 1)'
-                                            : 'none',
-                                        zIndex: 40,
-                                    }}
-                                    onTransitionEnd={handleFlyingIconEnd}
-                                >
-                                    <div className="p-2">
-                                        {flyingIcon.iconType === 'plus'
-                                            ? <LayersPlusIcon className="h-5 w-5 text-gray-500" />
-                                            : <LayersMinusIcon className="h-5 w-5 text-gray-400" />}
+                                const totalViewShiftY = isOverviewSceneActive ? (viewsToDisplay.length * stepYValue) : 0;
+                                const multiLayerHeaderOffset = 0;
+
+                                const shouldDeferGuideLines = deferGuidesRender || legacyForwardEntryActive || !sceneShowsGuides(sceneState);
+
+                                return (
+                                    <div
+                                        className="relative w-full flex flex-col items-center"
+                                        style={isScene3D ? {
+                                            perspective: "1200px",
+                                            transformStyle: "preserve-3d",
+                                            paddingBottom: isOverviewSceneActive ? `${totalViewShiftY + 50}px` : undefined,
+                                        } : undefined}
+                                    >
+                                        {/* Vertical 3D Guide Lines - now in 2D container to ensure verticality */}
+                                        {isScene3D && isOverviewSceneActive && (
+                                            <GuideLines
+                                                numLayers={viewsToDisplay.length}
+                                                lastViewId={viewsToDisplay[viewsToDisplay.length - 1]?.id}
+                                                keyVariant={keyVariant}
+                                                keyboardLayout={keyboardLayout}
+                                                fingerClusterSqueeze={fingerClusterSqueeze}
+                                                isThumb3DOffsetActive={isThumb3DOffsetActive}
+                                                stepYValue={stepYValue}
+                                                primaryStackIndex={0}
+                                                deferRender={shouldDeferGuideLines}
+                                            />
+                                        )}
+                                        {viewsToDisplay.map((view, index) => (
+                                            (() => {
+                                                const stackIndex = isOverviewSceneActive ? index : 0;
+                                                const scenePose = getLayerScenePose({
+                                                    sceneState,
+                                                    stackIndex,
+                                                    isPrimary: view.id === "primary",
+                                                    totalVisibleLayers: viewsToDisplay.length,
+                                                    layerSpacingPx: effectiveLayerSpacing,
+                                                    flowOffsetPx: sceneFlowOffsets[view.id] ?? 0,
+                                                    renderedInMultiScene: isOverviewSceneActive,
+                                                    collapseToSingle: sceneCollapseToSingle,
+                                                });
+                                                return (
+                                                    <div key={view.id}
+                                                        ref={(el) => {
+                                                            if (el) {
+                                                                sceneViewRefs.current.set(view.id, el);
+                                                            } else {
+                                                                sceneViewRefs.current.delete(view.id);
+                                                            }
+                                                            if (el) {
+                                                                const existing = layerViewRefs.current.get(view.selectedLayer);
+                                                                if (view.id === "primary" || !existing) {
+                                                                    layerViewRefs.current.set(view.selectedLayer, el);
+                                                                }
+                                                            } else {
+                                                                layerViewRefs.current.delete(view.selectedLayer);
+                                                            }
+                                                        }}
+                                                        className="w-full relative pointer-events-none"
+                                                        style={{
+                                                            zIndex: (viewsToDisplay.length - index),
+                                                            transformStyle: isScene3D ? "preserve-3d" : "flat",
+                                                        }}
+                                                    >
+                                                        <div className="flex justify-center h-full relative pointer-events-none" style={{ transformStyle: isScene3D ? "preserve-3d" : "flat" }}>
+                                                            <KeyboardViewInstance
+                                                                instanceId={view.id}
+                                                                selectedLayer={view.selectedLayer}
+                                                                setSelectedLayer={(layer) => handleSetViewLayer(view.id, layer)}
+                                                                isPrimary={view.id === "primary"}
+                                                                hideLayerTabs={isOverviewSceneActive && view.id !== "primary"}
+                                                                layerActiveState={layerActiveState}
+                                                                onToggleLayerOn={handleToggleLayerOn}
+                                                                transparencyByLayer={transparencyByLayer}
+                                                                onToggleTransparency={handleToggleTransparency}
+                                                                showAllLayers={showAllLayers}
+                                                                onToggleShowLayers={handleToggleShowLayers}
+                                                                isLayerOrderReversed={isLayerOrderReversed}
+                                                                onToggleLayerOrder={() => setIsLayerOrderReversed(prev => !prev)}
+                                                                isOverviewSceneActive={isOverviewSceneActive}
+                                                                show3DScene={isScene3D}
+                                                                scenePose={scenePose}
+                                                                legacyForwardEntryActive={legacyForwardEntryActive}
+                                                                isAllTransparencyActive={isAllTransparencyActive}
+                                                                isTransparencyRestoring={isTransparencyRestoring}
+                                                                multiLayerHeaderOffset={multiLayerHeaderOffset}
+                                                                onRemove={!isOverviewSceneActive && view.id !== "primary" ? () => handleRemoveView(view.id) : undefined}
+                                                                onGhostNavigate={isOverviewSceneActive ? handleGhostNavigate : undefined}
+                                                                isRevealing={view.id === revealingViewId}
+                                                                isHiding={view.id === hidingViewId}
+                                                                stackIndex={stackIndex}
+                                                                baseBadgeOffsetY={baseBadgeOffsetY}
+                                                                onBaseBadgeOffsetY={view.id === "primary" ? handleBaseBadgeOffsetY : undefined}
+                                                                isLayerDragActive={isDraggingLayer}
+                                                                hoveredDropLayer={hoveredDropLayer}
+                                                                onLayerDropHover={handleLayerDropHover}
+                                                                onLayerDrop={handleLayerDrop}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()
+                                        ))}
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
                         </>
+                    )}
+
+                    {/* Add View Button */}
+                    {!isMultiLayersActive && (
+                        <div
+                            className="flex items-center pl-5 pb-2 w-full"
+                            style={{
+                                opacity: hideAddButton ? 0 : 1,
+                                transition: hideAddButton ? 'none' : `opacity 150ms ease-in-out, margin-top ${legacyForwardEntryActive ? LEGACY_FORWARD_ENTRY_MS : SCENE_SPREAD_MS}ms ${legacyForwardEntryActive ? 'ease-in-out' : 'cubic-bezier(0.22, 1, 0.36, 1)'}`,
+                                marginTop: is3DMode && !isMultiLayersActive ? 320 : 0,
+                            }}
+                        >
+                            <Tooltip delayDuration={500}>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        ref={addViewButtonRef}
+                                        onClick={handleAddView}
+                                        className="p-2 rounded-full transition-colors text-gray-500 hover:text-gray-800 hover:bg-gray-200"
+                                        aria-label="Add keyboard layer view"
+                                    >
+                                        <LayersPlusIcon className="h-5 w-5" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right">
+                                    Show Another Layer
+                                </TooltipContent>
+                            </Tooltip>
+                        </div>
+                    )}
+
+                    {/* 3D-only scroll reserve so transformed backdrops can be fully revealed by scrolling */}
+                    {threeDBottomScrollReservePx > 0 && (
+                        <div
+                            aria-hidden="true"
+                            className="w-full shrink-0 pointer-events-none"
+                            style={{ height: `${threeDBottomScrollReservePx}px` }}
+                        />
+                    )}
+
+                    {/* Flying icon animation (add: plus→minus, remove: minus→plus) */}
+                    {flyingIcon && !isMultiLayersActive && (
+                        <div
+                            className="fixed pointer-events-none"
+                            style={{
+                                left: flyingIcon.endX !== undefined ? flyingIcon.endX : flyingIcon.startX,
+                                top: flyingIcon.endY !== undefined ? flyingIcon.endY : flyingIcon.startY,
+                                transition: flyingIcon.endX !== undefined
+                                    ? 'left 400ms cubic-bezier(0.42, 0, 0.58, 1), top 400ms cubic-bezier(0.42, 0, 0.58, 1)'
+                                    : 'none',
+                                zIndex: 40,
+                            }}
+                            onTransitionEnd={handleFlyingIconEnd}
+                        >
+                            <div className="p-2">
+                                {flyingIcon.iconType === 'plus'
+                                    ? <LayersPlusIcon className="h-5 w-5 text-gray-500" />
+                                    : <LayersMinusIcon className="h-5 w-5 text-gray-400" />}
+                            </div>
+                        </div>
                     )}
 
                     {/* Editor overlay for bottom bar mode - picker tabs + editor */}
@@ -875,31 +1630,33 @@ const EditorLayoutInner = () => {
                 </div>
 
                 {/* Controls - bottom left in sidebar mode only */}
-                {!useBottomLayout && (
-                    <>
-                        {activePanel !== "matrixtester" && (
-                            <div className="absolute bottom-9 left-[37px] z-50">
-                                <InfoPanelWidget showInfoPanel={showInfoPanel} setShowInfoPanel={setShowInfoPanel} />
-                            </div>
-                        )}
-
-                        <div className="absolute bottom-9 right-[37px] flex flex-col items-end gap-1 pointer-events-none">
-                            <div className="pointer-events-auto">
-                                <EditorControls
-                                    showInfoPanel={showInfoPanel}
-                                    setShowInfoPanel={setShowInfoPanel}
-                                    showInfoToggle={false}
-                                />
-                            </div>
-                            {import.meta.env.DEV && (
-                                <div className="text-[10px] font-medium text-slate-400 select-none px-1 pointer-events-auto">
-                                    Branch: {__GIT_BRANCH__}
+                {
+                    !useBottomLayout && (
+                        <>
+                            {activePanel !== "matrixtester" && (
+                                <div className="absolute bottom-9 left-[37px] z-50">
+                                    <InfoPanelWidget showInfoPanel={showInfoPanel} setShowInfoPanel={setShowInfoPanel} />
                                 </div>
                             )}
-                        </div>
-                    </>
-                )}
-            </div>
+
+                            <div className="absolute bottom-9 right-[37px] flex flex-col items-end gap-1 pointer-events-none">
+                                <div className="pointer-events-auto">
+                                    <EditorControls
+                                        showInfoPanel={showInfoPanel}
+                                        setShowInfoPanel={setShowInfoPanel}
+                                        showInfoToggle={false}
+                                    />
+                                </div>
+                                {import.meta.env.DEV && (
+                                    <div className="text-[10px] font-medium text-slate-400 select-none px-1 pointer-events-auto">
+                                        Branch: {gitBranchLabel}
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )
+                }
+            </div >
             {/* Render BottomPanel at root level so it spans full width */}
             {useBottomLayout && <BottomPanel leftOffset={primaryOffset} pickerMode={pickerMode} height={dynamicBottomPanelHeight} />}
 
@@ -956,7 +1713,602 @@ const EditorLayoutInner = () => {
                 currentLayerName={currentLayerName}
                 onConfirm={handlePasteConfirm}
             />
+            <DragReplaceLayerDialog
+                open={!!pendingLayerDrop}
+                sourceLayerName={pendingLayerDrop?.sourceLayerName ?? ""}
+                targetLayerName={pendingLayerDrop?.targetLayerName ?? ""}
+                onConfirm={handleDragReplaceConfirm}
+                onCancel={handleDragReplaceCancel}
+            />
         </div >
+    );
+};
+
+
+/**
+ * Renders perfectly vertical dotted guide lines connecting key clusters across layers in 3D mode.
+ * Rendered in 2D space but aligned with the 3D-projected clusters.
+ */
+const GuideLines = ({
+    numLayers,
+    lastViewId,
+    keyVariant,
+    keyboardLayout,
+    fingerClusterSqueeze,
+    isThumb3DOffsetActive,
+    stepYValue,
+    primaryStackIndex,
+    deferRender = false
+}: {
+    numLayers: number,
+    lastViewId: string,
+    keyVariant: string,
+    keyboardLayout: any,
+    fingerClusterSqueeze: number,
+    isThumb3DOffsetActive: boolean,
+    stepYValue: number,
+    primaryStackIndex: number,
+    deferRender?: boolean
+}) => {
+    if (numLayers < 2 || deferRender) return null;
+
+    const unitSize = keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : 60;
+    const keyboardPadding = 16; // matches Keyboard.tsx p-4
+    const useFragmentLayout = keyboardLayout !== SVALBOARD_LAYOUT;
+    const getYPos = (y: number) => (
+        (!useFragmentLayout && y >= 6) ? y + THUMB_OFFSET_U : y
+    );
+
+    let layoutMaxX = 0;
+    let layoutMaxY = 0;
+    Object.values(keyboardLayout).forEach((k: any) => {
+        layoutMaxX = Math.max(layoutMaxX, k.x + k.w);
+        layoutMaxY = Math.max(layoutMaxY, getYPos(k.y) + k.h);
+    });
+    const layoutMidline = layoutMaxX / 2;
+
+    const overlayRef = React.useRef<HTMLDivElement | null>(null);
+    const [guidePointsPx, setGuidePointsPx] = React.useState<Array<{ x: number; y: number; label: string; isBottom: boolean }>>([]);
+    const [svgSize, setSvgSize] = React.useState({ width: 0, height: 0 });
+    const [thumbGuideShiftPx, setThumbGuideShiftPx] = React.useState({ x: 0, y: 0 });
+
+    const findKeyByXY = (x: number, y: number) => {
+        let best: { x: number; y: number; w: number; h: number } | null = null;
+        let bestDist = Infinity;
+        Object.values(keyboardLayout).forEach((k: any) => {
+            const dx = Math.abs(k.x - x);
+            const dy = Math.abs(k.y - y);
+            const dist = dx + dy;
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = { x: k.x, y: k.y, w: k.w, h: k.h };
+            }
+        });
+        return bestDist <= 0.75 ? best : null;
+    };
+
+    const clusterTopKeys = React.useMemo(() => {
+        const fingerAnchors = [
+            { x: 1, y: 1.5, label: "L1" },    // Q
+            { x: 3.5, y: 0, label: "L2" },    // W
+            { x: 7, y: 0, label: "L3" },      // E
+            { x: 9.5, y: 1.5, label: "L4" },  // R
+            { x: 13.8, y: 1.5, label: "R1" }, // U
+            { x: 16.3, y: 0, label: "R2" },   // I
+            { x: 19.8, y: 0, label: "R3" },   // O
+            { x: 22.3, y: 1.5, label: "R4" }, // P
+        ];
+
+        type LayoutKey = { x: number; y: number; w: number; h: number };
+        const keys = Object.values(keyboardLayout) as LayoutKey[];
+        const thumbKeys = keys.filter((k) => k.y >= 5);
+        if (thumbKeys.length === 0) return fingerAnchors;
+
+        const nearestThumb = (targetX: number, targetY: number): LayoutKey | null => {
+            let best: LayoutKey | null = null;
+            let bestDist = Infinity;
+            thumbKeys.forEach((k) => {
+                const d = Math.abs(k.x - targetX) + Math.abs(k.y - targetY);
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = k;
+                }
+            });
+            return best;
+        };
+
+        const leftThumb = nearestThumb(9.5, 5);   // expected CAPS center key
+        const rightThumb = nearestThumb(13.8, 5); // expected MO center key
+
+        const thumbAnchors: Array<{ x: number; y: number; label: string }> = [];
+        if (leftThumb) thumbAnchors.push({ x: leftThumb.x, y: leftThumb.y, label: "LT" });
+        if (rightThumb) thumbAnchors.push({ x: rightThumb.x, y: rightThumb.y, label: "RT" });
+
+        return [...fingerAnchors, ...thumbAnchors];
+    }, [keyboardLayout]);
+
+    React.useLayoutEffect(() => {
+        const overlayEl = overlayRef.current;
+        const keyboardEl = document.querySelector('[data-keyboard-instance="primary"]') as HTMLElement | null;
+        if (!overlayEl || !keyboardEl) {
+            setGuidePointsPx([]);
+            return;
+        }
+
+        const transformEl = (keyboardEl.closest('.keyboard-3d-active') as HTMLElement | null) || keyboardEl;
+        const lastKeyboardEl = lastViewId
+            ? (document.querySelector(`[data-keyboard-instance="${lastViewId}"]`) as HTMLElement | null)
+            : null;
+        const lastTransformEl =
+            (lastKeyboardEl?.closest('.keyboard-3d-active') as HTMLElement | null) || lastKeyboardEl;
+
+        const getLayoutOffset = (el: HTMLElement) => {
+            // Use layout coordinates (not transformed bounds), then compensate for all ancestor scrolling.
+            let x = 0;
+            let y = 0;
+            let current: HTMLElement | null = el;
+            while (current) {
+                x += current.offsetLeft;
+                y += current.offsetTop;
+                current = current.offsetParent as HTMLElement | null;
+            }
+
+            current = el.parentElement;
+            while (current) {
+                x -= current.scrollLeft;
+                y -= current.scrollTop;
+                current = current.parentElement;
+            }
+
+            return { x: x - window.scrollX, y: y - window.scrollY };
+        };
+
+        const measure = () => {
+            const overlayRect = overlayEl.getBoundingClientRect();
+            setSvgSize({ width: overlayRect.width, height: overlayRect.height });
+
+            const layoutOffset = getLayoutOffset(transformEl);
+            const originStyle = getComputedStyle(transformEl).transformOrigin.split(' ');
+            const parseOrigin = (value: string, size: number) => {
+                if (value.endsWith('%')) return (parseFloat(value) / 100) * size;
+                return parseFloat(value);
+            };
+            const originX = parseOrigin(originStyle[0], transformEl.offsetWidth);
+            const originY = parseOrigin(originStyle[1] || '0px', transformEl.offsetHeight);
+
+
+            const degToRad = Math.PI / 180;
+            const sin45 = Math.sin(45 * degToRad);
+            const cos45 = Math.cos(45 * degToRad);
+            const sin55 = Math.sin(55 * degToRad);
+            const cos55 = Math.cos(55 * degToRad);
+            const zStep = stepYValue / sin55;
+
+            const points: Array<{ x: number; y: number; label: string; isBottom: boolean }> = [];
+            const pushProjectedPoint = (label: string, pxX: number, pxY: number, z: number, isBottom: boolean) => {
+                const projected = projectPoint(pxX, pxY, z);
+                points.push({
+                    x: projected.x + layoutOffset.x - overlayRect.left,
+                    y: projected.y + layoutOffset.y - overlayRect.top,
+                    label,
+                    isBottom,
+                });
+            };
+            const pushScreenPoint = (label: string, pxX: number, pxY: number, isBottom: boolean) => {
+                points.push({
+                    x: pxX,
+                    y: pxY,
+                    label,
+                    isBottom,
+                });
+            };
+
+            let zBottom = (numLayers - 1) * zStep;
+
+            const projectPoint = (pxX: number, pxY: number, z: number) => {
+                const localX = pxX - originX;
+                const localY = pxY - originY;
+
+                // translateZ then rotateZ(-45deg)
+                const x1 = (localX * cos45) + (localY * sin45);
+                const y1 = (-localX * sin45) + (localY * cos45);
+
+                // rotateX(55deg)
+                const y2 = (y1 * cos55) + (z * sin55);
+                const x2 = x1;
+
+                return {
+                    x: x2 + originX,
+                    y: y2 + originY,
+                };
+            };
+
+            const keyToPos = (key: { x: number; y: number; w: number; h: number }) => {
+                let xPos = key.x;
+                if (!useFragmentLayout && fingerClusterSqueeze > 0) {
+                    if (key.x + key.w / 2 < layoutMidline) {
+                        xPos = key.x + fingerClusterSqueeze;
+                    } else {
+                        xPos = key.x - fingerClusterSqueeze;
+                    }
+                    xPos -= fingerClusterSqueeze;
+                }
+                const yPos = getYPos(key.y);
+                return { x: xPos, y: yPos, w: key.w, h: key.h };
+            };
+
+            const getKeyEl = (kbEl: HTMLElement, key: { x: number; y: number }) => {
+                const selector = `[data-key-x="${key.x}"][data-key-y="${key.y}"]`;
+                return kbEl.querySelector(selector) as HTMLElement | null;
+            };
+            const getQuad = (el: HTMLElement) => {
+                const elWithQuads = el as HTMLElement & {
+                    getBoxQuads?: (options?: { box?: "margin" | "border" | "padding" | "content" }) => DOMQuad[];
+                };
+                if (typeof elWithQuads.getBoxQuads === "function") {
+                    const quads = elWithQuads.getBoxQuads({ box: "border" });
+                    return quads && quads.length ? quads[0] : null;
+                }
+                return null;
+            };
+            const quadPoints = (quad: DOMQuad) => [quad.p1, quad.p2, quad.p3, quad.p4];
+            const quadEdges = (pts: DOMPoint[]) => ([
+                { a: pts[0], b: pts[1] },
+                { a: pts[1], b: pts[2] },
+                { a: pts[2], b: pts[3] },
+                { a: pts[3], b: pts[0] },
+            ]).map((e) => ({
+                ...e,
+                avgX: (e.a.x + e.b.x) / 2,
+                avgY: (e.a.y + e.b.y) / 2,
+            }));
+            const pickTopEdge = (edges: Array<{ a: DOMPoint; b: DOMPoint; avgX: number; avgY: number }>) =>
+                edges.reduce((min, e) => (e.avgY < min.avgY ? e : min), edges[0]);
+            const orderByX = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+                (a.x <= b.x ? { left: a, right: b } : { left: b, right: a });
+
+            const getActualTopEdge = (kbEl: HTMLElement, keyX: number, keyY: number) => {
+                const key = findKeyByXY(keyX, keyY);
+                if (!key) return null;
+                const el = getKeyEl(kbEl, key);
+                if (!el) return null;
+                const quad = el ? getQuad(el) : null;
+                let edge: { left: { x: number; y: number }; right: { x: number; y: number } };
+
+                if (quad) {
+                    const pts = quadPoints(quad);
+                    const topEdge = pickTopEdge(quadEdges(pts));
+                    edge = orderByX(topEdge.a, topEdge.b);
+                } else {
+                    return null;
+                }
+
+                const { left, right } = edge;
+                return {
+                    left: { x: left.x - overlayRect.left, y: left.y - overlayRect.top },
+                    right: { x: right.x - overlayRect.left, y: right.y - overlayRect.top },
+                };
+            };
+
+            const getProjectedThumbShift = (scaleX = 1) => {
+                if (!isThumb3DOffsetActive) return { x: 0, y: 0 };
+                const base = projectPoint(0, 0, 0);
+                const shifted = projectPoint(0, 900, 0);
+                return {
+                    x: (shifted.x - base.x) * scaleX,
+                    y: shifted.y - base.y,
+                };
+            };
+
+            const getKeyCenter = (kbEl: HTMLElement, keyX: number, keyY: number) => {
+                const key = findKeyByXY(keyX, keyY);
+                if (!key) return null;
+                const el = getKeyEl(kbEl, key);
+                if (!el) return null;
+                const rect = el.getBoundingClientRect();
+                return {
+                    x: (rect.left + rect.right) / 2,
+                    y: (rect.top + rect.bottom) / 2,
+                };
+            };
+
+            const measuredLayerOffset = (() => {
+                if (!lastKeyboardEl || lastKeyboardEl === keyboardEl) return null;
+                const anchors = [
+                    { x: 3.5, y: 0 },   // W
+                    { x: 16.3, y: 0 },  // I
+                    { x: 1, y: 1.5 },   // Q
+                    { x: 22.3, y: 1.5 }, // P
+                ];
+                const deltas: Array<{ dx: number; dy: number }> = [];
+                anchors.forEach(({ x, y }) => {
+                    const primaryEdge = getActualTopEdge(keyboardEl, x, y);
+                    const secondaryEdge = getActualTopEdge(lastKeyboardEl, x, y);
+                    if (primaryEdge && secondaryEdge) {
+                        deltas.push({
+                            dx: ((secondaryEdge.left.x + secondaryEdge.right.x) / 2) - ((primaryEdge.left.x + primaryEdge.right.x) / 2),
+                            dy: ((secondaryEdge.left.y + secondaryEdge.right.y) / 2) - ((primaryEdge.left.y + primaryEdge.right.y) / 2),
+                        });
+                        return;
+                    }
+                    const primaryCenter = getKeyCenter(keyboardEl, x, y);
+                    const secondaryCenter = getKeyCenter(lastKeyboardEl, x, y);
+                    if (primaryCenter && secondaryCenter) {
+                        deltas.push({
+                            dx: secondaryCenter.x - primaryCenter.x,
+                            dy: secondaryCenter.y - primaryCenter.y,
+                        });
+                    }
+                });
+                if (deltas.length === 0) return null;
+                const sum = deltas.reduce(
+                    (acc, delta) => ({ dx: acc.dx + delta.dx, dy: acc.dy + delta.dy }),
+                    { dx: 0, dy: 0 }
+                );
+                return { dx: sum.dx / deltas.length, dy: sum.dy / deltas.length };
+            })();
+
+            const addFromKey = (key: { x: number; y: number; w: number; h: number }, side: "top" | "right" | "bottom" | "left", label: string) => {
+                const k = keyToPos(key);
+                const leftX = keyboardPadding + (k.x * unitSize);
+                const rightX = keyboardPadding + ((k.x + k.w) * unitSize);
+                const topY = keyboardPadding + (k.y * unitSize);
+                const bottomY = keyboardPadding + ((k.y + k.h) * unitSize);
+
+                const zTop = primaryStackIndex * zStep;
+                const zEnd = zTop + zBottom;
+
+                if (side === "top") {
+                    const isThumbGuide = label === "LT" || label === "RT";
+                    const primaryTopEdge = isThumbGuide ? null : getActualTopEdge(keyboardEl, key.x, key.y);
+
+                    const projectedTopLeft = projectPoint(leftX, topY, zTop);
+                    const projectedTopRight = projectPoint(rightX, topY, zTop);
+                    const projectedTop1 = {
+                        x: projectedTopLeft.x + layoutOffset.x - overlayRect.left,
+                        y: projectedTopLeft.y + layoutOffset.y - overlayRect.top,
+                    };
+                    const projectedTop2 = {
+                        x: projectedTopRight.x + layoutOffset.x - overlayRect.left,
+                        y: projectedTopRight.y + layoutOffset.y - overlayRect.top,
+                    };
+
+                    const top1 = primaryTopEdge?.left ?? projectedTop1;
+                    const top2 = primaryTopEdge?.right ?? projectedTop2;
+
+                    if (measuredLayerOffset) {
+                        usedMeasuredTopEdges = true;
+                        pushScreenPoint(`${label}-top-1`, top1.x, top1.y, false);
+                        pushScreenPoint(`${label}-top-2`, top2.x, top2.y, false);
+                        pushScreenPoint(`${label}-top-1`, top1.x + measuredLayerOffset.dx, top1.y + measuredLayerOffset.dy, true);
+                        pushScreenPoint(`${label}-top-2`, top2.x + measuredLayerOffset.dx, top2.y + measuredLayerOffset.dy, true);
+                        return;
+                    }
+
+                    pushProjectedPoint(`${label}-top-1`, leftX, topY, zTop, false);
+                    pushProjectedPoint(`${label}-top-2`, rightX, topY, zTop, false);
+                    pushProjectedPoint(`${label}-top-1`, leftX, topY, zEnd, true);
+                    pushProjectedPoint(`${label}-top-2`, rightX, topY, zEnd, true);
+                } else if (side === "right") {
+                    pushProjectedPoint(`${label}-right-1`, rightX, topY, zTop, false);
+                    pushProjectedPoint(`${label}-right-2`, rightX, bottomY, zTop, false);
+                    pushProjectedPoint(`${label}-right-1`, rightX, topY, zEnd, true);
+                    pushProjectedPoint(`${label}-right-2`, rightX, bottomY, zEnd, true);
+                } else if (side === "bottom") {
+                    pushProjectedPoint(`${label}-bottom-1`, leftX, bottomY, zTop, false);
+                    pushProjectedPoint(`${label}-bottom-2`, rightX, bottomY, zTop, false);
+                    pushProjectedPoint(`${label}-bottom-1`, leftX, bottomY, zEnd, true);
+                    pushProjectedPoint(`${label}-bottom-2`, rightX, bottomY, zEnd, true);
+                } else {
+                    pushProjectedPoint(`${label}-left-1`, leftX, topY, zTop, false);
+                    pushProjectedPoint(`${label}-left-2`, leftX, bottomY, zTop, false);
+                    pushProjectedPoint(`${label}-left-1`, leftX, topY, zEnd, true);
+                    pushProjectedPoint(`${label}-left-2`, leftX, bottomY, zEnd, true);
+                }
+            };
+
+            let usedMeasuredTopEdges = false;
+
+            clusterTopKeys.forEach(({ x, y, label }) => {
+                const top = findKeyByXY(x, y);
+                if (!top) return;
+                const right = findKeyByXY(x + 1, y + 1);
+                const bottom = findKeyByXY(x, y + 2);
+                const left = findKeyByXY(x - 1, y + 1);
+                if (top) addFromKey(top, "top", label);
+                if (right) addFromKey(right, "right", label);
+                if (bottom) addFromKey(bottom, "bottom", label);
+                if (left) addFromKey(left, "left", label);
+            });
+
+            if (usedMeasuredTopEdges) {
+                setGuidePointsPx(points);
+                setThumbGuideShiftPx(getProjectedThumbShift());
+                return;
+            }
+
+            const l2Actual = getActualTopEdge(keyboardEl, 3.5, 0); // W
+            const r2Actual = getActualTopEdge(keyboardEl, 16.3, 0); // I
+            const calcLeft = points.find((p) => p.label === "L2-top-1" && !p.isBottom);
+            const calcRight = points.find((p) => p.label === "R2-top-2" && !p.isBottom);
+
+            if (l2Actual && r2Actual && calcLeft && calcRight) {
+                const scaleX = (r2Actual.right.x - l2Actual.left.x) / (calcRight.x - calcLeft.x);
+                const dy = l2Actual.left.y - calcLeft.y;
+                setGuidePointsPx(points.map((p) => ({
+                    ...p,
+                    x: l2Actual.left.x + (p.x - calcLeft.x) * scaleX,
+                    y: p.y + dy,
+                })));
+                setThumbGuideShiftPx(getProjectedThumbShift(scaleX));
+                return;
+            }
+
+            setGuidePointsPx(points);
+            setThumbGuideShiftPx(getProjectedThumbShift());
+        };
+
+        const handleResize = () => requestAnimationFrame(measure);
+        const ro = new ResizeObserver(handleResize);
+        ro.observe(overlayEl);
+        ro.observe(keyboardEl);
+        if (lastKeyboardEl && lastKeyboardEl !== keyboardEl) {
+            ro.observe(lastKeyboardEl);
+        }
+
+        const transitionTargets = [transformEl, lastTransformEl].filter((el): el is HTMLElement => !!el);
+        transitionTargets.forEach((el) => {
+            el.addEventListener('transitionrun', handleResize);
+            el.addEventListener('transitionend', handleResize);
+        });
+
+        const settleTimer = window.setTimeout(handleResize, 220);
+        window.addEventListener('resize', handleResize);
+        measure();
+
+        return () => {
+            window.clearTimeout(settleTimer);
+
+            transitionTargets.forEach((el) => {
+                el.removeEventListener('transitionrun', handleResize);
+                el.removeEventListener('transitionend', handleResize);
+            });
+
+            ro.disconnect();
+            window.removeEventListener('resize', handleResize);
+        };
+    }, [keyboardLayout, keyVariant, numLayers, lastViewId, fingerClusterSqueeze, isThumb3DOffsetActive, stepYValue, primaryStackIndex, useFragmentLayout, unitSize, layoutMidline]);
+
+    // Spacing between layers in screen pixels
+    const svgWidth = svgSize.width || 1;
+    const svgHeight = (svgSize.height || 1) + (numLayers * 100); // extra padding for overlap
+
+    return (
+        <React.Fragment>
+            <div
+                ref={overlayRef}
+                data-testid="multi-layer-guides"
+                className="absolute inset-0 pointer-events-none overflow-visible"
+                style={{ zIndex: 0 }}
+            >
+                <svg
+                    width={svgWidth}
+                    height={svgHeight}
+                    style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none" }}
+                    className="overflow-visible"
+                >
+                    {(() => {
+                        const clusters = new Map<string, { top1?: { x: number; y: number }, top2?: { x: number; y: number }, bottom1?: { x: number; y: number }, bottom2?: { x: number; y: number } }>();
+                        guidePointsPx.forEach((p) => {
+                            const parts = p.label.split("-");
+                            const cluster = parts[0];
+                            const side = parts[1];
+                            const idx = parts[2];
+                            if (side !== "top") return;
+                            const entry = clusters.get(cluster) || {};
+                            if (!p.isBottom) {
+                                if (idx === "1") entry.top1 = { x: p.x, y: p.y };
+                                if (idx === "2") entry.top2 = { x: p.x, y: p.y };
+                            } else {
+                                if (idx === "1") entry.bottom1 = { x: p.x, y: p.y };
+                                if (idx === "2") entry.bottom2 = { x: p.x, y: p.y };
+                            }
+                            clusters.set(cluster, entry);
+                        });
+
+                        return Array.from(clusters.entries()).map(([cluster, pts]) => {
+                            if (!pts.top1 || !pts.top2 || !pts.bottom1 || !pts.bottom2) return null;
+                            const isThumbGuide = cluster === "LT" || cluster === "RT";
+                            const d = `M ${pts.top1.x} ${pts.top1.y} L ${pts.top2.x} ${pts.top2.y} L ${pts.bottom2.x} ${pts.bottom2.y} L ${pts.bottom1.x} ${pts.bottom1.y} Z`;
+                            return (
+                                <path
+                                    key={`trap-${cluster}`}
+                                    d={d}
+                                    fill="rgba(148, 163, 184, 0.2)"
+                                    style={isThumbGuide ? {
+                                        transform: `translate(${thumbGuideShiftPx.x}px, ${thumbGuideShiftPx.y}px)`,
+                                        transformOrigin: "0 0",
+                                        transition: "transform 300ms ease-in-out",
+                                    } : undefined}
+                                />
+                            );
+                        });
+                    })()}
+                    {false && guidePointsPx.filter(p => !p.label.endsWith("bottom-1")).map((p, i) => {
+                        const isDebug = p.label === "L2-top-1" || p.label === "L2-top-2";
+                        const debugIdx = p.label.endsWith("-1") ? "1" : "2";
+                        return (
+                            <g key={`back-${i}`}>
+                                <line
+                                    x1={p.x}
+                                    y1={p.y}
+                                    x2={p.x}
+                                    y2={(() => {
+                                        const parts = p.label.split("-");
+                                        const cluster = parts[0];
+                                        const side = parts[1];
+                                        const idx = parts[2];
+                                        const tag = `${cluster}-${side}-${idx}`;
+                                        const bottom = guidePointsPx.find(bp => bp.label === tag && bp.isBottom);
+                                        return bottom ? bottom.y : p.y;
+                                    })()}
+                                    stroke="#94a3b8"
+                                    strokeWidth="1.2"
+                                    strokeDasharray="1 5"
+                                    opacity="0.6"
+                                />
+                                {isDebug && (
+                                    <>
+                                        <circle cx={p.x} cy={p.y} r={5} fill="#ff4fd8" />
+                                        <text
+                                            x={p.x + 8}
+                                            y={p.y - 12}
+                                            fill="#ff4fd8"
+                                            fontSize="12"
+                                            fontWeight={700}
+                                            fontFamily='ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+                                        >
+                                            {debugIdx}
+                                        </text>
+                                    </>
+                                )}
+                            </g>
+                        );
+                    })}
+                </svg>
+            </div>
+            <div className="absolute inset-0 pointer-events-none overflow-visible" style={{ zIndex: 30 }}>
+                <svg
+                    width={svgWidth}
+                    height={svgHeight}
+                    style={{ position: "absolute", left: 0, top: 0 }}
+                    className="overflow-visible"
+                >
+                    {false && guidePointsPx.filter(p => p.label.endsWith("bottom-1")).map((p, i) => (
+                        <g key={`front-${i}`}>
+                            <line
+                                x1={p.x}
+                                y1={p.y}
+                                x2={p.x}
+                                y2={(() => {
+                                    const parts = p.label.split("-");
+                                    const cluster = parts[0];
+                                    const side = parts[1];
+                                    const idx = parts[2];
+                                    const tag = `${cluster}-${side}-${idx}`;
+                                    const bottom = guidePointsPx.find(bp => bp.label === tag && bp.isBottom);
+                                    return bottom ? bottom.y : p.y;
+                                })()}
+                                stroke="#94a3b8"
+                                strokeWidth="1.2"
+                                strokeDasharray="1 5"
+                                opacity="0.6"
+                            />
+                        </g>
+                    ))}
+                </svg>
+            </div>
+        </React.Fragment>
     );
 };
 

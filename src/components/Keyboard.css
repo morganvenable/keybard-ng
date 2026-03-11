@@ -45,6 +45,12 @@
     position: relative;
 }
 
+/* 3D isometric view mode — no perspective for true parallel projection */
+.keyboard-3d-active {
+    transform: rotateX(55deg) rotateZ(-45deg);
+    transform-style: preserve-3d;
+}
+
 .key-info {
     padding: 15px;
     background: white;

@@ -351,6 +351,30 @@ export class LayerLibraryService {
     }
 
     /**
+     * Delete a single layer from an imported layout.
+     * If the layout becomes empty, delete the layout as well.
+     */
+    deleteImportedLayer(layoutId: string, layerIndex: number): boolean {
+        const layouts = this.getImportedLayouts();
+        const layout = layouts.find(l => l.id === layoutId);
+        if (!layout) return false;
+
+        const previousLength = layout.layers.length;
+        layout.layers = layout.layers.filter(layer => layer.index !== layerIndex);
+        if (layout.layers.length === previousLength) return false;
+
+        if (layout.layers.length === 0) {
+            const index = layouts.findIndex(l => l.id === layoutId);
+            if (index >= 0) {
+                layouts.splice(index, 1);
+            }
+        }
+
+        this.saveImportedLayouts(layouts);
+        return true;
+    }
+
+    /**
      * Get the current keyboard as a LayoutGroup
      */
     getCurrentKeyboardGroup(keyboard: KeyboardInfo): LayoutGroup {

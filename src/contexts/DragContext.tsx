@@ -41,7 +41,7 @@ export const DragContext = createContext<DragContextType | undefined>(undefined)
 
 interface DragProviderProps {
     children: React.ReactNode;
-    onUnhandledDrop?: (item: DragItem) => void;
+    onUnhandledDrop?: (item: DragItem, event: MouseEvent) => void;
 }
 
 /**
@@ -70,10 +70,10 @@ export const DragProvider: React.FC<DragProviderProps> = ({ children, onUnhandle
         updatePosition(e.clientX, e.clientY);
     }, [updatePosition]);
 
-    const handleMouseUp = useCallback(() => {
+    const handleMouseUp = useCallback((e: MouseEvent) => {
         if (isDraggingRef.current) {
             if (!dropConsumedRef.current && onUnhandledDrop && dragItemRef.current) {
-                onUnhandledDrop(dragItemRef.current);
+                onUnhandledDrop(dragItemRef.current, e);
             }
 
             setIsDragging(false);

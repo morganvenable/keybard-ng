@@ -31,7 +31,25 @@ const devPort = getPortForBranch(gitBranch);
 // https://vite.dev/config/
 export default defineConfig({
     base: "/keybard-ng/",
-    plugins: [react(), tailwindcss()],
+    plugins: [
+        react(),
+        tailwindcss(),
+        {
+            name: "git-branch-endpoint",
+            configureServer(server) {
+                server.middlewares.use("/__git_branch", (_req, res) => {
+                    try {
+                        const branch = getGitBranch();
+                        res.setHeader("Content-Type", "application/json");
+                        res.end(JSON.stringify({ branch }));
+                    } catch {
+                        res.statusCode = 500;
+                        res.end(JSON.stringify({ branch: "unknown" }));
+                    }
+                });
+            }
+        }
+    ],
     root: "src",
     publicDir: "../public",
     build: {

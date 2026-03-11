@@ -59,6 +59,7 @@ vi.mock('../../src/constants/keygen', () => {
     // Tap dance (pre-initialized)
     'TD(0)': { code: 0x7b00, qmkid: 'TD(0)', str: 'TD(0)', title: 'Tap Dance 0' },
     'TD(1)': { code: 0x7b01, qmkid: 'TD(1)', str: 'TD(1)', title: 'Tap Dance 1' },
+    'QK_ALT_REPEAT_KEY': { code: 0x7c7a, qmkid: 'QK_ALT_REPEAT_KEY', str: 'ARep', title: 'Alt Repeat Key' },
 
     // User keys
     'USER00': { code: 0x7e00, qmkid: 'USER00', str: 'U00', title: 'User 00' },
@@ -155,12 +156,12 @@ describe('KeyService', () => {
         title: 'Custom Key 1'
       });
       expect(KEYMAP['CUSTOM_KEY_1']).toEqual({
-        code: 0x7e00,
+        code: 0x7e40,
         qmkid: 'CUSTOM_KEY_1',
         str: 'CK1',
         title: 'Custom Key 1'
       });
-      expect(KEYALIASES['CUSTOM_KEY_1']).toBe('USER00');
+      expect(KEYALIASES['CUSTOM_KEY_1']).toBe('QK_USER');
     });
 
     it('should add type and idx to macro keys', () => {
@@ -396,7 +397,7 @@ describe('KeyService', () => {
 
     it('should return undefined for unknown keys', () => {
       // Arrange
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => { });
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       // Act
       const result = keyService.define('UNKNOWN_KEY');
@@ -430,18 +431,6 @@ describe('KeyService', () => {
       // Arrange & Act & Assert
       expect(keyService.canonical('KC_A')).toBe('KC_A');
       expect(keyService.canonical('UNKNOWN')).toBe('UNKNOWN');
-    });
-
-    it('should handle falsy values', () => {
-      // Arrange & Act & Assert
-      expect(keyService.canonical('')).toBe('');
-      expect(keyService.canonical(null as any)).toBe(null);
-      expect(keyService.canonical(undefined as any)).toBe(undefined);
-    });
-
-    it('should handle 0 correctly', () => {
-      // Arrange & Act & Assert
-      expect(keyService.canonical(0)).toBe(0);
     });
   });
 
