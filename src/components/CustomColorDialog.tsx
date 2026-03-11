@@ -195,7 +195,7 @@ const CustomColorDialog = ({
                                 "text-sm font-semibold transition-colors",
                                 activeTarget === 'display' ? "text-black" : "text-black/60 group-hover:text-black"
                             )}>
-                                DISPLAY
+                                Key color
                             </span>
                         </div>
 
@@ -220,7 +220,7 @@ const CustomColorDialog = ({
                                 "text-sm font-semibold transition-colors",
                                 activeTarget === 'led' ? "text-black" : "text-black/60 group-hover:text-black"
                             )}>
-                                LED
+                                LED color
                             </span>
                         </div>
                     </div>

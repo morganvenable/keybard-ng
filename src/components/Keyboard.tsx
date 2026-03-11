@@ -2,7 +2,7 @@ import "./Keyboard.css";
 import { cn } from "@/lib/utils";
 
 import { getKeyLabel, getKeycodeName } from "@/utils/layers";
-import React, { useMemo, useEffect, useRef } from "react";
+import React, { useMemo, useEffect, useRef, useState } from "react";
 import { MATRIX_COLS, SVALBOARD_LAYOUT, UNIT_SIZE } from "../constants/svalboard-layout";
 import { THUMB_OFFSET_U } from "../constants/keyboard-visuals";
 
@@ -63,6 +63,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
     onGhostNavigate,
     layerActiveState,
     instanceId,
+    show3DBackdrop,
     activeLayerIndex,
     isToggling3D = false,
     showDropTargetHighlight = false,
@@ -103,6 +104,10 @@ export const Keyboard: React.FC<KeyboardProps> = ({
         itemToEdit !== null && ["tapdances", "combos", "macros", "overrides"].includes(activePanel || ""),
         [itemToEdit, activePanel]
     );
+    const [show3DBackdrops, setShow3DBackdrops] = useState(is3DMode);
+    const [backdropsVisible, setBackdropsVisible] = useState(is3DMode);
+    const hasInitializedBackdropToggleRef = useRef(false);
+    const visual3DActive = (show3DBackdrop ?? is3DMode) || isToggling3D;
 
     const currentUnitSize = useMemo(() =>
         keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : UNIT_SIZE,
@@ -268,7 +273,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
     const effectiveFingerBackdropExtensionUnits = hasSixKeyIndexOrPinky ? fingerBackdropBottomExtensionUnits : 0;
 
     const thumbClusterBounds = useMemo(() => {
-        const hideThumbs2D = !is3DMode && isThumb3DOffsetActive;
+        const hideThumbs2D = !visual3DActive && isThumb3DOffsetActive;
         if (hideThumbs2D) return null;
         const thumbKeys = layoutValues.filter((k) => k.y >= 5);
 
@@ -290,16 +295,16 @@ export const Keyboard: React.FC<KeyboardProps> = ({
         if (!Number.isFinite(minX)) return null;
 
         return { minX, minY, maxX, maxY };
-    }, [layoutValues, getYPos, is3DMode, isThumb3DOffsetActive]);
+    }, [layoutValues, getYPos, visual3DActive, isThumb3DOffsetActive]);
 
     // Backdrop-only clamp: push thumb backdrop down just enough to avoid overlap.
     // Do not move thumb keys.
     const thumbBackdropNonOverlapPushUnits = useMemo(() => {
-        if (!is3DMode || !clusterBounds || !thumbClusterBounds) return 0;
+        if (!visual3DActive || !clusterBounds || !thumbClusterBounds) return 0;
         const fingerBackdropBottomUnits = clusterBounds.maxY + 0.5 + effectiveFingerBackdropExtensionUnits;
         const thumbBackdropTopBaseUnits = thumbClusterBounds.minY - 1;
         return Math.max(0, fingerBackdropBottomUnits - thumbBackdropTopBaseUnits);
-    }, [is3DMode, clusterBounds, thumbClusterBounds, effectiveFingerBackdropExtensionUnits]);
+    }, [visual3DActive, clusterBounds, thumbClusterBounds, effectiveFingerBackdropExtensionUnits]);
 
     // Calculate layout midline for squeeze positioning (center X of the keyboard)
     const layoutMidline = useMemo(() => {
@@ -523,7 +528,9 @@ export const Keyboard: React.FC<KeyboardProps> = ({
     const LAYER_LABEL_PREPROJECTION_Y_SHIFT_PX = 8;
     const ISOMETRIC_ROTATE_Z_DEG = -45;
     const ISOMETRIC_ROTATE_X_DEG = 55;
-    const KEY_3D_MOTION_TRANSITION = "top 500ms ease-in-out, left 500ms ease-in-out, transform 500ms ease-in-out";
+    const BACKDROP_OPACITY_TRANSITION = "opacity 500ms ease-in-out";
+    const THUMB_BACKDROP_TRANSITION = "opacity 500ms ease-in-out, transform 500ms ease-in-out";
+    const KEY_3D_MOTION_TRANSITION = "top 500ms ease-in-out, left 500ms ease-in-out, transform 500ms ease-in-out, opacity 500ms ease-in-out";
 
     // Convert desired screen-space vertical drop into local XY offsets that cancel X drift
     // after rotateZ + rotateX in 3D view.
@@ -573,6 +580,34 @@ export const Keyboard: React.FC<KeyboardProps> = ({
         };
     };
 
+    useEffect(() => {
+        if (!hasInitializedBackdropToggleRef.current) {
+            hasInitializedBackdropToggleRef.current = true;
+            return;
+        }
+
+        let enterFrame = 0;
+        let exitTimer = 0;
+
+        if (is3DMode) {
+            setShow3DBackdrops(true);
+            setBackdropsVisible(false);
+            enterFrame = requestAnimationFrame(() => {
+                setBackdropsVisible(true);
+            });
+        } else {
+            setBackdropsVisible(false);
+            exitTimer = window.setTimeout(() => {
+                setShow3DBackdrops(false);
+            }, 500);
+        }
+
+        return () => {
+            cancelAnimationFrame(enterFrame);
+            window.clearTimeout(exitTimer);
+        };
+    }, [is3DMode]);
+
     return (
         <div className="p-4 pointer-events-none" data-keyboard-instance={instanceId}>
             <div
@@ -582,9 +617,9 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                     height: `${keyboardSize.height}px`,
                 }}
             >
-                {(is3DMode || isToggling3D) && clusterBounds && (
+                {show3DBackdrops && clusterBounds && (
                     <div
-                        className="absolute transition-opacity duration-500"
+                        className="absolute"
                         data-layer-backdrop="true"
                         data-layer-index={selectedLayer}
                         style={{
@@ -599,7 +634,8 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                             mixBlendMode: "multiply",
                             zIndex: -1,
                             pointerEvents: isBackdropDropTargetActive ? "auto" : "none",
-                            opacity: is3DMode ? 1 : 0,
+                            opacity: backdropsVisible ? 1 : 0,
+                            transition: BACKDROP_OPACITY_TRANSITION,
                         }}
                     >
                     </div>
@@ -656,7 +692,7 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                         </div>
                     );
                 })()}
-                {is3DMode && clusterBounds && thumbClusterBounds && (
+                {show3DBackdrops && clusterBounds && thumbClusterBounds && (
                     <div
                         className="absolute"
                         data-layer-backdrop="true"
@@ -670,8 +706,9 @@ export const Keyboard: React.FC<KeyboardProps> = ({
                             mixBlendMode: "multiply",
                             zIndex: -1,
                             pointerEvents: isBackdropDropTargetActive ? "auto" : "none",
-                            transform: (is3DMode && isThumb3DOffsetActive) ? "translateY(900px)" : undefined,
-                            transition: KEY_3D_MOTION_TRANSITION,
+                            opacity: backdropsVisible ? 1 : 0,
+                            transform: (visual3DActive && isThumb3DOffsetActive) ? "translateY(900px)" : undefined,
+                            transition: THUMB_BACKDROP_TRANSITION,
                         }}
                     />
                 )}

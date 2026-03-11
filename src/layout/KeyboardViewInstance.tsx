@@ -16,6 +16,7 @@ import { svalService } from "@/services/sval.service";
 import { MATRIX_COLS } from "@/constants/svalboard-layout";
 import { KEYMAP } from "@/constants/keygen";
 import { usePanels } from "@/contexts/PanelsContext";
+import { LEGACY_FORWARD_ENTRY_MS, type LayerScenePose } from "./layer-scene";
 import {
     ContextMenu,
     ContextMenuContent,
@@ -38,7 +39,10 @@ interface KeyboardViewInstanceProps {
     onToggleShowLayers: () => void;
     isLayerOrderReversed: boolean;
     onToggleLayerOrder: () => void;
-    isMultiLayersActive: boolean;
+    isOverviewSceneActive: boolean;
+    show3DScene: boolean;
+    scenePose: LayerScenePose;
+    legacyForwardEntryActive?: boolean;
     isAllTransparencyActive: boolean;
     isTransparencyRestoring?: boolean;
     multiLayerHeaderOffset?: number;
@@ -47,10 +51,8 @@ interface KeyboardViewInstanceProps {
     isRevealing?: boolean;
     isHiding?: boolean;
     stackIndex?: number;
-    layerSpacingPx?: number;
     baseBadgeOffsetY?: number | null;
     onBaseBadgeOffsetY?: (offset: number | null) => void;
-    isBaseMeasured?: boolean;
     isLayerDragActive?: boolean;
     hoveredDropLayer?: number | null;
     onLayerDropHover?: (layer: number | null) => void;
@@ -75,7 +77,10 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
     onToggleShowLayers,
     isLayerOrderReversed,
     onToggleLayerOrder,
-    isMultiLayersActive,
+    isOverviewSceneActive,
+    show3DScene,
+    scenePose,
+    legacyForwardEntryActive = false,
     isAllTransparencyActive,
     isTransparencyRestoring = false,
     multiLayerHeaderOffset = 0,
@@ -84,10 +89,8 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
     isRevealing = false,
     isHiding = false,
     stackIndex = 0,
-    layerSpacingPx = 0,
     baseBadgeOffsetY = null,
     onBaseBadgeOffsetY,
-    isBaseMeasured = false,
     isLayerDragActive = false,
     hoveredDropLayer = null,
     onLayerDropHover,
@@ -101,94 +104,120 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
     const { is3DMode, keyVariant } = useLayoutSettings();
     const badgeRowRef = useRef<HTMLDivElement | null>(null);
     const [badgeOffsetY, setBadgeOffsetY] = useState(() => {
-        if (!is3DMode) return 0;
+        if (!show3DScene) return 0;
         if (baseBadgeOffsetY !== null) return baseBadgeOffsetY;
-        const unitSize = keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : 60;
+        const unitSize = keyVariant === "small" ? 30 : keyVariant === "medium" ? 45 : 60;
         return unitSize * 7.7;
     });
-    // Suppress CSS transitions until the first real DOM measurement completes (prevents bounce).
-    const [hasMeasured, setHasMeasured] = useState(false);
+    const [badgeTransitionEnabled, setBadgeTransitionEnabled] = useState(false);
     const hasMeasuredRef = useRef(false);
-    // Cache the primary badge offset so it doesn't shift between single ↔ multi toggles.
+    const hasInitialized3DToggleRef = useRef(false);
     const cachedBaseOffset = useRef<number | null>(null);
-    // Track multi-layer toggle direction for entry/exit animations.
-    const prevMultiLayersActiveRef = useRef(isMultiLayersActive);
-    // Non-primary layers start invisible and animate in.
-    const [layerAnimatingIn, setLayerAnimatingIn] = useState(!isPrimary && isMultiLayersActive);
-    const [dynamicFlowOffset, setDynamicFlowOffset] = useState(0);
-    const was3DRef = useRef(is3DMode);
-    const prevStackIndexRef = useRef(stackIndex);
+    const [layerAnimatingIn, setLayerAnimatingIn] = useState(() => !isPrimary && legacyForwardEntryActive);
     const [isToggling3D, setIsToggling3D] = useState(false);
-    const measureBaseRef = useRef<(() => void) | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const TOGGLE_3D_TRANSITION_MS = 500;
+    const LEGACY_FORWARD_ENTRY_TRANSITION = `opacity ${LEGACY_FORWARD_ENTRY_MS}ms ease-in-out, transform ${LEGACY_FORWARD_ENTRY_MS}ms ease-in-out`;
+    const LEGACY_FORWARD_ENTRY_TRANSFORM_TRANSITION = `transform ${LEGACY_FORWARD_ENTRY_MS}ms ease-in-out`;
+    const transitionDurationMs = scenePose.transitionMs ?? 500;
+    const transitionEasing = scenePose.easing;
+    const effectiveTransitionMs = transitionDurationMs > 0
+        ? transitionDurationMs
+        : (isToggling3D ? TOGGLE_3D_TRANSITION_MS : 0);
+    const sceneTransitionStyle = effectiveTransitionMs > 0
+        ? `opacity ${effectiveTransitionMs}ms ${transitionEasing}, transform ${effectiveTransitionMs}ms ${transitionEasing}`
+        : "none";
+    const transformTransitionStyle = effectiveTransitionMs > 0
+        ? `transform ${effectiveTransitionMs}ms ${transitionEasing}`
+        : "none";
+    const badgeUnitSize = keyVariant === "small" ? 30 : keyVariant === "medium" ? 45 : 60;
+    const badgeBaseGuess = badgeUnitSize * 7.7;
+    const nonPrimaryBadgeOffsetY = (baseBadgeOffsetY ?? badgeBaseGuess) + scenePose.projectedY;
+    const useLegacyForwardEntry = show3DScene && legacyForwardEntryActive && !isPrimary;
+    const isLegacyForwardEntryAnimating = show3DScene && legacyForwardEntryActive && !isPrimary && layerAnimatingIn;
+    const renderedBadgeOffsetY = show3DScene && stackIndex !== 0
+        ? nonPrimaryBadgeOffsetY
+        : badgeOffsetY;
 
     useEffect(() => {
-        setIsToggling3D(true);
-        const timer = setTimeout(() => {
-            // 1. First, end the toggle state and snap the measurement.
-            // In this specific render path, isToggling3D is false and hasMeasured is false.
-            // This force-disables the CSS transition property, making the measure snap instantaneous.
-            setIsToggling3D(false);
-            if (is3DMode) {
-                measureBaseRef.current?.();
-
-                // 2. In the NEXT frame, enable transitions for future events (like resizes).
-                requestAnimationFrame(() => {
-                    setHasMeasured(true);
-                    hasMeasuredRef.current = true;
-                });
-            } else {
-                setHasMeasured(false);
-                hasMeasuredRef.current = false;
-            }
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [is3DMode]);
-
-    useLayoutEffect(() => {
-        if (!isPrimary && isMultiLayersActive && layerAnimatingIn) {
-            const container = containerRef.current;
-            if (!container) return;
-            const myWrapper = container.closest('.relative.w-full');
-            const primaryEl = document.querySelector('[data-keyboard-instance="primary"]')?.closest('.relative.w-full');
-            if (myWrapper && primaryEl) {
-                const myRect = myWrapper.getBoundingClientRect();
-                const primaryRect = primaryEl.getBoundingClientRect();
-                const diff = myRect.top - primaryRect.top;
-                setDynamicFlowOffset(-diff);
-            }
-        } else {
-            setDynamicFlowOffset(0);
-        }
-    }, [isMultiLayersActive, isPrimary, layerAnimatingIn]);
-
-    useLayoutEffect(() => {
-        if (!is3DMode) {
-            setBadgeOffsetY(0);
-            if (stackIndex === 0) {
-                onBaseBadgeOffsetY?.(null);
-                cachedBaseOffset.current = null;
-            }
+        if (isPrimary) return;
+        if (!legacyForwardEntryActive) {
+            setLayerAnimatingIn(false);
             return;
         }
 
+        let raf1 = 0;
+        let raf2 = 0;
+        setLayerAnimatingIn(true);
+        raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(() => {
+                setLayerAnimatingIn(false);
+            });
+        });
+
+        return () => {
+            cancelAnimationFrame(raf1);
+            cancelAnimationFrame(raf2);
+        };
+    }, [isPrimary, legacyForwardEntryActive]);
+
+    useEffect(() => {
+        if (!hasInitialized3DToggleRef.current) {
+            hasInitialized3DToggleRef.current = true;
+            return;
+        }
+
+        setIsToggling3D(true);
+        setBadgeTransitionEnabled(true);
+        if (show3DScene) {
+            hasMeasuredRef.current = false;
+        }
+
+        const timer = setTimeout(() => {
+            setIsToggling3D(false);
+            if (!show3DScene) {
+                hasMeasuredRef.current = false;
+            }
+        }, TOGGLE_3D_TRANSITION_MS);
+        return () => clearTimeout(timer);
+    }, [show3DScene]);
+
+    useLayoutEffect(() => {
+        if (!show3DScene) return;
+
         if (stackIndex === 0) {
-            const unitSize = keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : 60;
+            const unitSize = keyVariant === "small" ? 30 : keyVariant === "medium" ? 45 : 60;
             const guess = unitSize * 7.7;
             const initialOffset = cachedBaseOffset.current ?? guess;
             setBadgeOffsetY(initialOffset);
         }
-    }, [is3DMode, stackIndex, keyVariant, onBaseBadgeOffsetY]);
+    }, [show3DScene, stackIndex, keyVariant]);
+
+    useEffect(() => {
+        if (show3DScene) return;
+
+        setBadgeOffsetY(0);
+
+        const resetTimer = window.setTimeout(() => {
+            setBadgeTransitionEnabled(false);
+            if (stackIndex === 0) {
+                onBaseBadgeOffsetY?.(null);
+                cachedBaseOffset.current = null;
+            }
+        }, Math.max(effectiveTransitionMs, TOGGLE_3D_TRANSITION_MS));
+
+        return () => window.clearTimeout(resetTimer);
+    }, [show3DScene, stackIndex, onBaseBadgeOffsetY, effectiveTransitionMs]);
 
     useLayoutEffect(() => {
-        if (!is3DMode || stackIndex !== 0) return;
+        if (!show3DScene || stackIndex !== 0) return;
         const container = containerRef.current;
         const badgeEl = badgeRowRef.current;
         if (!container || !badgeEl) return;
 
         const measureBase = () => {
             const labelEl = container.querySelector('[data-layer-label="true"]') as HTMLElement | null;
-            if (!labelEl) return;
+            if (!labelEl) return null;
             const badgeRect = badgeEl.getBoundingClientRect();
             const labelRect = labelEl.getBoundingClientRect();
 
@@ -201,53 +230,43 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
 
             const badgeNaturalCenter = (badgeRect.top + badgeRect.height / 2) - currentTranslateY;
             const labelCenter = labelRect.top + (labelRect.height / 2);
-            const desiredOffset = labelCenter - badgeNaturalCenter;
+            return labelCenter - badgeNaturalCenter;
+        };
 
-            if (isToggling3D || layerAnimatingIn) return;
+        let correctionRafId = 0;
+
+        const snapMeasuredOffset = () => {
+            const desiredOffset = measureBase();
+            if (desiredOffset === null) return;
 
             const cached = cachedBaseOffset.current;
-            if (cached === null || Math.abs(desiredOffset - cached) > 2) {
-                cachedBaseOffset.current = desiredOffset;
-                onBaseBadgeOffsetY?.(desiredOffset);
-                setBadgeOffsetY(desiredOffset);
+            cachedBaseOffset.current = desiredOffset;
+            onBaseBadgeOffsetY?.(desiredOffset);
+            hasMeasuredRef.current = true;
+
+            if (cached !== null && Math.abs(desiredOffset - cached) <= 2) {
+                return;
             }
 
-            if (!hasMeasuredRef.current) {
-                requestAnimationFrame(() => {
-                    setHasMeasured(true);
-                    hasMeasuredRef.current = true;
-                });
-            }
+            setBadgeTransitionEnabled(false);
+            setBadgeOffsetY(desiredOffset);
+            correctionRafId = requestAnimationFrame(() => {
+                setBadgeTransitionEnabled(true);
+            });
         };
 
-        measureBaseRef.current = measureBase;
-        const rafId = requestAnimationFrame(measureBase);
-        const settleTimer = window.setTimeout(measureBase, 500);
-        window.addEventListener('resize', measureBase);
+        const settleTimer = window.setTimeout(snapMeasuredOffset, 500);
+        const handleResize = () => {
+            if (!hasMeasuredRef.current) return;
+            snapMeasuredOffset();
+        };
+        window.addEventListener('resize', handleResize);
         return () => {
-            cancelAnimationFrame(rafId);
             window.clearTimeout(settleTimer);
-            window.removeEventListener('resize', measureBase);
+            cancelAnimationFrame(correctionRafId);
+            window.removeEventListener('resize', handleResize);
         };
-    }, [is3DMode, stackIndex, keyVariant, onBaseBadgeOffsetY, isBaseMeasured, layerAnimatingIn, isToggling3D]);
-
-    useEffect(() => {
-        was3DRef.current = is3DMode;
-    }, [is3DMode]);
-
-    useLayoutEffect(() => {
-        if (!is3DMode || stackIndex === 0) return;
-
-        const stepYValue = layerSpacingPx * 0.8192;
-        // During the animation-in phase, use 0 shift so it starts perfectly at the primary badge's layer.
-        const projectedShift = (isMultiLayersActive && !layerAnimatingIn) ? (-stackIndex * stepYValue) : 0;
-
-        // Use cached base or dynamic unit-based guestimate.
-        const unitSize = keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : 60;
-        const guess = unitSize * 7.7;
-        const effectiveBase = baseBadgeOffsetY ?? cachedBaseOffset.current ?? guess;
-        setBadgeOffsetY(effectiveBase + projectedShift);
-    }, [is3DMode, isMultiLayersActive, layerAnimatingIn, stackIndex, baseBadgeOffsetY, layerSpacingPx, keyVariant]);
+    }, [show3DScene, stackIndex, onBaseBadgeOffsetY, keyVariant]);
 
     const [isHudMode, setIsHudMode] = useState(false);
     const [suppressTransparencyHover, setSuppressTransparencyHover] = useState(false);
@@ -565,76 +584,37 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
     const isSelectedLayerActive = isConnected
         ? activeLayerIndex === selectedLayer
         : !!layerActiveState?.[selectedLayer];
-
-    // Layer entry/exit animation: when multi-layer activates or new layers appear,
-    // non-primary layers start at opacity 0 (stacked at Z=0) then animate to full opacity at target Z.
-    useEffect(() => {
-        const wasMultiActive = prevMultiLayersActiveRef.current;
-        prevMultiLayersActiveRef.current = isMultiLayersActive;
-
-        if (isPrimary) return;
-
-        // Entering multi-layer mode or new views appeared (show-all-layers / flip)
-        if (isMultiLayersActive && !wasMultiActive) {
-            // Start hidden, then animate in after a frame
-            setLayerAnimatingIn(true);
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    setLayerAnimatingIn(false);
-                });
-            });
-        } else if (!isMultiLayersActive && wasMultiActive) {
-            // Leaving multi-layer: just reset
-            setLayerAnimatingIn(false);
-        }
-    }, [isMultiLayersActive, isPrimary]);
-
-    // Also animate newly appearing layers (e.g. show-all-layers toggle adds more views)
-    useEffect(() => {
-        if (isPrimary || !isMultiLayersActive) return;
-        // Detect if this is a freshly mounted non-primary view 
-        // We wait for isBaseMeasured so we don't jump when the primary offset finally arrives.
-        if (stackIndex > 0 && layerAnimatingIn && isBaseMeasured && dynamicFlowOffset !== 0) {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    setLayerAnimatingIn(false);
-                });
-            });
-        }
-    }, [stackIndex, isPrimary, isMultiLayersActive, isBaseMeasured, dynamicFlowOffset, layerAnimatingIn]);
-
-    // Animate when the stack order changes (e.g. "Flip Layer View")
-    useEffect(() => {
-        if (!isPrimary && isMultiLayersActive && prevStackIndexRef.current !== stackIndex) {
-            // Trigger the "flying from primary" animation
-            setLayerAnimatingIn(true);
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    setLayerAnimatingIn(false);
-                });
-            });
-        }
-        prevStackIndexRef.current = stackIndex;
-    }, [stackIndex, isPrimary, isMultiLayersActive]);
+    const effectiveRootOpacity = isLegacyForwardEntryAnimating ? 0 : scenePose.opacity;
+    const effectiveRootTransform = isLegacyForwardEntryAnimating
+        ? `translateY(calc(-100% * ${stackIndex}))`
+        : `translateY(${scenePose.rootTranslateY}px)`;
+    const effectiveRootTransition = useLegacyForwardEntry
+        ? LEGACY_FORWARD_ENTRY_TRANSITION
+        : ((show3DScene || isToggling3D) ? sceneTransitionStyle : "opacity 200ms ease-in-out");
+    const effectiveBadgeOffsetY = isLegacyForwardEntryAnimating
+        ? (baseBadgeOffsetY ?? badgeBaseGuess)
+        : renderedBadgeOffsetY;
+    const effectiveBadgeTransition = useLegacyForwardEntry
+        ? LEGACY_FORWARD_ENTRY_TRANSFORM_TRANSITION
+        : (badgeTransitionEnabled ? transformTransitionStyle : "none");
+    const effectiveKeyboardTranslateZ = isLegacyForwardEntryAnimating ? 0 : scenePose.translateZ;
+    const effectiveKeyboardTransition = useLegacyForwardEntry
+        ? LEGACY_FORWARD_ENTRY_TRANSFORM_TRANSITION
+        : transformTransitionStyle;
 
     return (
         <div
             ref={containerRef}
+            data-keyboard-view-instance={instanceId}
             className="w-full flex-shrink-0 pointer-events-none"
             style={{
-                opacity: (isRevealing || isHiding || (!isPrimary && is3DMode && isMultiLayersActive && layerAnimatingIn)) ? 0 : 1,
-                // During animation-in, pull the layer UP so it starts perfectly overlapped 
-                // with the primary layer, then animates DOWN.
-                transform: (is3DMode && isMultiLayersActive && layerAnimatingIn)
-                    ? `translateY(${dynamicFlowOffset}px)`
-                    : 'translateY(0)',
-                transition: (is3DMode || was3DRef.current)
-                    ? 'opacity 500ms ease-in-out, transform 500ms ease-in-out'
-                    : 'opacity 200ms ease-in-out',
+                opacity: (isRevealing || isHiding) ? 0 : effectiveRootOpacity,
+                transform: effectiveRootTransform,
+                transition: effectiveRootTransition,
             }}
         >
             {/* Layer Controls Row: Hide-blank-layers toggle + layer tabs + (optional) remove button */}
-            {!hideLayerTabs && !isMultiLayersActive && !is3DMode && (
+            {!hideLayerTabs && !isOverviewSceneActive && !show3DScene && (
                 <div
                     className="flex items-center gap-2 pl-5 pb-2 whitespace-nowrap pointer-events-auto"
                     style={isPrimary && multiLayerHeaderOffset > 0 ? { marginTop: -multiLayerHeaderOffset } : undefined}
@@ -729,7 +709,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                 data-layer-drop-surface={selectedLayer}
                 data-drop-surface-active={isLayerDropSurfaceActive ? "true" : "false"}
                 className={cn(
-                    "rounded-lg",
+                    "relative isolate rounded-lg",
                     isLayerDropSurfaceActive ? "pointer-events-auto" : "pointer-events-none"
                 )}
                 onMouseEnter={handleDropHoverEnter}
@@ -739,16 +719,10 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                 {/* Layer Name Badge Row */}
                 <div
                     ref={badgeRowRef}
-                    className="pl-5 pt-[7px] pb-2 flex items-center gap-2 pointer-events-auto"
+                    className="relative z-20 pl-5 pt-[7px] pb-2 flex items-center gap-2 pointer-events-auto"
                     style={{
-                        transform: is3DMode ? `translateY(${badgeOffsetY}px)` : 'translateY(0px)',
-                        // transitions are active in 3D mode, and also while switching TO/FROM 3D.
-                        // However, we suppress them after the first 3D measurement to hide the "correction jump".
-                        transition: (is3DMode || was3DRef.current || isToggling3D) && (hasMeasured || isToggling3D)
-                            ? 'transform 500ms ease-in-out'
-                            : (is3DMode && !hasMeasured && !isPrimary && isBaseMeasured)
-                                ? 'transform 500ms ease-in-out'
-                                : 'none',
+                        transform: `translateY(${effectiveBadgeOffsetY}px)`,
+                        transition: effectiveBadgeTransition,
                     }}
                 >
                     <div style={{ marginLeft: -20 }}>
@@ -801,12 +775,12 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                 {/* Keyboard */}
                 <div
                     className={cn(
-                        "flex items-start justify-center max-w-full pointer-events-none",
-                        is3DMode && "keyboard-3d-wrapper"
+                        "relative z-0 flex items-start justify-center max-w-full pointer-events-none",
+                        show3DScene && "keyboard-3d-wrapper"
                     )}
-                    style={is3DMode
+                    style={show3DScene
                         ? {
-                            transformStyle: 'preserve-3d',
+                            transformStyle: "preserve-3d",
                         }
                         : undefined
                     }
@@ -814,13 +788,13 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                     <div
                         className={cn(
                             "pointer-events-none",
-                            is3DMode && "keyboard-3d-active"
+                            show3DScene && "keyboard-3d-active"
                         )}
                         style={{
-                            transform: is3DMode
-                                ? `rotateX(55deg) rotateZ(-45deg) translateZ(${isMultiLayersActive && !layerAnimatingIn ? (stackIndex * layerSpacingPx) : 0}px)`
-                                : 'rotateX(0deg) rotateZ(0deg) translateZ(0px)',
-                            transition: 'transform 500ms ease-in-out',
+                            transform: show3DScene
+                                ? `rotateX(${scenePose.rotateX}deg) rotateZ(${scenePose.rotateZ}deg) translateZ(${effectiveKeyboardTranslateZ}px)`
+                                : "rotateX(0deg) rotateZ(0deg) translateZ(0px)",
+                            transition: effectiveKeyboardTransition,
                         }}
                     >
                         <Keyboard
@@ -831,7 +805,7 @@ const KeyboardViewInstance: FC<KeyboardViewInstanceProps> = ({
                             onGhostNavigate={onGhostNavigate}
                             layerActiveState={layerActiveState}
                             instanceId={instanceId}
-                            show3DBackdrop={is3DMode}
+                            show3DBackdrop={show3DScene}
                             activeLayerIndex={activeLayerIndex}
                             isConnected={isConnected}
                             isToggling3D={isToggling3D}

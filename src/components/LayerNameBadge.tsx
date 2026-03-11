@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { EllipsisVertical, Settings } from "lucide-react";
+import { EllipsisVertical } from "lucide-react";
+import Settings2Icon from "@/components/icons/Settings2Icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import {
@@ -351,7 +352,7 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
                                     setIsCustomColorOpen(true);
                                 }}
                             >
-                                <Settings className="w-3 h-3 text-gray-600" />
+                                <Settings2Icon className="w-3 h-3 text-gray-600" />
                             </button>
                         </div>
                     )}

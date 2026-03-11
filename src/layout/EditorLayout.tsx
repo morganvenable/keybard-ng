@@ -40,6 +40,15 @@ import { InfoPanelWidget } from "@/components/InfoPanelWidget";
 import { EditorControls } from "./EditorControls";
 import { getBackdropLayerFromElements } from "@/utils/layer-drop-target";
 import { svalService } from "@/services/sval.service";
+import {
+    getLayerScenePose,
+    sceneShowsGuides,
+    sceneUses3D,
+    SCENE_COLLAPSE_MS,
+    SCENE_ROTATE_IN_SPREAD_MS,
+    SCENE_SPREAD_MS,
+    type LayerSceneState,
+} from "./layer-scene";
 
 const EditorLayout = () => {
     const { assignKeycodeTo } = useKeyBinding();
@@ -74,6 +83,11 @@ const EditorLayout = () => {
 };
 
 const EditorLayoutInner = () => {
+    type ViewInstance = {
+        id: string;
+        selectedLayer: number;
+    };
+
     const { keyboard, setKeyboard, updateKey /*, resetToOriginal*/ } = useVial();
     const { selectedLayer, setSelectedLayer } = useLayer();
     const { clearSelection } = useKeyBinding();
@@ -102,20 +116,24 @@ const EditorLayoutInner = () => {
     const isDraggingLayer = isDragging && draggedItem?.type === "layer" && draggedItem?.component === "Layer";
 
     // Dynamic view instances for stacking keyboard views
-    interface ViewInstance {
-        id: string;
-        selectedLayer: number;
-    }
     const [viewInstances, setViewInstances] = React.useState<ViewInstance[]>([
         { id: "primary", selectedLayer: 0 }
     ]);
     const [showAllLayers, setShowAllLayers] = React.useState(true);
     const [deferGuidesRender, setDeferGuidesRender] = React.useState(false);
     const [isMultiLayersActive, setIsMultiLayersActive] = React.useState(false);
+    const [sceneState, setSceneState] = React.useState<LayerSceneState>(() => (
+        is3DMode ? "single3d" : "single2d"
+    ));
+    const [sceneTransitionViews, setSceneTransitionViews] = React.useState<ViewInstance[] | null>(null);
+    const [sceneCollapseToSingle, setSceneCollapseToSingle] = React.useState(false);
+    const [legacyForwardEntryActive, setLegacyForwardEntryActive] = React.useState(false);
     const [isLayerOrderReversed, setIsLayerOrderReversed] = React.useState(false);
     const layerSpacingAdjust = 410;
     const [baseBadgeOffsetY, setBaseBadgeOffsetY] = React.useState<number | null>(null);
-    const [isBaseMeasured, setIsBaseMeasured] = React.useState(false);
+    const handleBaseBadgeOffsetY = React.useCallback((offset: number | null) => {
+        setBaseBadgeOffsetY(offset);
+    }, []);
     // UI-only layer on/off state. TODO: replace with device-provided layer state when available.
     const [layerActiveState, setLayerActiveState] = React.useState<boolean[]>([]);
     const [transparencyByLayer, setTransparencyByLayer] = React.useState<Record<number, boolean>>({});
@@ -123,7 +141,12 @@ const EditorLayoutInner = () => {
     const [isTransparencyRestoring, setIsTransparencyRestoring] = React.useState(false);
     const viewsScrollRef = React.useRef<HTMLDivElement>(null);
     const layerViewRefs = React.useRef<Map<number, HTMLDivElement>>(new Map());
+    const sceneViewRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
     const showLayersTransitionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const sceneTimerRefs = React.useRef<ReturnType<typeof setTimeout>[]>([]);
+    const sceneRafRef = React.useRef<number | null>(null);
+    const previousSceneTargetRef = React.useRef<LayerSceneState>(is3DMode ? "single3d" : "single2d");
+    const [sceneFlowOffsets, setSceneFlowOffsets] = React.useState<Record<string, number>>({});
     let nextViewId = React.useRef(1);
 
     // Animation: flying icon between layers-plus and layers-minus
@@ -396,10 +419,7 @@ const EditorLayoutInner = () => {
 
     // In 3D multilayer mode, we keep ordering identical to 2D multilayer.
 
-    const renderedViews = React.useMemo(() => {
-        if (!isMultiLayersActive) {
-            return viewInstances;
-        }
+    const stackedMultiLayerViews = React.useMemo(() => {
         const extraLayers = multiLayerIds.filter(layerIndex => layerIndex !== primaryLayerIndex);
         const orderedExtras = isLayerOrderReversed ? [...extraLayers].reverse() : extraLayers;
         return [
@@ -409,25 +429,344 @@ const EditorLayoutInner = () => {
                 selectedLayer: layerIndex
             }))
         ];
-    }, [isMultiLayersActive, viewInstances, primaryView, multiLayerIds, isLayerOrderReversed, primaryLayerIndex]);
+    }, [primaryView, multiLayerIds, isLayerOrderReversed, primaryLayerIndex]);
+
+    const cloneViews = React.useCallback((views: ViewInstance[]) => (
+        views.map((view) => ({ ...view }))
+    ), []);
+
+    const clearSceneTransitionWork = React.useCallback(() => {
+        if (sceneRafRef.current !== null) {
+            cancelAnimationFrame(sceneRafRef.current);
+            sceneRafRef.current = null;
+        }
+        sceneTimerRefs.current.forEach((timerId) => clearTimeout(timerId));
+        sceneTimerRefs.current = [];
+    }, []);
+
+    const scheduleSceneTimeout = React.useCallback((delayMs: number, callback: () => void) => {
+        const timerId = window.setTimeout(callback, delayMs);
+        sceneTimerRefs.current.push(timerId);
+    }, []);
+
+    const requiredSceneFlowOffsetsReady = React.useCallback((views: ViewInstance[]) => (
+        views.every((view) => view.id === "primary" || sceneFlowOffsets[view.id] !== undefined)
+    ), [sceneFlowOffsets]);
+
+    const sceneTargetState = React.useMemo<LayerSceneState>(() => {
+        if (isMultiLayersActive) {
+            return is3DMode ? "multi3d" : "multi2d";
+        }
+        return is3DMode ? "single3d" : "single2d";
+    }, [is3DMode, isMultiLayersActive]);
+
+    const renderedViews = React.useMemo(() => {
+        if (sceneTransitionViews) {
+            return sceneTransitionViews;
+        }
+        if (isMultiLayersActive) {
+            return stackedMultiLayerViews;
+        }
+        return viewInstances;
+    }, [isMultiLayersActive, sceneTransitionViews, stackedMultiLayerViews, viewInstances]);
+
+    const handleToggleMultiLayers = React.useCallback(() => {
+        setIsMultiLayersActive((prev) => !prev);
+    }, []);
+
+    React.useLayoutEffect(() => {
+        const previousSceneTarget = previousSceneTargetRef.current;
+        if (previousSceneTarget === sceneTargetState) {
+            return;
+        }
+
+        clearSceneTransitionWork();
+        previousSceneTargetRef.current = sceneTargetState;
+
+        const currentMultiViews = cloneViews(sceneTransitionViews ?? stackedMultiLayerViews);
+
+        switch (`${previousSceneTarget}->${sceneTargetState}`) {
+            case "single3d->multi3d":
+                setLegacyForwardEntryActive(false);
+                setSceneCollapseToSingle(false);
+                setSceneTransitionViews(cloneViews(stackedMultiLayerViews));
+                setSceneState("multi3d_pre_expand");
+                return;
+            case "single2d->multi3d":
+                setLegacyForwardEntryActive(false);
+                setSceneCollapseToSingle(false);
+                setSceneFlowOffsets({});
+                setSceneTransitionViews(cloneViews(stackedMultiLayerViews));
+                setSceneState("multi3d_pre_spread");
+                return;
+            case "multi2d->multi3d":
+                setLegacyForwardEntryActive(false);
+                setSceneCollapseToSingle(false);
+                setSceneTransitionViews(cloneViews(stackedMultiLayerViews));
+                setSceneState("multi3d_rotating_in");
+                scheduleSceneTimeout(SCENE_SPREAD_MS, () => {
+                    setSceneState("multi3d_spreading");
+                });
+                scheduleSceneTimeout(SCENE_SPREAD_MS + SCENE_ROTATE_IN_SPREAD_MS, () => {
+                    setSceneState("multi3d");
+                    setSceneTransitionViews(null);
+                });
+                return;
+            case "multi3d->single3d":
+            case "multi3d->single2d":
+                setLegacyForwardEntryActive(false);
+                setSceneCollapseToSingle(true);
+                setSceneTransitionViews(currentMultiViews);
+                setSceneState("multi3d_pre_collapse");
+                return;
+            case "multi3d->multi2d":
+                setLegacyForwardEntryActive(false);
+                setSceneCollapseToSingle(false);
+                setSceneTransitionViews(currentMultiViews);
+                setSceneState("multi3d_collapsing");
+                scheduleSceneTimeout(SCENE_SPREAD_MS, () => {
+                    setSceneState("multi2d_rotating_out");
+                });
+                scheduleSceneTimeout(SCENE_SPREAD_MS + SCENE_SPREAD_MS, () => {
+                    setSceneState("multi2d");
+                    setSceneTransitionViews(null);
+                });
+                return;
+            default:
+                setLegacyForwardEntryActive(false);
+                setSceneCollapseToSingle(false);
+                setSceneTransitionViews(null);
+                setSceneState(sceneTargetState);
+        }
+    }, [
+        clearSceneTransitionWork,
+        cloneViews,
+        sceneTargetState,
+        sceneTransitionViews,
+        scheduleSceneTimeout,
+        stackedMultiLayerViews,
+    ]);
+
+    React.useLayoutEffect(() => {
+        if (legacyForwardEntryActive || sceneState !== "multi3d_pre_spread" || !sceneTransitionViews) {
+            return;
+        }
+        if (!requiredSceneFlowOffsetsReady(sceneTransitionViews)) {
+            return;
+        }
+
+        clearSceneTransitionWork();
+        sceneRafRef.current = requestAnimationFrame(() => {
+            sceneRafRef.current = requestAnimationFrame(() => {
+                setSceneState("multi3d_spreading");
+                sceneRafRef.current = null;
+                scheduleSceneTimeout(SCENE_SPREAD_MS, () => {
+                    setSceneState("multi3d");
+                    setSceneTransitionViews(null);
+                });
+            });
+        });
+    }, [
+        clearSceneTransitionWork,
+        legacyForwardEntryActive,
+        requiredSceneFlowOffsetsReady,
+        sceneState,
+        sceneTransitionViews,
+        scheduleSceneTimeout,
+    ]);
+
+    // multi3d_pre_expand: layers rendered at spread positions but invisible.
+    // Wait for flow offsets, then imperatively snap to collapsed position before paint,
+    // then animate to spread via single rAF.
+    React.useLayoutEffect(() => {
+        if (sceneState !== "multi3d_pre_expand" || !sceneTransitionViews) {
+            return;
+        }
+        if (!requiredSceneFlowOffsetsReady(sceneTransitionViews)) {
+            return;
+        }
+
+        clearSceneTransitionWork();
+
+        // Imperatively snap non-primary views to collapsed position BEFORE browser paints.
+        // This avoids the bounce caused by views appearing at spread positions.
+        // Note: sceneViewRefs points to the outer wrapper div, but rootTranslateY/opacity
+        // are applied on the KVI root div (data-keyboard-view-instance), so we target that.
+        sceneTransitionViews.forEach((view) => {
+            if (view.id === "primary") return;
+            const outerEl = sceneViewRefs.current.get(view.id);
+            if (!outerEl) return;
+            const kviRoot = outerEl.querySelector(`[data-keyboard-view-instance="${view.id}"]`) as HTMLElement | null;
+            if (!kviRoot) return;
+            const flowOffset = sceneFlowOffsets[view.id] ?? 0;
+            // KVI root: snap to collapsed position (at primary), no transition
+            kviRoot.style.transition = "none";
+            kviRoot.style.opacity = "0";
+            kviRoot.style.transform = `translateY(${-flowOffset}px)`;
+            // Inner keyboard wrapper: snap translateZ to 0
+            const kbWrapper = outerEl.querySelector(".keyboard-3d-active") as HTMLElement | null;
+            if (kbWrapper) {
+                kbWrapper.style.transition = "none";
+                kbWrapper.style.transform = `rotateX(55deg) rotateZ(-45deg) translateZ(0px)`;
+            }
+        });
+
+        // Force style resolution so the browser registers collapsed positions
+        void document.body.offsetHeight;
+
+        // Single rAF: apply spreading transition imperatively from collapsed positions.
+        // React will sync to multi3d_spreading state, but the imperative styles ensure
+        // the transition starts from the correct collapsed positions.
+        sceneRafRef.current = requestAnimationFrame(() => {
+            const easing = "cubic-bezier(0.22, 1, 0.36, 1)";
+            const ms = SCENE_SPREAD_MS;
+            sceneTransitionViews?.forEach((view, index) => {
+                if (view.id === "primary") return;
+                const outerEl = sceneViewRefs.current.get(view.id);
+                if (!outerEl) return;
+                const kviRoot = outerEl.querySelector(`[data-keyboard-view-instance="${view.id}"]`) as HTMLElement | null;
+                if (!kviRoot) return;
+                // Animate KVI root to natural position
+                kviRoot.style.transition = `opacity ${ms}ms ${easing}, transform ${ms}ms ${easing}`;
+                kviRoot.style.opacity = "1";
+                kviRoot.style.transform = "translateY(0px)";
+                // Animate keyboard wrapper to spread depth
+                const kbWrapper = outerEl.querySelector(".keyboard-3d-active") as HTMLElement | null;
+                if (kbWrapper) {
+                    const stackIdx = index;
+                    // Compute the same effective spacing used by getLayerScenePose
+                    const spacing = keyVariant === "medium" ? 330 : keyVariant === "small" ? 260 : layerSpacingAdjust;
+                    const layeredZ = stackIdx * spacing;
+                    kbWrapper.style.transition = `transform ${ms}ms ${easing}`;
+                    kbWrapper.style.transform = `rotateX(55deg) rotateZ(-45deg) translateZ(${layeredZ}px)`;
+                }
+            });
+            // Sync React state (rendered values will match imperative values)
+            setSceneState("multi3d_spreading");
+            sceneRafRef.current = null;
+            scheduleSceneTimeout(ms, () => {
+                // Don't clear imperative styles — React's style reconciliation is
+                // prop-based (compares old vs new style props, not DOM values).
+                // Since multi3d and multi3d_spreading have the same transform/opacity
+                // prop values, React won't re-set them if we clear them from the DOM.
+                // Just remove the transition so it doesn't interfere with future changes.
+                sceneTransitionViews?.forEach((view) => {
+                    if (view.id === "primary") return;
+                    const outerEl = sceneViewRefs.current.get(view.id);
+                    if (!outerEl) return;
+                    const kviRoot = outerEl.querySelector(`[data-keyboard-view-instance="${view.id}"]`) as HTMLElement | null;
+                    if (kviRoot) {
+                        kviRoot.style.transition = "none";
+                    }
+                    const kbWrapper = outerEl.querySelector(".keyboard-3d-active") as HTMLElement | null;
+                    if (kbWrapper) {
+                        kbWrapper.style.transition = "none";
+                    }
+                });
+                setSceneState("multi3d");
+                setSceneTransitionViews(null);
+            });
+        });
+    }, [
+        clearSceneTransitionWork,
+        keyVariant,
+        layerSpacingAdjust,
+        requiredSceneFlowOffsetsReady,
+        sceneFlowOffsets,
+        sceneState,
+        sceneTransitionViews,
+        scheduleSceneTimeout,
+    ]);
+
+    React.useLayoutEffect(() => {
+        if (sceneState !== "multi3d_pre_collapse" || !sceneTransitionViews) {
+            return;
+        }
+
+        clearSceneTransitionWork();
+        sceneRafRef.current = requestAnimationFrame(() => {
+            setSceneState("multi3d_collapsing");
+            sceneRafRef.current = null;
+            scheduleSceneTimeout(SCENE_COLLAPSE_MS, () => {
+                setSceneState(sceneTargetState);
+                setSceneTransitionViews(null);
+                setSceneCollapseToSingle(false);
+            });
+        });
+    }, [
+        clearSceneTransitionWork,
+        sceneState,
+        sceneTargetState,
+        sceneTransitionViews,
+        scheduleSceneTimeout,
+    ]);
+
+    React.useEffect(() => {
+        return () => {
+            clearSceneTransitionWork();
+        };
+    }, [clearSceneTransitionWork]);
+
+    const isScene3D = sceneUses3D(sceneState);
+    const isSceneInMultiStack = renderedViews.length > 1 && (
+        sceneTransitionViews !== null ||
+        isMultiLayersActive ||
+        sceneState === "multi3d_pre_spread" ||
+        sceneState === "multi3d_pre_expand" ||
+        sceneState === "multi3d_rotating_in" ||
+        sceneState === "multi3d_spreading" ||
+        sceneState === "multi3d" ||
+        sceneState === "multi3d_pre_collapse" ||
+        sceneState === "multi3d_collapsing" ||
+        sceneState === "multi2d_rotating_out"
+    );
+
+    React.useLayoutEffect(() => {
+        if (!isSceneInMultiStack) {
+            setSceneFlowOffsets((prev) => (
+                Object.keys(prev).length === 0 ? prev : {}
+            ));
+            return;
+        }
+
+        const primaryEl = sceneViewRefs.current.get("primary");
+        if (!primaryEl) return;
+
+        const primaryOffsetTop = primaryEl.offsetTop;
+        const nextOffsets: Record<string, number> = {};
+        renderedViews.forEach((view) => {
+            const el = sceneViewRefs.current.get(view.id);
+            if (!el) return;
+            nextOffsets[view.id] = el.offsetTop - primaryOffsetTop;
+        });
+        setSceneFlowOffsets((prev) => {
+            const prevKeys = Object.keys(prev);
+            const nextKeys = Object.keys(nextOffsets);
+            const hasSameKeys = prevKeys.length === nextKeys.length && nextKeys.every((key) => prev[key] !== undefined);
+            if (hasSameKeys && nextKeys.every((key) => prev[key] === nextOffsets[key])) {
+                return prev;
+            }
+            return nextOffsets;
+        });
+    }, [isSceneInMultiStack, renderedViews]);
 
     const effectiveLayerSpacing = React.useMemo(() => {
-        if (is3DMode && isMultiLayersActive) {
+        if (isScene3D && isSceneInMultiStack) {
             if (keyVariant === "medium") return 330;
             if (keyVariant === "small") return 260;
         }
         return layerSpacingAdjust;
-    }, [is3DMode, isMultiLayersActive, keyVariant, layerSpacingAdjust]);
+    }, [isScene3D, isSceneInMultiStack, keyVariant, layerSpacingAdjust]);
 
     const threeDTopScrollReservePx = React.useMemo(() => {
-        if (!is3DMode) return 0;
+        if (!isScene3D) return 0;
         return 260;
-    }, [is3DMode]);
+    }, [isScene3D]);
 
     const threeDBottomScrollReservePx = React.useMemo(() => {
-        if (!is3DMode) return 0;
-        return isMultiLayersActive ? 120 : 900;
-    }, [is3DMode, isMultiLayersActive]);
+        if (!isScene3D) return 0;
+        return isSceneInMultiStack ? 120 : 900;
+    }, [isScene3D, isSceneInMultiStack]);
 
     const threeDEntryCompensationPx = React.useMemo(() => {
         if (!is3DMode) return 0;
@@ -952,7 +1291,7 @@ const EditorLayoutInner = () => {
                     selectedLayer={selectedLayer}
                     setSelectedLayer={setSelectedLayer}
                     isMultiLayersActive={isMultiLayersActive}
-                    onToggleMultiLayers={() => setIsMultiLayersActive(prev => !prev)}
+                    onToggleMultiLayers={handleToggleMultiLayers}
                     showAllLayers={showAllLayers}
                     onToggleShowLayers={handleToggleShowLayers}
                     isLayerOrderReversed={isLayerOrderReversed}
@@ -966,7 +1305,7 @@ const EditorLayoutInner = () => {
                 <div
                     className={cn(
                         "flex-1 overflow-y-auto flex flex-col items-center max-w-full relative",
-                        isMultiLayersActive && !is3DMode && "pt-11"
+                        isMultiLayersActive && !isScene3D && "pt-11"
                     )}
                     ref={viewsScrollRef}
                 >
@@ -996,21 +1335,24 @@ const EditorLayoutInner = () => {
                                 const stepYValue = zStep * 0.8192; // 0.8192 is sin(55deg)
 
                                 const viewsToDisplay = renderedViews;
+                                const isOverviewSceneActive = isSceneInMultiStack;
 
-                                const totalViewShiftY = isMultiLayersActive ? (viewsToDisplay.length * stepYValue) : 0;
+                                const totalViewShiftY = isOverviewSceneActive ? (viewsToDisplay.length * stepYValue) : 0;
                                 const multiLayerHeaderOffset = 0;
+
+                                const shouldDeferGuideLines = deferGuidesRender || legacyForwardEntryActive || !sceneShowsGuides(sceneState);
 
                                 return (
                                     <div
                                         className="relative w-full flex flex-col items-center"
-                                        style={is3DMode ? {
-                                            perspective: '1200px',
-                                            transformStyle: 'preserve-3d',
-                                            paddingBottom: isMultiLayersActive ? `${totalViewShiftY + 50}px` : undefined,
+                                        style={isScene3D ? {
+                                            perspective: "1200px",
+                                            transformStyle: "preserve-3d",
+                                            paddingBottom: isOverviewSceneActive ? `${totalViewShiftY + 50}px` : undefined,
                                         } : undefined}
                                     >
                                         {/* Vertical 3D Guide Lines - now in 2D container to ensure verticality */}
-                                        {is3DMode && isMultiLayersActive && (
+                                        {isScene3D && isOverviewSceneActive && (
                                             <GuideLines
                                                 numLayers={viewsToDisplay.length}
                                                 lastViewId={viewsToDisplay[viewsToDisplay.length - 1]?.id}
@@ -1020,15 +1362,30 @@ const EditorLayoutInner = () => {
                                                 isThumb3DOffsetActive={isThumb3DOffsetActive}
                                                 stepYValue={stepYValue}
                                                 primaryStackIndex={0}
-                                                deferRender={deferGuidesRender}
+                                                deferRender={shouldDeferGuideLines}
                                             />
                                         )}
                                         {viewsToDisplay.map((view, index) => (
                                             (() => {
-                                                const stackIndex = isMultiLayersActive ? index : 0;
+                                                const stackIndex = isOverviewSceneActive ? index : 0;
+                                                const scenePose = getLayerScenePose({
+                                                    sceneState,
+                                                    stackIndex,
+                                                    isPrimary: view.id === "primary",
+                                                    totalVisibleLayers: viewsToDisplay.length,
+                                                    layerSpacingPx: effectiveLayerSpacing,
+                                                    flowOffsetPx: sceneFlowOffsets[view.id] ?? 0,
+                                                    renderedInMultiScene: isOverviewSceneActive,
+                                                    collapseToSingle: sceneCollapseToSingle,
+                                                });
                                                 return (
                                                     <div key={view.id}
                                                         ref={(el) => {
+                                                            if (el) {
+                                                                sceneViewRefs.current.set(view.id, el);
+                                                            } else {
+                                                                sceneViewRefs.current.delete(view.id);
+                                                            }
                                                             if (el) {
                                                                 const existing = layerViewRefs.current.get(view.selectedLayer);
                                                                 if (view.id === "primary" || !existing) {
@@ -1041,16 +1398,16 @@ const EditorLayoutInner = () => {
                                                         className="w-full relative pointer-events-none"
                                                         style={{
                                                             zIndex: (viewsToDisplay.length - index),
-                                                            transformStyle: is3DMode ? 'preserve-3d' : 'flat',
+                                                            transformStyle: isScene3D ? "preserve-3d" : "flat",
                                                         }}
                                                     >
-                                                        <div className="flex justify-center h-full relative pointer-events-none" style={{ transformStyle: is3DMode ? 'preserve-3d' : 'flat' }}>
+                                                        <div className="flex justify-center h-full relative pointer-events-none" style={{ transformStyle: isScene3D ? "preserve-3d" : "flat" }}>
                                                             <KeyboardViewInstance
                                                                 instanceId={view.id}
                                                                 selectedLayer={view.selectedLayer}
                                                                 setSelectedLayer={(layer) => handleSetViewLayer(view.id, layer)}
                                                                 isPrimary={view.id === "primary"}
-                                                                hideLayerTabs={isMultiLayersActive && view.id !== "primary"}
+                                                                hideLayerTabs={isOverviewSceneActive && view.id !== "primary"}
                                                                 layerActiveState={layerActiveState}
                                                                 onToggleLayerOn={handleToggleLayerOn}
                                                                 transparencyByLayer={transparencyByLayer}
@@ -1059,22 +1416,20 @@ const EditorLayoutInner = () => {
                                                                 onToggleShowLayers={handleToggleShowLayers}
                                                                 isLayerOrderReversed={isLayerOrderReversed}
                                                                 onToggleLayerOrder={() => setIsLayerOrderReversed(prev => !prev)}
-                                                                isMultiLayersActive={isMultiLayersActive}
+                                                                isOverviewSceneActive={isOverviewSceneActive}
+                                                                show3DScene={isScene3D}
+                                                                scenePose={scenePose}
+                                                                legacyForwardEntryActive={legacyForwardEntryActive}
                                                                 isAllTransparencyActive={isAllTransparencyActive}
                                                                 isTransparencyRestoring={isTransparencyRestoring}
                                                                 multiLayerHeaderOffset={multiLayerHeaderOffset}
-                                                                onRemove={!isMultiLayersActive && view.id !== "primary" ? () => handleRemoveView(view.id) : undefined}
-                                                                onGhostNavigate={isMultiLayersActive ? handleGhostNavigate : undefined}
+                                                                onRemove={!isOverviewSceneActive && view.id !== "primary" ? () => handleRemoveView(view.id) : undefined}
+                                                                onGhostNavigate={isOverviewSceneActive ? handleGhostNavigate : undefined}
                                                                 isRevealing={view.id === revealingViewId}
                                                                 isHiding={view.id === hidingViewId}
                                                                 stackIndex={stackIndex}
-                                                                layerSpacingPx={effectiveLayerSpacing}
                                                                 baseBadgeOffsetY={baseBadgeOffsetY}
-                                                                isBaseMeasured={isBaseMeasured}
-                                                                onBaseBadgeOffsetY={view.id === "primary" ? (offset: number | null) => {
-                                                                    setBaseBadgeOffsetY(offset);
-                                                                    if (offset !== null) setIsBaseMeasured(true);
-                                                                } : undefined}
+                                                                onBaseBadgeOffsetY={view.id === "primary" ? handleBaseBadgeOffsetY : undefined}
                                                                 isLayerDragActive={isDraggingLayer}
                                                                 hoveredDropLayer={hoveredDropLayer}
                                                                 onLayerDropHover={handleLayerDropHover}
@@ -1098,6 +1453,7 @@ const EditorLayoutInner = () => {
                             style={{
                                 opacity: hideAddButton ? 0 : 1,
                                 transition: hideAddButton ? 'none' : 'opacity 150ms ease-in-out',
+                                marginTop: is3DMode && !isMultiLayersActive ? 320 : 0,
                             }}
                         >
                             <Tooltip delayDuration={500}>
@@ -1761,7 +2117,12 @@ const GuideLines = ({
 
     return (
         <React.Fragment>
-            <div ref={overlayRef} className="absolute inset-0 pointer-events-none overflow-visible" style={{ zIndex: 0 }}>
+            <div
+                ref={overlayRef}
+                data-testid="multi-layer-guides"
+                className="absolute inset-0 pointer-events-none overflow-visible"
+                style={{ zIndex: 0 }}
+            >
                 <svg
                     width={svgWidth}
                     height={svgHeight}
