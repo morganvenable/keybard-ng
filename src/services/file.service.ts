@@ -1,4 +1,5 @@
 import type { CustomValueEntry, KeyboardInfo } from "../types/vial.types";
+import { ComboOptions } from "../types/vial.types";
 import { getClosestPresetColor } from "../utils/color-conversion";
 import { FragmentComposerService } from "./fragment-composer.service";
 import { FragmentService } from "./fragment.service";
@@ -322,7 +323,7 @@ export class FileService {
         // Build tap dances (dict format with "on" flag)
         // Tap dance values are stored as strings, use them directly
         const tapDances = (kbinfo.tapdances || []).map((td: any) => ({
-            on: true, // Keybard always enables tap dances
+            on: td.enabled !== false,
             on_tap: typeof td.tap === 'string' ? td.tap : keyService.stringify(td.tap || 0),
             on_hold: typeof td.hold === 'string' ? td.hold : keyService.stringify(td.hold || 0),
             on_double_tap: typeof td.doubletap === 'string' ? td.doubletap : keyService.stringify(td.doubletap || 0),
@@ -332,15 +333,15 @@ export class FileService {
 
         // Build combos (dict format with "on" flag)
         const combos = (kbinfo.combos || []).map((c: any) => ({
-            on: c.enabled !== false,
+            on: (c.options & ComboOptions.ENABLED) !== 0,
             keys: (c.keys || []).map((k: any) => typeof k === 'string' ? k : keyService.stringify(k)),
             output: typeof c.output === 'string' ? c.output : keyService.stringify(c.output || 0),
-            combo_term: c.combo_term || 0,
+            combo_term: (c.options || 0) & 0x7FFF,
         }));
 
         // Build key overrides (dict format with "on" flag)
         const keyOverrides = (kbinfo.key_overrides || []).map((ko: any) => ({
-            on: ko.enabled !== false,
+            on: (ko.options & (1 << 7)) !== 0,
             trigger: typeof ko.trigger === 'string' ? ko.trigger : keyService.stringify(ko.trigger || 0),
             replacement: typeof ko.replacement === 'string' ? ko.replacement : keyService.stringify(ko.replacement || 0),
             layers: ko.layers ?? 0xFFFF,
@@ -623,23 +624,21 @@ export class FileService {
         // Convert combos (dict format with "on" flag)
         kbinfo.combos = (viable.combo || []).map((c: any, cmbid: number) => ({
             cmbid,
-            enabled: c.on !== false,
             keys: c.keys || [],
             output: c.output,
-            combo_term: c.combo_term || 0,
+            options: ((c.combo_term || 0) & 0x7FFF) | (c.on !== false ? ComboOptions.ENABLED : 0),
         }));
 
         // Convert key overrides (dict format)
         kbinfo.key_overrides = (viable.key_override || []).map((ko: any, koid: number) => ({
             koid,
-            enabled: ko.on !== false,
             trigger: ko.trigger,
             replacement: ko.replacement,
             layers: ko.layers || 0xFFFF,
             trigger_mods: ko.trigger_mods || 0,
             negative_mod_mask: ko.negative_mod_mask || 0,
             suppressed_mods: ko.suppressed_mods || 0,
-            options: ko.options || 0,
+            options: (ko.on !== false) ? ((ko.options || 0) | (1 << 7)) : ((ko.options || 0) & ~(1 << 7)),
         }));
 
         // Convert macros
