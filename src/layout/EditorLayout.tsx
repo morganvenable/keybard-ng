@@ -16,6 +16,7 @@ import KeyboardViewInstance from "./KeyboardViewInstance";
 import LayersPlusIcon from "@/components/icons/LayersPlusIcon";
 import LayersMinusIcon from "@/components/icons/LayersMinusIcon";
 import AppSidebar from "./Sidebar";
+import { usbInstance } from "@/services/usb.service";
 
 import { LayerProvider, useLayer } from "@/contexts/LayerContext";
 import { useLayoutLibrary } from "@/contexts/LayoutLibraryContext";
@@ -89,7 +90,7 @@ const EditorLayoutInner = () => {
         selectedLayer: number;
     };
 
-    const { keyboard, setKeyboard, updateKey /*, resetToOriginal*/ } = useVial();
+    const { keyboard, setKeyboard, updateKey, isConnected /*, resetToOriginal*/ } = useVial();
     const { selectedLayer, setSelectedLayer } = useLayer();
     const { clearSelection } = useKeyBinding();
     const {
@@ -1045,6 +1046,15 @@ const EditorLayoutInner = () => {
                 updatedKeyboard.layer_colors.push({ hue: 0, sat: 0, val: 0 });
             }
             updatedKeyboard.layer_colors[targetLayer] = { ...sourceLedColor };
+
+            // Update hardware if connected
+            if (isConnected) {
+                try {
+                    usbInstance.setLayerColor(targetLayer, sourceLedColor.hue, sourceLedColor.sat);
+                } catch (e) {
+                    console.error("Failed to set hardware layer color in applyLayerToTarget:", e);
+                }
+            }
         }
 
         // Collect all changes and apply to the single copy

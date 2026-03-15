@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useCallback } from "react";
-import { KeyProps } from "@/components/Key";
+import type { KeyProps } from "@/components/Key";
 import { EditorKeyProps } from "@/layout/SecondarySidebar/components/EditorKey";
 import { KeyContent } from "@/types/vial.types";
 import type { LayerEntry } from "@/types/layer-library";

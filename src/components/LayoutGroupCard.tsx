@@ -123,7 +123,7 @@ export const LayoutGroupCard: FC<LayoutGroupCardProps> = ({
                     <DialogContent className="sm:max-w-[425px]">
                         <DialogHeader>
                             <DialogTitle className="text-xl font-bold">
-                                Clear {group.name}
+                                Clear Layouts {group.name}
                             </DialogTitle>
                         </DialogHeader>
                         <DialogFooter className="gap-3 sm:gap-4 mt-4">
@@ -218,7 +218,7 @@ export const LayoutGroupCard: FC<LayoutGroupCardProps> = ({
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-bold">
-                            Clear {group.name}
+                            Clear Layouts {group.name}
                         </DialogTitle>
                     </DialogHeader>
                     <DialogFooter className="gap-3 sm:gap-4 mt-4">

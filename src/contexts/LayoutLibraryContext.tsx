@@ -32,7 +32,7 @@ interface LayerLibraryContextType {
 
     // Layer clipboard (for copy/paste)
     layerClipboard: LayerClipboard | null;
-    copyLayer: (layer: LayerEntry) => void;
+    copyLayer: (layer: LayerEntry, showDialog?: boolean) => void;
     clearClipboard: () => void;
 
     // Preview modal state
@@ -111,11 +111,30 @@ export const LayerLibraryProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }, [loadLayers]);
 
     // Copy a layer to clipboard
-    const copyLayer = useCallback((layer: LayerEntry) => {
+    const copyLayer = useCallback((layer: LayerEntry, showDialog = false) => {
         setLayerClipboard({
             layer,
             copiedAt: Date.now(),
         });
+
+        // Write to system clipboard for persistence (used by contextual menu paste)
+        if (layer.keymap) {
+            try {
+                const clipboardData = {
+                    keymap: layer.keymap,
+                    layerColor: layer.layerColor,
+                    ledColor: layer.ledColor,
+                    _type: "layer"
+                };
+                navigator.clipboard.writeText(JSON.stringify(clipboardData));
+            } catch (e) {
+                console.warn("Failed to write to system clipboard:", e);
+            }
+        }
+
+        if (showDialog) {
+            setIsPasteDialogOpen(true);
+        }
     }, []);
 
     // Clear clipboard

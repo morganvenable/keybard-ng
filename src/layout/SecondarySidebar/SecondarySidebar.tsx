@@ -23,6 +23,7 @@ import QMKSettingsPanel from "./Panels/QMKSettingsPanel";
 import SettingsPanel from "./Panels/SettingsPanel";
 import TapdancePanel from "./Panels/TapdancePanel";
 import AboutPanel from "./Panels/AboutPanel";
+import QuickStartPanel from "./Panels/QuickStartPanel";
 
 import { Button } from "@/components/ui/button";
 import { Sidebar, SidebarContent, SidebarHeader, useSidebar } from "@/components/ui/sidebar";
@@ -67,6 +68,7 @@ const getPanelTitle = (panel: string | null | undefined, menus?: CustomUIMenuIte
         pointing: "Pointing Devices",
         qmksettings: "QMK Settings",
         settings: "Settings",
+        quickstart: "Quick Start",
         about: "About",
     };
 
@@ -178,6 +180,7 @@ const SecondarySidebar = () => {
             case "mouse": return <MousePanel />;
             case "qmksettings": return <QMKSettingsPanel />;
             case "settings": return <SettingsPanel />;
+            case "quickstart": return <QuickStartPanel />;
             case "about": return <AboutPanel />;
             default:
                 return (

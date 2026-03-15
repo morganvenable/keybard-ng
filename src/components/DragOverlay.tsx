@@ -1,6 +1,7 @@
 import { Key } from "@/components/Key";
 import EditorKey from "@/layout/SecondarySidebar/components/EditorKey";
 import React from "react";
+import { createPortal } from "react-dom";
 import { useDrag } from "@/contexts/DragContext";
 import MacrosIcon from "@/components/icons/MacrosIcon";
 import { Layers } from "lucide-react";
@@ -9,9 +10,9 @@ import { colorClasses } from "@/utils/colors";
 
 // Reusing styles from EditorKey roughly to ensure it looks identical
 const classes = {
-    key: "bg-white border-2 border-kb-gray-border w-12 h-12 rounded-md flex flex-col items-center justify-center shadow-lg pointer-events-none z-[9999]",
+    key: "bg-white border-2 border-kb-gray-border w-12 h-12 rounded-md flex flex-col items-center justify-center shadow-lg pointer-events-none z-[99999]",
     emptyKey:
-        "bg-kb-green text-white w-12 h-12 rounded-md border-2 border-transparent flex items-center justify-center text-wrap text-center text-xs flex-col shadow-lg pointer-events-none z-[9999]",
+        "bg-kb-green text-white w-12 h-12 rounded-md border-2 border-transparent flex items-center justify-center text-wrap text-center text-xs flex-col shadow-lg pointer-events-none z-[99999]",
 };
 
 export const DragOverlay: React.FC = () => {
@@ -34,7 +35,7 @@ export const DragOverlay: React.FC = () => {
         height: typeof height === "number" ? `${height}px` : height,
         transform: 'translate(-50%, -50%)',
         pointerEvents: "none",
-        zIndex: 9999,
+        zIndex: 99999,
     };
 
     const renderContent = () => {
@@ -74,9 +75,10 @@ export const DragOverlay: React.FC = () => {
         );
     };
 
-    return (
+    return createPortal(
         <div style={style} className="shadow-lg rounded-md bg-white">
             {renderContent()}
-        </div>
+        </div>,
+        document.body
     );
 };

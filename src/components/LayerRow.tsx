@@ -5,9 +5,11 @@
  */
 
 import type { FC } from "react";
+import { createPortal } from "react-dom";
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
-import { GripHorizontal, Check, Trash2 } from "lucide-react";
+import { GripHorizontal, Check, Trash2, X } from "lucide-react";
 import CopyIcon from "@/components/icons/CopyIcon";
+import Maximize2Icon from "./icons/Maximize2Icon";
 
 import type { ImportedLayer } from "@/types/layer-library";
 import { Button } from "@/components/ui/button";
@@ -16,6 +18,7 @@ import { cn } from "@/lib/utils";
 import {
     Tooltip,
     TooltipContent,
+    TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
@@ -27,6 +30,8 @@ import {
 } from "@/components/ui/dialog";
 import { colorClasses } from "@/utils/colors";
 import { useVial } from "@/contexts/VialContext";
+import { useLayoutLibrary } from "@/contexts/LayoutLibraryContext";
+import { useLayoutSettings } from "@/contexts/LayoutSettingsContext";
 import { useDrag } from "@/contexts/DragContext";
 import { layerLibraryService } from "@/services/layer-library.service";
 import { SVALBOARD_LAYOUT } from "@/constants/svalboard-layout";
@@ -60,18 +65,32 @@ export const LayerRow: FC<LayerRowProps> = ({
 }) => {
     const { keyboard } = useVial();
     const { startDrag, isDragging } = useDrag();
+    const { copyLayer } = useLayoutLibrary();
+    const { keyVariant } = useLayoutSettings();
     const containerRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(0.5);
     const [justCopied, setJustCopied] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [isMaximized, setIsMaximized] = useState(false);
+
+    // Convert ImportedLayer to LayerEntry for the clipboard
+    const layerEntry = useMemo(() => 
+        layerLibraryService.importedLayerToLayerEntry(layer, sourceLayout),
+        [layer, sourceLayout]
+    );
+
+    // Floating panel drag state
+    const floatingRef = useRef<HTMLDivElement>(null);
+    const [floatingPos, setFloatingPos] = useState<{ x: number; y: number } | null>(null);
+    const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+    // Full-size unit size matches the main keyboard's current key variant
+    const fullUnitSize = keyVariant === 'small' ? 30 : keyVariant === 'medium' ? 45 : 60;
 
     // Handle drag start for the entire layer
     const handleDragStart = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-
-        // Convert ImportedLayer to LayerEntry for the clipboard
-        const layerEntry = layerLibraryService.importedLayerToLayerEntry(layer, sourceLayout);
 
         startDrag({
             keycode: "",
@@ -81,7 +100,7 @@ export const LayerRow: FC<LayerRowProps> = ({
             layerData: layerEntry,
             sourceId: `layer-${sourceLayout}-${layer.index}`,
         }, e);
-    }, [layer, sourceLayout, startDrag]);
+    }, [layer, sourceLayout, startDrag, layerEntry]);
 
     // Get the layout to calculate dimensions
     const keyboardLayout = (keyboard?.keylayout && Object.keys(keyboard.keylayout).length > 0)
@@ -90,8 +109,8 @@ export const LayerRow: FC<LayerRowProps> = ({
 
     const useFragmentLayout = keyboard?.keylayout && Object.keys(keyboard.keylayout).length > 0;
 
-    // Calculate actual keyboard dimensions
-    const dimensions = useMemo(() => {
+    // Calculate keyboard extents in key units (layout-independent)
+    const keyExtents = useMemo(() => {
         let maxX = 0;
         let maxY = 0;
 
@@ -101,11 +120,20 @@ export const LayerRow: FC<LayerRowProps> = ({
             maxY = Math.max(maxY, yPos + key.h);
         });
 
-        return {
-            width: maxX * SMALL_UNIT_SIZE,
-            height: maxY * SMALL_UNIT_SIZE,
-        };
+        return { maxX, maxY };
     }, [keyboardLayout, useFragmentLayout]);
+
+    // Mini dimensions (always at SMALL_UNIT_SIZE)
+    const dimensions = useMemo(() => ({
+        width: keyExtents.maxX * SMALL_UNIT_SIZE,
+        height: keyExtents.maxY * SMALL_UNIT_SIZE,
+    }), [keyExtents]);
+
+    // Full-size dimensions (at main keyboard's unit size)
+    const fullDimensions = useMemo(() => ({
+        width: keyExtents.maxX * fullUnitSize,
+        height: keyExtents.maxY * fullUnitSize,
+    }), [keyExtents, fullUnitSize]);
 
     // Calculate scale to fit container width
     useEffect(() => {
@@ -136,7 +164,48 @@ export const LayerRow: FC<LayerRowProps> = ({
             window.removeEventListener("resize", updateScale);
             observer.disconnect();
         };
-    }, [dimensions.width]);
+    }, [dimensions.width, compact]);
+
+    // We no longer need floatingScale as we render natively at fullUnitSize
+
+    // Center floating panel on screen when first opened
+    useEffect(() => {
+        if (isMaximized && !floatingPos) {
+            const panelWidth = fullDimensions.width + 48; // padding
+            const panelHeight = fullDimensions.height + 60; // header + padding
+            setFloatingPos({
+                x: Math.max(16, (window.innerWidth - panelWidth) / 2),
+                y: Math.max(16, (window.innerHeight - panelHeight) / 2),
+            });
+        }
+        if (!isMaximized) {
+            setFloatingPos(null);
+        }
+    }, [isMaximized, fullDimensions.width, fullDimensions.height, floatingPos]);
+
+    // Floating panel drag handlers
+    const handleFloatingDragStart = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!floatingRef.current || !floatingPos) return;
+        dragOffsetRef.current = {
+            x: e.clientX - floatingPos.x,
+            y: e.clientY - floatingPos.y,
+        };
+
+        const handleMouseMove = (me: MouseEvent) => {
+            setFloatingPos({
+                x: me.clientX - dragOffsetRef.current.x,
+                y: me.clientY - dragOffsetRef.current.y,
+            });
+        };
+        const handleMouseUp = () => {
+            document.removeEventListener("mousemove", handleMouseMove);
+            document.removeEventListener("mouseup", handleMouseUp);
+        };
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+    }, [floatingPos]);
 
     const resolvedColorName = useMemo(() => {
         return layer.color || keyboard?.cosmetic?.layer_colors?.[layer.index] || "primary";
@@ -188,38 +257,67 @@ export const LayerRow: FC<LayerRowProps> = ({
                 compact ? "p-1.5 h-full" : "p-2"
             )}>
                 {/* Layer header */}
-                <div className={cn(
-                    "relative flex items-center justify-start transition-colors hover:bg-black/5 group-hover/row:bg-black/5 rounded-t-md rounded-b-none cursor-grab active:cursor-grabbing",
-                    compact
-                        ? "-mx-1.5 -mt-1.5 px-2.5 pt-1.5 pb-1 mb-1 scale-95 origin-left"
-                        : "-mx-2 -mt-2 px-3 pt-2 pb-1.5 mb-2"
-                )}
-                    onMouseDown={handleDragStart}
-                    title="Drag to replace a layer"
-                >
-                    <div className="flex items-center gap-2">
-                        {/* Layer color indicator - shows LED hardware color if available */}
-                        <div
-                            className={cn(
-                                "w-3 h-3 rounded-full flex-shrink-0 shadow-sm",
-                                colorClasses[resolvedColorName] || "bg-kb-primary"
-                            )}
-                        />
-                        {/* Layer index */}
-                        <span className="text-sm font-mono text-gray-500 font-bold">
-                            {layer.index}
-                        </span>
-                        {/* Layer name */}
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                            {highlightMatch(layer.name)}
-                        </span>
-                    </div>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <div className={cn(
+                            "relative flex items-center justify-start transition-colors hover:bg-black/5 group-hover/row:bg-black/5 rounded-t-md rounded-b-none cursor-grab active:cursor-grabbing",
+                            compact
+                                ? "-mx-1.5 -mt-1.5 px-2.5 pt-1.5 pb-1 mb-1 scale-95 origin-left"
+                                : "-mx-2 -mt-2 px-3 pt-2 pb-1.5 mb-2"
+                        )}
+                            onMouseDown={handleDragStart}
+                        >
+                            <div className="flex items-center gap-2">
+                                {/* Layer color indicator - shows LED hardware color if available */}
+                                <div
+                                    className={cn(
+                                        "w-3 h-3 rounded-full flex-shrink-0 shadow-sm",
+                                        colorClasses[resolvedColorName] || "bg-kb-primary"
+                                    )}
+                                />
+                                {/* Layer index */}
+                                <span className="text-sm font-mono text-gray-500 font-bold">
+                                    {layer.index}
+                                </span>
+                                {/* Layer name */}
+                                <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                    {highlightMatch(layer.name)}
+                                </span>
+                            </div>
 
-                    {/* Centered drag handle indicator */}
-                    <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none text-gray-400">
-                        <GripHorizontal className="w-4 h-4" />
-                    </div>
-                </div>
+                            {/* Centered drag handle indicator */}
+                            <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none text-gray-400">
+                                <GripHorizontal className="w-4 h-4" />
+                            </div>
+
+                            {/* Maximize button moved to title bar */}
+                            <div className="flex items-center ml-auto">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6 rounded-full flex items-center justify-center p-0 transition-all hover:bg-black/10 text-gray-500"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsMaximized(true);
+                                            }}
+                                            title=""
+                                        >
+                                            <Maximize2Icon className="w-3.5 h-3.5" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Maximize</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </div>
+                        </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>Drag and drop to replace a layer</p>
+                    </TooltipContent>
+                </Tooltip>
 
                 {/* Full-width keyboard preview with scaling */}
                 <div
@@ -243,8 +341,34 @@ export const LayerRow: FC<LayerRowProps> = ({
                         />
                     </div>
 
-                    {/* Hover action: copy in bottom-left */}
-                    <div className="absolute bottom-1 left-1 opacity-0 group-hover/row:opacity-100 transition-all z-10">
+                    {/* Note: Maximize button moved to layer header */}
+
+                    {/* Hover action: delete in bottom-left */}
+                    {canDelete && (
+                        <div className="absolute bottom-1 left-1 opacity-0 group-hover/row:opacity-100 transition-all z-10">
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsDeleteConfirmOpen(true);
+                                        }}
+                                        className="h-8 w-8 rounded-full flex items-center justify-center p-0 text-kb-gray-border transition-all hover:bg-red-500 hover:text-white focus:outline-none cursor-pointer bg-kb-gray-medium"
+                                        title=""
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Delete Layer</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </div>
+                    )}
+
+                    {/* Copy button in bottom-right */}
+                    <div className="absolute bottom-1 right-1 opacity-0 group-hover/row:opacity-100 transition-all z-10">
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
@@ -252,15 +376,15 @@ export const LayerRow: FC<LayerRowProps> = ({
                                     size="icon"
                                     className={cn(
                                         "h-8 w-8 rounded-full flex items-center justify-center p-0 transition-all",
-                                        justCopied ? "bg-green-500 hover:bg-green-600 border-green-500 text-white" : "bg-white dark:bg-gray-700 shadow-sm"
+                                        justCopied ? "bg-black hover:bg-black/90 border-black text-white" : "bg-white dark:bg-gray-700 shadow-sm"
                                     )}
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        onPlace();
+                                        copyLayer(layerEntry, true);
                                         setJustCopied(true);
                                         setTimeout(() => setJustCopied(false), 2000);
                                     }}
-                                    title="" // Clear native title since we use Tooltip
+                                    title=""
                                 >
                                     {justCopied ? (
                                         <Check className="w-4 h-4" />
@@ -274,38 +398,136 @@ export const LayerRow: FC<LayerRowProps> = ({
                             </TooltipContent>
                         </Tooltip>
                     </div>
+                </div>
+            </div>
 
-                    {/* Hover action: delete in bottom-right */}
-                    {canDelete && (
-                        <div className="absolute bottom-1 right-1 opacity-0 group-hover/row:opacity-100 transition-all z-10">
+            {/* Floating maximized panel via portal */}
+            {isMaximized && floatingPos && createPortal(
+                <TooltipProvider delayDuration={0}>
+                <div
+                    ref={floatingRef}
+                    className="fixed z-[9999] rounded-xl bg-kb-gray dark:bg-gray-800/80 shadow-2xl flex flex-col select-none group/floating"
+                    style={{
+                        left: `${floatingPos.x}px`,
+                        top: `${floatingPos.y}px`,
+                    }}
+                >
+                    {/* Floating panel header – draggable */}
+                    <div
+                        className="relative flex items-center justify-between px-4 pt-3 pb-2.5 cursor-grab active:cursor-grabbing rounded-t-xl transition-colors hover:bg-black/5 group-hover/floating:bg-black/5"
+                        onMouseDown={handleFloatingDragStart}
+                    >
+                        <div className="flex items-center gap-2">
+                            <div
+                                className={cn(
+                                    "w-3 h-3 rounded-full flex-shrink-0 shadow-sm",
+                                    colorClasses[resolvedColorName] || "bg-kb-primary"
+                                )}
+                            />
+                            <span className="text-sm font-mono text-gray-500 font-bold">
+                                {layer.index}
+                            </span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {layer.name}
+                            </span>
+                        </div>
+
+                        {/* Centered drag handle */}
+                        <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none text-gray-400">
+                            <GripHorizontal className="w-5 h-5" />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {/* Close button */}
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 rounded-full flex items-center justify-center p-0 transition-all hover:bg-black/10 text-gray-500"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsMaximized(false);
+                                }}
+                                title=""
+                            >
+                                <X className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Full-size keyboard preview */}
+                    <div className="p-8 pb-12 overflow-auto flex items-center justify-center min-w-[300px] relative min-h-[400px]">
+                        <MiniKeyboardPreview
+                            keymap={layer.keymap}
+                            layerColor={resolvedColorName}
+                            unitSize={fullUnitSize}
+                        />
+
+                        {/* Hover action: delete in bottom-left */}
+                        {canDelete && (
+                            <div className="absolute bottom-4 left-4 transition-all z-10">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsDeleteConfirmOpen(true);
+                                            }}
+                                            className="h-10 w-10 rounded-full flex items-center justify-center p-0 text-kb-gray-border transition-all hover:bg-red-500 hover:text-white focus:outline-none cursor-pointer bg-kb-gray-medium shadow-sm"
+                                            title=""
+                                        >
+                                            <Trash2 className="h-5 w-5" />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Delete Layer</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </div>
+                        )}
+
+                        {/* Copy button in bottom-right */}
+                        <div className="absolute bottom-4 right-4 transition-all z-10">
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button
-                                        type="button"
+                                    <Button
+                                        variant={justCopied ? "default" : "outline"}
+                                        size="icon"
+                                        className={cn(
+                                            "h-10 w-10 rounded-full flex items-center justify-center p-0 transition-all",
+                                            justCopied ? "bg-black hover:bg-black/90 border-black text-white" : "bg-white dark:bg-gray-700 shadow-sm"
+                                        )}
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            setIsDeleteConfirmOpen(true);
+                                            copyLayer(layerEntry, true);
+                                            setJustCopied(true);
+                                            setTimeout(() => setJustCopied(false), 2000);
                                         }}
-                                        className="h-8 w-8 rounded-full flex items-center justify-center p-0 text-kb-gray-border transition-all hover:bg-red-500 hover:text-white focus:outline-none cursor-pointer bg-kb-gray-medium"
-                                        title="Delete layer"
+                                        title=""
                                     >
-                                        <Trash2 className="h-4 w-4" />
-                                    </button>
+                                        {justCopied ? (
+                                            <Check className="w-5 h-5" />
+                                        ) : (
+                                            <CopyIcon className="w-5 h-5" />
+                                        )}
+                                    </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>Delete Layer</p>
+                                    <p>Copy Layer</p>
                                 </TooltipContent>
                             </Tooltip>
                         </div>
-                    )}
+                    </div>
                 </div>
-            </div>
+                </TooltipProvider>,
+                document.body
+            )}
 
             <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-bold">
-                            Clear {layer.name}
+                            Clear Layouts {layer.name}
                         </DialogTitle>
                     </DialogHeader>
                     <DialogFooter className="gap-3 sm:gap-4 mt-4">
