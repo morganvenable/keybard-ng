@@ -42,8 +42,6 @@ interface LayerRowProps {
     layer: ImportedLayer;
     /** Source layout name (for display) */
     sourceLayout: string;
-    /** Callback when Place button is clicked */
-    onPlace: () => void;
     /** Optional callback to delete this layer from imported layouts */
     onDelete?: () => void;
     /** Optional search query for highlighting matches */
@@ -58,7 +56,6 @@ const SMALL_UNIT_SIZE = 30;
 export const LayerRow: FC<LayerRowProps> = ({
     layer,
     sourceLayout,
-    onPlace,
     onDelete,
     searchQuery = "",
     compact = false,

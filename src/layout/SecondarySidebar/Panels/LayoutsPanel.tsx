@@ -41,8 +41,6 @@ const LayoutsPanel: FC = () => {
     const isHorizontal = layoutMode === "bottombar";
     const [filtersExpanded, setFiltersExpanded] = useState(false);
     const {
-        copyLayer,
-        openPasteDialog,
         layers: publishedLayers,
         isLoading: isPublishedLoading,
         deleteLayer,
@@ -167,13 +165,6 @@ const LayoutsPanel: FC = () => {
         setImportedLayouts(nextLayouts);
     };
 
-    // Handle place layer (copy to clipboard and open paste dialog)
-    const handlePlaceLayer = (layer: ImportedLayer, sourceLayout: string) => {
-        const layerEntry = layerLibraryService.importedLayerToLayerEntry(layer, sourceLayout);
-        copyLayer(layerEntry);
-        // Open paste dialog immediately after copying
-        setTimeout(() => openPasteDialog(), 0);
-    };
 
     // Filter layouts based on search query
     const hasMatchingLayers = (group: LayoutGroup | null) => {
@@ -350,7 +341,6 @@ const LayoutsPanel: FC = () => {
                                     defaultExpanded={false}
                                     onDelete={handleDeleteLayout}
                                     onDeleteLayer={handleDeleteImportedLayer}
-                                    onPlaceLayer={handlePlaceLayer}
                                     searchQuery={searchQuery}
                                     compact
                                 />
@@ -364,7 +354,6 @@ const LayoutsPanel: FC = () => {
                                 group={savedLayerGroup}
                                 defaultExpanded={true}
                                 onDelete={handleDeleteSavedLayersGroup}
-                                onPlaceLayer={handlePlaceLayer}
                                 onDeleteLayer={handleDeleteSavedLayer}
                                 searchQuery={searchQuery}
                                 compact
@@ -493,7 +482,6 @@ const LayoutsPanel: FC = () => {
                             defaultExpanded={true}
                             onDelete={handleDeleteLayout}
                             onDeleteLayer={handleDeleteImportedLayer}
-                            onPlaceLayer={handlePlaceLayer}
                             searchQuery={searchQuery}
                         />
                     ))
@@ -506,7 +494,6 @@ const LayoutsPanel: FC = () => {
                         group={savedLayerGroup}
                         defaultExpanded={true}
                         onDelete={handleDeleteSavedLayersGroup}
-                        onPlaceLayer={handlePlaceLayer}
                         onDeleteLayer={handleDeleteSavedLayer}
                         searchQuery={searchQuery}
                     />

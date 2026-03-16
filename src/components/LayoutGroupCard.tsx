@@ -26,8 +26,6 @@ interface LayoutGroupCardProps {
     defaultExpanded?: boolean;
     /** Callback when delete is clicked (only for imported layouts) */
     onDelete?: (group: LayoutGroup) => void;
-    /** Callback when Place is clicked on a layer */
-    onPlaceLayer: (layer: ImportedLayer, sourceLayout: string) => void;
     /** Callback when deleting a single imported layer */
     onDeleteLayer?: (group: LayoutGroup, layer: ImportedLayer) => void;
     /** Optional search query for highlighting matches */
@@ -40,7 +38,6 @@ export const LayoutGroupCard: FC<LayoutGroupCardProps> = ({
     group,
     defaultExpanded = false,
     onDelete,
-    onPlaceLayer,
     onDeleteLayer,
     searchQuery = "",
     compact = false,
@@ -111,7 +108,6 @@ export const LayoutGroupCard: FC<LayoutGroupCardProps> = ({
                             key={`${group.id}-${layer.index}`}
                             layer={layer}
                             sourceLayout={group.name}
-                            onPlace={() => onPlaceLayer(layer, group.name)}
                             onDelete={canDelete && onDeleteLayer ? () => onDeleteLayer(group, layer) : undefined}
                             searchQuery={searchQuery}
                             compact
@@ -200,7 +196,6 @@ export const LayoutGroupCard: FC<LayoutGroupCardProps> = ({
                                 key={`${group.id}-${layer.index}`}
                                 layer={layer}
                                 sourceLayout={group.name}
-                                onPlace={() => onPlaceLayer(layer, group.name)}
                                 onDelete={canDelete && onDeleteLayer ? () => onDeleteLayer(group, layer) : undefined}
                                 searchQuery={searchQuery}
                             />
