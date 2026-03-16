@@ -209,7 +209,7 @@ const MacrosPanel: React.FC<Props> = ({ isPicker }) => {
                 )}
                 {macros.filter(m => m?.actions?.length > 0).length === 0 && (
                     <div className="text-center text-gray-500 py-4 px-6">
-                        No macros configured.
+                        No macro keys configured.
                     </div>
                 )}
             </div>
@@ -221,7 +221,7 @@ const MacrosPanel: React.FC<Props> = ({ isPicker }) => {
         <section className="space-y-3 h-full max-h-full flex flex-col pt-0">
             {isPicker && (
                 <div className="pb-2">
-                    <span className="font-semibold text-xl text-black">Macros</span>
+                    <span className="font-semibold text-xl text-black">Macro Keys</span>
                 </div>
             )}
             <div className="flex flex-col overflow-auto flex-grow scrollbar-thin">
@@ -269,7 +269,7 @@ const MacrosPanel: React.FC<Props> = ({ isPicker }) => {
                 })}
                 {macros.length === 0 && (
                     <div className="text-center text-gray-500 mt-10">
-                        No macros found.
+                        No macro keys found.
                     </div>
                 )}
             </div>

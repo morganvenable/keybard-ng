@@ -140,7 +140,7 @@ const TapdancePanel: React.FC = () => {
                                     />
                                 </div>
                                 <span className="text-xs font-bold text-slate-600 truncate">
-                                    {customName || `Tapdance ${i}`}
+                                    {customName || `Tap Dance ${i}`}
                                 </span>
                             </div>
                             <div className="grid grid-cols-2 gap-1">
@@ -162,7 +162,7 @@ const TapdancePanel: React.FC = () => {
                     return states.some(k => k && k !== "KC_NO");
                 }).length === 0 && (
                         <div className="text-center text-gray-500 py-4 px-6">
-                            No tapdances configured.
+                            No tap dance keys configured.
                         </div>
                     )}
             </div>
@@ -239,7 +239,7 @@ const TapdancePanel: React.FC = () => {
                     })}
                     {tapdances.length === 0 && (
                         <div className="text-center text-gray-500 mt-10">
-                            No tapdances found.
+                            No tap dance keys found.
                         </div>
                     )}
                 </div>

@@ -21,13 +21,26 @@ import { layerLibraryService } from "@/services/layer-library.service";
 import type { LayoutGroup, ImportedLayer } from "@/types/layer-library";
 import { cn } from "@/lib/utils";
 
+// Dynamically discover all layout files placed in src/default-layouts
+// No code changes are required when adding new files here!
+const defaultLayoutModules = import.meta.glob('@/default-layouts/*.{viable,vil,json}', {
+    query: '?url',
+    import: 'default',
+    eager: true
+}) as Record<string, string>;
+
+// Transform the glob object into an array of { name, fileUrl }
+const DEFAULT_LAYOUTS = Object.entries(defaultLayoutModules).map(([path, url]) => {
+    // Extract just the filename without extension for the 'name'
+    const name = path.split('/').pop()?.replace(/\.(viable|vil|json)$/i, '') || 'unknown';
+    return { name, fileUrl: url };
+});
+
 const LayoutsPanel: FC = () => {
     const { layoutMode } = useLayoutSettings();
     const isHorizontal = layoutMode === "bottombar";
     const [filtersExpanded, setFiltersExpanded] = useState(false);
     const {
-        copyLayer,
-        openPasteDialog,
         layers: publishedLayers,
         isLoading: isPublishedLoading,
         deleteLayer,
@@ -42,9 +55,36 @@ const LayoutsPanel: FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dropZoneRef = useRef<HTMLDivElement>(null);
 
-    // Load imported layouts on mount
+    // Load imported layouts on mount and handle defaults
     useEffect(() => {
-        setImportedLayouts(layerLibraryService.getImportedLayouts());
+        const loadInitialLayouts = async () => {
+            let currentLayouts = layerLibraryService.getImportedLayouts();
+
+            for (const layout of DEFAULT_LAYOUTS) {
+                // Check if layout with this name is already imported
+                if (!currentLayouts.find(l => l.name === layout.name)) {
+                    try {
+                        const response = await fetch(layout.fileUrl);
+                        if (response.ok) {
+                            const blob = await response.blob();
+                            // Generate a proper filename from the URL or name
+                            const filename = layout.fileUrl.split('/').pop()?.split('?')[0] || `${layout.name}.viable`;
+                            const file = new File([blob], filename, { type: "application/json" });
+                            await layerLibraryService.importLayoutFromFile(file);
+
+                            // Refresh layouts list from service after saving
+                            currentLayouts = layerLibraryService.getImportedLayouts();
+                        }
+                    } catch (e) {
+                        console.error(`Failed to load default layout ${layout.name}:`, e);
+                    }
+                }
+            }
+
+            setImportedLayouts(currentLayouts);
+        };
+
+        loadInitialLayouts();
     }, []);
 
     // Handle file import
@@ -125,13 +165,6 @@ const LayoutsPanel: FC = () => {
         setImportedLayouts(nextLayouts);
     };
 
-    // Handle place layer (copy to clipboard and open paste dialog)
-    const handlePlaceLayer = (layer: ImportedLayer, sourceLayout: string) => {
-        const layerEntry = layerLibraryService.importedLayerToLayerEntry(layer, sourceLayout);
-        copyLayer(layerEntry);
-        // Open paste dialog immediately after copying
-        setTimeout(() => openPasteDialog(), 0);
-    };
 
     // Filter layouts based on search query
     const hasMatchingLayers = (group: LayoutGroup | null) => {
@@ -298,6 +331,9 @@ const LayoutsPanel: FC = () => {
                         {/* Imported Layouts */}
                         {importedLayouts
                             .filter(hasMatchingLayers)
+                            .filter((layout, index, self) =>
+                                index === self.findIndex((t) => t.name === layout.name)
+                            )
                             .map(layout => (
                                 <LayoutGroupCard
                                     key={layout.id}
@@ -305,7 +341,6 @@ const LayoutsPanel: FC = () => {
                                     defaultExpanded={false}
                                     onDelete={handleDeleteLayout}
                                     onDeleteLayer={handleDeleteImportedLayer}
-                                    onPlaceLayer={handlePlaceLayer}
                                     searchQuery={searchQuery}
                                     compact
                                 />
@@ -319,7 +354,6 @@ const LayoutsPanel: FC = () => {
                                 group={savedLayerGroup}
                                 defaultExpanded={true}
                                 onDelete={handleDeleteSavedLayersGroup}
-                                onPlaceLayer={handlePlaceLayer}
                                 onDeleteLayer={handleDeleteSavedLayer}
                                 searchQuery={searchQuery}
                                 compact
@@ -359,18 +393,39 @@ const LayoutsPanel: FC = () => {
             onDragOver={handleDragOver}
             onDrop={handleDrop}
         >
-            {/* Header with Import Button */}
-            <div className="pl-0 pr-3 flex items-center justify-between">
+            {/* Header Description */}
+            <div className="pl-0 pr-3">
                 <span className="text-sm text-gray-500">
-                    Import a layout file
+                    Drag and drop to apply a layout to one of your layers or drag and drop individual keys. Default layouts are provided by Svalboard. You can save any of your own layers here, or import any .viable file.
                 </span>
+            </div>
+
+            {/* Controls (Search + Import) */}
+            <div className="pl-0 pr-3 flex items-center gap-2">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                        className="pl-9 bg-gray-50/50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-800 focus:ring-1 focus:ring-blue-500/20 rounded-full h-9"
+                        placeholder="Search layouts..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
+                </div>
                 <Button
                     variant="outline"
-                    className="rounded-full h-9 !px-5 shadow-sm"
+                    className="rounded-full h-9 !px-4 shadow-sm flex-shrink-0"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isImporting}
                 >
-                    <LayoutImport className="size-5 mr-2" />
+                    <LayoutImport className="size-5 mr-1.5" />
                     Import
                 </Button>
             </div>
@@ -384,58 +439,42 @@ const LayoutsPanel: FC = () => {
                 onChange={handleFileInputChange}
             />
 
-            {/* Search Bar */}
-            {(importedLayouts.length > 0 || publishedLayers.length > 0) && (
-                <div className="pl-0 pr-3">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input
-                            className="pl-9 bg-gray-50/50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-800 focus:ring-1 focus:ring-blue-500/20 rounded-full"
-                            placeholder="Search layouts..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                        {searchQuery && (
-                            <button
-                                onClick={() => setSearchQuery('')}
-                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                            >
+            {/* Error Message */}
+            {
+                importError && (
+                    <div className="pl-0 pr-3">
+                        <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-md text-sm flex items-center justify-between">
+                            <span>{importError}</span>
+                            <button onClick={() => setImportError(null)} className="ml-2">
                                 <X className="w-4 h-4" />
                             </button>
-                        )}
+                        </div>
                     </div>
-                </div>
-            )}
-
-            {/* Error Message */}
-            {importError && (
-                <div className="pl-0 pr-3">
-                    <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-md text-sm flex items-center justify-between">
-                        <span>{importError}</span>
-                        <button onClick={() => setImportError(null)} className="ml-2">
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Drag overlay */}
-            {isDragging && (
-                <div className="absolute inset-0 bg-blue-500/10 border-2 border-dashed border-blue-500 rounded-lg flex items-center justify-center z-10">
-                    <div className="text-center">
-                        <Upload className="w-12 h-12 text-blue-500 mx-auto mb-2" />
-                        <p className="text-blue-700 dark:text-blue-300 font-medium">
-                            Drop .viable file to import
-                        </p>
+            {
+                isDragging && (
+                    <div className="absolute inset-0 bg-blue-500/10 border-2 border-dashed border-blue-500 rounded-lg flex items-center justify-center z-10">
+                        <div className="text-center">
+                            <Upload className="w-12 h-12 text-blue-500 mx-auto mb-2" />
+                            <p className="text-blue-700 dark:text-blue-300 font-medium">
+                                Drop .viable file to import
+                            </p>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Layout List */}
             <div className="flex-1 overflow-auto pl-0 pr-3 pb-3 space-y-3 scrollbar-thin">
                 {/* Imported Layouts */}
                 {importedLayouts
                     .filter(hasMatchingLayers)
+                    .filter((layout, index, self) =>
+                        index === self.findIndex((t) => t.name === layout.name)
+                    )
                     .map(layout => (
                         <LayoutGroupCard
                             key={layout.id}
@@ -443,7 +482,6 @@ const LayoutsPanel: FC = () => {
                             defaultExpanded={true}
                             onDelete={handleDeleteLayout}
                             onDeleteLayer={handleDeleteImportedLayer}
-                            onPlaceLayer={handlePlaceLayer}
                             searchQuery={searchQuery}
                         />
                     ))
@@ -456,7 +494,6 @@ const LayoutsPanel: FC = () => {
                         group={savedLayerGroup}
                         defaultExpanded={true}
                         onDelete={handleDeleteSavedLayersGroup}
-                        onPlaceLayer={handlePlaceLayer}
                         onDeleteLayer={handleDeleteSavedLayer}
                         searchQuery={searchQuery}
                     />
@@ -467,8 +504,8 @@ const LayoutsPanel: FC = () => {
                     <div className="text-center text-gray-500 mt-20">
                         <LayoutImport className="w-16 h-16 mx-auto mb-6 text-gray-200 dark:text-gray-800" />
                         <p className="text-base font-medium mb-2">No layouts loaded</p>
-                        <p className="text-sm max-w-[200px] mx-auto opacity-70">
-                            Import a .viable file or publish a layer to get started
+                        <p className="text-sm max-w-[300px] mx-auto opacity-70">
+                            Import a .viable file <br></br>or save one of your current layers from it's contextual menu.
                         </p>
                     </div>
                 )}

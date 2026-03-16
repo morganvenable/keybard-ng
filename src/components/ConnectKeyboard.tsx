@@ -3,6 +3,7 @@ import { AlertTriangle, PlugZap, Unplug } from "lucide-react";
 
 import { useVial } from "@/contexts/VialContext";
 import KeybardLogo from "@/components/icons/KeybardLogo";
+import demoLayoutUrl from "@/default-layouts/sval-default.viable?url";
 
 const ConnectKeyboard = () => {
     const { isConnected, connect, disconnect, loadKeyboard, loadFromFile } = useVial();
@@ -96,10 +97,12 @@ const ConnectKeyboard = () => {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch(import.meta.env.BASE_URL + "sval-default.viable");
+            const response = await fetch(demoLayoutUrl);
             if (!response.ok) throw new Error("Failed to fetch demo file");
             const blob = await response.blob();
-            const file = new File([blob], "sval-default.viable", { type: "application/octet-stream" });
+            // Generate a proper filename from the URL or name
+            const filename = demoLayoutUrl.split('/').pop()?.split('?')[0] || "sval-default.viable";
+            const file = new File([blob], filename, { type: "application/octet-stream" });
             await loadFromFile(file);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to load demo");

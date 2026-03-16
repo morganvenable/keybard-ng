@@ -3,6 +3,7 @@ import KeybardLogo from "@/components/icons/KeybardLogo";
 import PointingDeviceBall01Icon from "@/components/icons/PointingDeviceBall01Icon";
 import LayoutLayersIcon from "@/components/icons/LayoutLayersIcon";
 import AltRepeatArrowsIcon from "@/components/icons/AltRepeatArrowsIcon";
+import GraduationCapIcon from "@/components/icons/GraduationCapIcon";
 import { useCallback, useMemo } from "react";
 
 import ComboIcon from "@/components/ComboIcon";
@@ -53,8 +54,8 @@ export const middleSectionItems: SidebarItem[] = [
     { title: "Special Keys", url: "special", icon: Piano },
     { title: "Layer Keys", url: "layers", icon: LayersDefaultIcon },
     { title: "Mouse Keys", url: "mouse", icon: Mouse },
-    { title: "Tap Dances", url: "tapdances", icon: TapdanceIcon },
-    { title: "Macros", url: "macros", icon: MacrosIcon },
+    { title: "Tap Dance Keys", url: "tapdances", icon: TapdanceIcon },
+    { title: "Macro Keys", url: "macros", icon: MacrosIcon },
 ];
 
 // For backward compatibility
@@ -79,9 +80,13 @@ const featureSidebarItems: SidebarItem[] = [
     { title: "Overrides", url: "overrides", icon: OverridesIcon },
 ];
 
-const footerItems: SidebarItem[] = [
-    { title: "About", url: "about", icon: HelpCircle },
+const layoutSidebarItems: SidebarItem[] = [
     { title: "Layouts", url: "layouts", icon: LayoutLayersIcon },
+];
+
+const footerItems: SidebarItem[] = [
+    { title: "Quick Start", url: "quickstart", icon: GraduationCapIcon },
+    { title: "About", url: "about", icon: HelpCircle },
     { title: "Settings", url: "settings", icon: Settings },
 ];
 
@@ -210,6 +215,7 @@ const AppSidebar = () => {
     const activeTopIndex = topSectionItems.findIndex((item) => item.url === activePanel);
     const activeMiddleIndex = middleSectionItems.findIndex((item) => item.url === activePanel);
     const activeFeatureIndex = featureSidebarItems.findIndex((item) => item.url === activePanel);
+    const activeLayoutIndex = layoutSidebarItems.findIndex((item) => item.url === activePanel);
     const activeDynamicIndex = dynamicMenuItems.findIndex((item) => item.url === activePanel);
     const activeFooterIndex = footerItems.findIndex((item) => item.url === activePanel);
 
@@ -234,6 +240,16 @@ const AppSidebar = () => {
             + (middleSectionItems.length * MENU_ITEM_GAP_PX)
             + DIVIDER_OFFSET
             + (activeFeatureIndex * MENU_ITEM_GAP_PX);
+    } else if (activeLayoutIndex !== -1) {
+        // Layout items - after three dividers
+        indicatorY = (topSectionItems.length * MENU_ITEM_GAP_PX)
+            + (dynamicMenuItems.length * MENU_ITEM_GAP_PX)
+            + DIVIDER_OFFSET
+            + (middleSectionItems.length * MENU_ITEM_GAP_PX)
+            + DIVIDER_OFFSET
+            + (featureSidebarItems.length * MENU_ITEM_GAP_PX)
+            + DIVIDER_OFFSET
+            + (activeLayoutIndex * MENU_ITEM_GAP_PX);
     }
 
     const sidebarClasses = cn(
@@ -322,6 +338,20 @@ const AppSidebar = () => {
                             <div className="mx-4 my-2 h-[1px] bg-slate-400" />
 
                             {featureSidebarItems.map((item) => (
+                                <SidebarNavItem
+                                    key={item.url}
+                                    item={item}
+                                    isActive={activePanel === item.url}
+                                    isPreviousPanel={panelToGoBack === item.url}
+                                    alternativeHeader={alternativeHeader}
+                                    isCollapsed={isCollapsed}
+                                    onClick={handleItemSelect}
+                                />
+                            ))}
+
+                            <div className="mx-4 my-2 h-[1px] bg-slate-400" />
+
+                            {layoutSidebarItems.map((item) => (
                                 <SidebarNavItem
                                     key={item.url}
                                     item={item}

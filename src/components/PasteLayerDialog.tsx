@@ -19,6 +19,7 @@ interface PasteLayerDialogProps {
 }
 
 export const PasteLayerDialog: FC<PasteLayerDialogProps> = ({
+    currentLayerName,
     onConfirm,
 }) => {
     const { layerClipboard, isPasteDialogOpen, closePasteDialog } = useLayoutLibrary();
@@ -32,17 +33,19 @@ export const PasteLayerDialog: FC<PasteLayerDialogProps> = ({
 
     return (
         <Dialog open={isPasteDialogOpen} onOpenChange={(open) => !open && closePasteDialog()}>
-            <DialogContent className="sm:max-w-[420px] p-8">
+            <DialogContent className="sm:max-w-[520px] p-8">
                 <DialogHeader className="space-y-4">
-                    <DialogTitle className="flex items-center gap-3 text-xl font-bold text-gray-900">
+                    <DialogTitle className="flex items-center gap-3 text-xl font-bold text-gray-900 leading-tight">
                         <ClipboardIcon className="w-6 h-6 text-black" />
-                        {layerClipboard.layer.name} layer is in the clipboard
+                        <div>
+                            Clipboard has a copy of {layerClipboard.layer.name}
+                        </div>
                     </DialogTitle>
                 </DialogHeader>
 
                 <div className="py-2">
                     <p className="text-gray-600 leading-relaxed">
-                        Paste Now into the currently selected layer, or press Cancel and then paste it into any layer using that layer's contextual menu.
+                        Replace your <b>{currentLayerName}</b> now or select another layer later and paste it manually using its contextual menu.
                     </p>
                 </div>
 
@@ -52,13 +55,13 @@ export const PasteLayerDialog: FC<PasteLayerDialogProps> = ({
                         onClick={closePasteDialog}
                         className="rounded-full px-8 py-5 text-base font-medium border-gray-200 hover:bg-gray-50 flex-1 sm:flex-none"
                     >
-                        Cancel
+                        Later
                     </Button>
                     <Button
                         onClick={handlePaste}
                         className="rounded-full px-8 py-5 text-base font-bold bg-gray-900 hover:bg-black text-white flex-1 sm:flex-none"
                     >
-                        Paste Now
+                        Now
                     </Button>
                 </DialogFooter>
             </DialogContent>

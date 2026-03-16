@@ -22,6 +22,7 @@ import { KEYMAP } from "@/constants/keygen";
 import { MATRIX_COLS } from "@/constants/svalboard-layout";
 import CustomColorDialog from "@/components/CustomColorDialog";
 import { PublishLayerDialog } from "@/components/PublishLayerDialog";
+import { useLayoutLibrary } from "@/contexts/LayoutLibraryContext";
 
 interface LayerNameBadgeProps {
     selectedLayer: number;
@@ -50,6 +51,7 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
     trailingAction,
 }) => {
     const { keyboard, setKeyboard, isConnected, updateKey } = useVial();
+    const { copyLayer } = useLayoutLibrary();
     const { queue } = useChanges();
     const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
     const [isCustomColorOpen, setIsCustomColorOpen] = useState(false);
@@ -180,26 +182,55 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
     const handleCopyLayer = () => {
         if (!keyboard?.keymap) return;
         const layerData = keyboard.keymap[selectedLayer];
-        navigator.clipboard.writeText(JSON.stringify(layerData));
+        
+        // Use the centralized copy logic
+        copyLayer({
+            id: `current-${selectedLayer}`,
+            name: svalService.getLayerName(keyboard, selectedLayer),
+            description: `Current layer ${selectedLayer}`,
+            author: "Local User",
+            tags: [],
+            keyboardType: "svalboard",
+            keyCount: layerData.length,
+            keymap: layerData,
+            layerColor: keyboard.cosmetic?.layer_colors?.[selectedLayer] || "green",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        }, false); // Don't show the "Now/Later" dialog for contextual menu copy
     };
 
     const handlePasteLayer = async () => {
         if (!keyboard || !keyboard.keymap) return;
         try {
             const text = await navigator.clipboard.readText();
-            const layerData = JSON.parse(text);
-            if (Array.isArray(layerData)) {
-                if (layerData.length === 0) return;
+            if (!text || !text.trim()) return;
+            
+            const clipboardData = JSON.parse(text);
+            let keymap: number[] | null = null;
+            let layerColor: string | undefined = undefined;
+            let ledColor: { hue: number; sat: number; val: number } | undefined = undefined;
+
+            if (Array.isArray(clipboardData)) {
+                keymap = clipboardData;
+            } else if (clipboardData && typeof clipboardData === 'object' && clipboardData._type === 'layer') {
+                keymap = clipboardData.keymap;
+                layerColor = clipboardData.layerColor;
+                ledColor = clipboardData.ledColor;
+            }
+
+            if (keymap && Array.isArray(keymap)) {
+                if (keymap.length === 0) return;
                 const matrixCols = keyboard.cols || MATRIX_COLS;
                 const currentLayerKeymap = keyboard.keymap[selectedLayer] || [];
                 const updatedKeyboard = JSON.parse(JSON.stringify(keyboard));
                 let hasChanges = false;
 
+                // 1. Paste keymap
                 for (let r = 0; r < keyboard.rows; r++) {
                     for (let c = 0; c < keyboard.cols; c++) {
                         const idx = r * matrixCols + c;
-                        if (idx < layerData.length) {
-                            const newValue = layerData[idx];
+                        if (idx < keymap.length) {
+                            const newValue = keymap[idx];
                             const currentValue = currentLayerKeymap[idx];
                             if (newValue !== currentValue) {
                                 hasChanges = true;
@@ -216,6 +247,35 @@ export const LayerNameBadge: React.FC<LayerNameBadgeProps> = ({
                         }
                     }
                 }
+
+                // 2. Paste layer color (UI)
+                if (layerColor) {
+                    if (!updatedKeyboard.cosmetic) updatedKeyboard.cosmetic = {};
+                    if (!updatedKeyboard.cosmetic.layer_colors) updatedKeyboard.cosmetic.layer_colors = {};
+                    updatedKeyboard.cosmetic.layer_colors[selectedLayer.toString()] = layerColor;
+                    hasChanges = true;
+                }
+
+                // 3. Paste LED color (Hardware HSV)
+                if (ledColor) {
+                    if (!updatedKeyboard.layer_colors) updatedKeyboard.layer_colors = [];
+                    // Ensure array is long enough
+                    while (updatedKeyboard.layer_colors.length <= selectedLayer) {
+                        updatedKeyboard.layer_colors.push({ hue: 0, sat: 0, val: 0 });
+                    }
+                    updatedKeyboard.layer_colors[selectedLayer] = { ...ledColor };
+                    hasChanges = true;
+
+                    // Update hardware if connected
+                    if (isConnected) {
+                        try {
+                            await usbInstance.setLayerColor(selectedLayer, ledColor.hue, ledColor.sat);
+                        } catch (e) {
+                            console.error("Failed to set hardware layer color during paste:", e);
+                        }
+                    }
+                }
+
                 if (hasChanges) setKeyboard(updatedKeyboard);
             }
         } catch (e) {
