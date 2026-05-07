@@ -2,8 +2,14 @@
 name: Deploy Vite App to Pages
 
 on:
-  # Runs on pushes to any branch when Vite source files change
+  # Runs only on pushes to main when Vite source files change.
+  # Pushes to other branches must NOT auto-deploy: GitHub Pages serves a
+  # single URL, so without this restriction any branch push would race
+  # with main and overwrite production. Other branches can still ship
+  # via workflow_dispatch when explicitly desired.
   push:
+    branches:
+      - main
     paths:
       - 'src/**'
       - 'package.json'
