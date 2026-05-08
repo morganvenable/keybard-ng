@@ -4,12 +4,34 @@ import path from "path";
 import { defineConfig } from "vite";
 import { execSync } from "child_process";
 
-// Get current git branch for labeling and port assignment
+// Get current git branch for labeling and port assignment.
+// Falls back to env var (set by CI: GitHub Actions detached-HEAD checkouts
+// don't have a branch name, so the workflow passes it through GIT_BRANCH).
 function getGitBranch(): string {
+    if (process.env.GIT_BRANCH) return process.env.GIT_BRANCH;
     try {
-        return execSync("git branch --show-current", { encoding: "utf-8" }).trim();
+        const branch = execSync("git branch --show-current", { encoding: "utf-8" }).trim();
+        return branch || "unknown";
     } catch {
         return "unknown";
+    }
+}
+
+function getGitSha(): string {
+    if (process.env.GIT_SHA) return process.env.GIT_SHA.slice(0, 7);
+    try {
+        return execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim();
+    } catch {
+        return "";
+    }
+}
+
+function getGitSubject(): string {
+    if (process.env.GIT_SUBJECT) return process.env.GIT_SUBJECT.split("\n")[0];
+    try {
+        return execSync("git log -1 --pretty=%s", { encoding: "utf-8" }).trim();
+    } catch {
+        return "";
     }
 }
 
@@ -26,6 +48,8 @@ function getPortForBranch(branch: string): number {
 }
 
 const gitBranch = getGitBranch();
+const gitSha = getGitSha();
+const gitSubject = getGitSubject();
 const devPort = getPortForBranch(gitBranch);
 
 // https://vite.dev/config/
@@ -63,6 +87,8 @@ export default defineConfig({
     },
     define: {
         __GIT_BRANCH__: JSON.stringify(gitBranch),
+        __GIT_SHA__: JSON.stringify(gitSha),
+        __GIT_SUBJECT__: JSON.stringify(gitSubject),
     },
     server: {
         port: devPort,
