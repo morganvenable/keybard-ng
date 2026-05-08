@@ -56,7 +56,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Capture build metadata
+        id: meta
+        run: |
+          {
+            echo "branch=${{ github.ref_name }}"
+            echo "sha=$(echo '${{ github.sha }}' | cut -c1-7)"
+            echo "subject<<GHA_EOF"
+            git log -1 --pretty=%s
+            echo "GHA_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build Vite app
+        env:
+          GIT_BRANCH: ${{ steps.meta.outputs.branch }}
+          GIT_SHA: ${{ steps.meta.outputs.sha }}
+          GIT_SUBJECT: ${{ steps.meta.outputs.subject }}
         run: npm run build
 
       - name: Setup Pages

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
 
+import DeployBadge from "./components/DeployBadge";
 import MainScreen from "./components/MainScreen";
 import PrintableKeymapWrapper from "./components/PrintableKeymapWrapper";
 import ExploreLayoutsPage from "./pages/ExploreLayoutsPage";
@@ -103,6 +104,7 @@ function App() {
     return (
         <VialProvider>
             <LoadingOverlay />
+            <DeployBadge />
             <SettingsProvider>
                 <ChangesProviderWithVial>
                     <KeyBindingProvider>
