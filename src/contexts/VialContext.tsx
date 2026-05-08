@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { VialService, vialService } from "../services/vial.service";
 import { svalService } from "../services/sval.service";
 
@@ -43,6 +43,15 @@ export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [lastHeartbeat, setLastHeartbeat] = useState<number>(0);
     const [activeLayerIndex, setActiveLayerIndex] = useState<number | null>(null);
     const isWebHIDSupported = VialService.isWebHIDSupported();
+
+    // Tracks the in-flight loadKeyboard promise. Multiple components mounted
+    // at the same time (VialProvider's own auto-load effect, ConnectKeyboard,
+    // KeyboardConnector, ...) all run loadKeyboard on isConnected → fire
+    // concurrent Vial protocol reads over the same HID transport. The
+    // chunked keyboard-definition fetch can get its chunks interleaved
+    // between requests, leaving custom_keycodes (and other payload fields)
+    // undefined or partial. Dedupe so callers share a single load.
+    const inFlightLoadRef = useRef<Promise<void> | null>(null);
     useEffect(() => {
         console.log("keyboard changed", keyboard);
     }, [keyboard]);
@@ -86,73 +95,86 @@ export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children
             throw new Error("USB device not connected");
         }
 
-        try {
-            const kbinfo: KeyboardInfo = {
-                rows: 0,
-                cols: 0,
-            };
-            await vialService.init(kbinfo);
-            const loadedInfo = await vialService.load(kbinfo);
-
-            // Load QMK settings
-            console.log("[VialContext] About to load QMK settings...");
-            try {
-                await qmkService.get(loadedInfo);
-                console.log("[VialContext] QMK settings loaded:", loadedInfo.settings);
-            } catch (error) {
-                console.warn("Failed to load QMK settings:", error);
-            }
-
-            // Load layer colors from keyboard using VIA custom values
-            console.log("[VialContext] Loading layer colors from keyboard...");
-            try {
-                const layerColors = await usbInstance.getAllLayerColors();
-                // Convert to format with val (brightness) - default to max
-                loadedInfo.layer_colors = layerColors.map(c => ({
-                    hue: c.hue,
-                    sat: c.sat,
-                    val: 255
-                }));
-                console.log("[VialContext] Layer colors loaded:", loadedInfo.layer_colors);
-
-                // Also update cosmetic.layer_colors with the closest preset color names
-                // This is needed for the keyboard display to show correct colors
-                if (!loadedInfo.cosmetic) {
-                    loadedInfo.cosmetic = { layer: {}, layer_colors: {} };
-                }
-                if (!loadedInfo.cosmetic.layer_colors) {
-                    loadedInfo.cosmetic.layer_colors = {};
-                }
-                layerColors.forEach((c, idx) => {
-                    const presetName = getClosestPresetColor(c.hue, c.sat, 255);
-                    loadedInfo.cosmetic!.layer_colors![idx.toString()] = presetName;
-                });
-                console.log("[VialContext] Cosmetic layer colors:", loadedInfo.cosmetic.layer_colors);
-            } catch (error) {
-                console.warn("Failed to load layer colors:", error);
-            }
-
-            // Load all VIA3 custom values (DPI, scroll mode, automouse, etc.)
-            if (loadedInfo.menus) {
-                console.log("[VialContext] Loading VIA3 custom values from keyboard...");
-                try {
-                    loadedInfo.custom_values = await customValueService.loadAllMenuValues(loadedInfo.menus);
-                    console.log("[VialContext] Custom values loaded:", loadedInfo.custom_values.length, "entries");
-                } catch (error) {
-                    console.warn("Failed to load custom values:", error);
-                }
-            }
-
-            setKeyboard(loadedInfo);
-            // Store original state for revert functionality
-            setOriginalKeyboard(JSON.parse(JSON.stringify(loadedInfo)));
-            // Set loadedFrom to device product name
-            const deviceName = usbInstance.getDeviceName();
-            setLoadedFrom(deviceName || loadedInfo.kbid || "Connected Device");
-        } catch (error) {
-            console.error("Failed to load keyboard:", error);
-            throw error;
+        // If a load is already in flight, share its promise instead of
+        // racing another set of HID reads.
+        if (inFlightLoadRef.current) {
+            return inFlightLoadRef.current;
         }
+
+        const loadPromise = (async () => {
+            try {
+                const kbinfo: KeyboardInfo = {
+                    rows: 0,
+                    cols: 0,
+                };
+                await vialService.init(kbinfo);
+                const loadedInfo = await vialService.load(kbinfo);
+
+                // Load QMK settings
+                console.log("[VialContext] About to load QMK settings...");
+                try {
+                    await qmkService.get(loadedInfo);
+                    console.log("[VialContext] QMK settings loaded:", loadedInfo.settings);
+                } catch (error) {
+                    console.warn("Failed to load QMK settings:", error);
+                }
+
+                // Load layer colors from keyboard using VIA custom values
+                console.log("[VialContext] Loading layer colors from keyboard...");
+                try {
+                    const layerColors = await usbInstance.getAllLayerColors();
+                    // Convert to format with val (brightness) - default to max
+                    loadedInfo.layer_colors = layerColors.map(c => ({
+                        hue: c.hue,
+                        sat: c.sat,
+                        val: 255
+                    }));
+                    console.log("[VialContext] Layer colors loaded:", loadedInfo.layer_colors);
+
+                    // Also update cosmetic.layer_colors with the closest preset color names
+                    // This is needed for the keyboard display to show correct colors
+                    if (!loadedInfo.cosmetic) {
+                        loadedInfo.cosmetic = { layer: {}, layer_colors: {} };
+                    }
+                    if (!loadedInfo.cosmetic.layer_colors) {
+                        loadedInfo.cosmetic.layer_colors = {};
+                    }
+                    layerColors.forEach((c, idx) => {
+                        const presetName = getClosestPresetColor(c.hue, c.sat, 255);
+                        loadedInfo.cosmetic!.layer_colors![idx.toString()] = presetName;
+                    });
+                    console.log("[VialContext] Cosmetic layer colors:", loadedInfo.cosmetic.layer_colors);
+                } catch (error) {
+                    console.warn("Failed to load layer colors:", error);
+                }
+
+                // Load all VIA3 custom values (DPI, scroll mode, automouse, etc.)
+                if (loadedInfo.menus) {
+                    console.log("[VialContext] Loading VIA3 custom values from keyboard...");
+                    try {
+                        loadedInfo.custom_values = await customValueService.loadAllMenuValues(loadedInfo.menus);
+                        console.log("[VialContext] Custom values loaded:", loadedInfo.custom_values.length, "entries");
+                    } catch (error) {
+                        console.warn("Failed to load custom values:", error);
+                    }
+                }
+
+                setKeyboard(loadedInfo);
+                // Store original state for revert functionality
+                setOriginalKeyboard(JSON.parse(JSON.stringify(loadedInfo)));
+                // Set loadedFrom to device product name
+                const deviceName = usbInstance.getDeviceName();
+                setLoadedFrom(deviceName || loadedInfo.kbid || "Connected Device");
+            } catch (error) {
+                console.error("Failed to load keyboard:", error);
+                throw error;
+            }
+        })();
+        inFlightLoadRef.current = loadPromise;
+        loadPromise.finally(() => {
+            inFlightLoadRef.current = null;
+        });
+        return loadPromise;
     }, [isConnected]);
 
     useEffect(() => {
