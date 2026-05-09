@@ -1,4 +1,5 @@
 import type { CustomValueEntry, KeyboardInfo } from "../types/vial.types";
+import { ComboOptions } from "../types/vial.types";
 import { getClosestPresetColor } from "../utils/color-conversion";
 import { FragmentComposerService } from "./fragment-composer.service";
 import { FragmentService } from "./fragment.service";
@@ -330,13 +331,19 @@ export class FileService {
             tapping_term: td.tapping_term || 200,
         }));
 
-        // Build combos (dict format with "on" flag)
-        const combos = (kbinfo.combos || []).map((c: any) => ({
-            on: c.enabled !== false,
-            keys: (c.keys || []).map((k: any) => typeof k === 'string' ? k : keyService.stringify(k)),
-            output: typeof c.output === 'string' ? c.output : keyService.stringify(c.output || 0),
-            combo_term: c.combo_term || 0,
-        }));
+        // Build combos (dict format with "on" flag).
+        // In-memory combos use a single uint16 `options` field (bit 15 = enabled,
+        // bits 0-14 = combo term) matching the wire format. Decompose for the
+        // file's separate on/combo_term fields.
+        const combos = (kbinfo.combos || []).map((c: any) => {
+            const opts = (c.options ?? 0) >>> 0;
+            return {
+                on: (opts & ComboOptions.ENABLED) !== 0,
+                keys: (c.keys || []).map((k: any) => typeof k === 'string' ? k : keyService.stringify(k)),
+                output: typeof c.output === 'string' ? c.output : keyService.stringify(c.output || 0),
+                combo_term: opts & 0x7FFF,
+            };
+        });
 
         // Build key overrides (dict format with "on" flag)
         const keyOverrides = (kbinfo.key_overrides || []).map((ko: any) => ({
@@ -620,14 +627,18 @@ export class FileService {
         kbinfo.alt_repeat_key_count = viable.alt_repeat_key?.length || 0;
         kbinfo.leader_count = viable.leader?.length || 0;
 
-        // Convert combos (dict format with "on" flag)
-        kbinfo.combos = (viable.combo || []).map((c: any, cmbid: number) => ({
-            cmbid,
-            enabled: c.on !== false,
-            keys: c.keys || [],
-            output: c.output,
-            combo_term: c.combo_term || 0,
-        }));
+        // Convert combos (dict format with "on" flag) into the in-memory shape
+        // (single uint16 `options`, bit 15 = enabled, bits 0-14 = combo term).
+        kbinfo.combos = (viable.combo || []).map((c: any, cmbid: number) => {
+            const term = (c.combo_term || 0) & 0x7FFF;
+            const enabled = c.on !== false;
+            return {
+                cmbid,
+                keys: c.keys || [],
+                output: c.output,
+                options: term | (enabled ? ComboOptions.ENABLED : 0),
+            };
+        });
 
         // Convert key overrides (dict format)
         kbinfo.key_overrides = (viable.key_override || []).map((ko: any, koid: number) => ({

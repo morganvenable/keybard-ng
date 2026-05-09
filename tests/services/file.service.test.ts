@@ -512,7 +512,9 @@ describe('FileService', () => {
       expect(kbinfo.combos).toBeDefined();
       expect(kbinfo.combos[0].keys).toEqual(['KC_A', 'KC_B']);
       expect(kbinfo.combos[0].output).toBe('KC_C');
-      expect(kbinfo.combos[0].enabled).toBe(true);
+      // ComboOptions: bit 15 = enabled, bits 0-14 = combo term.
+      expect((kbinfo.combos[0].options & 0x8000) !== 0).toBe(true);
+      expect(kbinfo.combos[0].options & 0x7FFF).toBe(50);
     });
 
     it('converts key override dict format correctly', () => {
@@ -598,6 +600,7 @@ describe('FileService', () => {
     });
 
     it('preserves combo data through export/import', () => {
+      // ComboOptions: bit 15 = enabled, bits 0-14 = combo term.
       const kbinfo = createExportableKeyboardInfo({
         rows: 2,
         cols: 2,
@@ -605,18 +608,28 @@ describe('FileService', () => {
         keymap: [Array(4).fill(0x04)],
         combo_count: 2,
         combos: [
-          { cmbid: 0, enabled: true, keys: ['KC_A', 'KC_B'], output: 'KC_C', combo_term: 50 },
-          { cmbid: 1, enabled: false, keys: ['KC_D', 'KC_E'], output: 'KC_F', combo_term: 75 },
+          { cmbid: 0, keys: ['KC_A', 'KC_B'], output: 'KC_C', options: 0x8000 | 50 },
+          { cmbid: 1, keys: ['KC_D', 'KC_E'], output: 'KC_F', options: 75 },
         ] as any,
       });
 
       const viableJson = (fileService as any).kbinfoToViable(kbinfo, true);
       const viable = JSON.parse(viableJson);
+
+      // The intermediate file representation splits options into on + combo_term.
+      expect(viable.combo[0].on).toBe(true);
+      expect(viable.combo[0].combo_term).toBe(50);
+      expect(viable.combo[1].on).toBe(false);
+      expect(viable.combo[1].combo_term).toBe(75);
+
       const imported = (fileService as any).viableToKBINFO(viable);
 
       expect(imported.combos.length).toBe(2);
       expect(imported.combos[0].output).toBe('KC_C');
-      expect(imported.combos[1].enabled).toBe(false);
+      expect((imported.combos[0].options & 0x8000) !== 0).toBe(true);
+      expect(imported.combos[0].options & 0x7FFF).toBe(50);
+      expect((imported.combos[1].options & 0x8000) !== 0).toBe(false);
+      expect(imported.combos[1].options & 0x7FFF).toBe(75);
     });
   });
 
