@@ -52,7 +52,14 @@ export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // between requests, leaving custom_keycodes (and other payload fields)
     // undefined or partial. Dedupe so callers share a single load.
     const inFlightLoadRef = useRef<Promise<void> | null>(null);
+
+    // Keeps loadFromFile able to read the latest keyboard state without
+    // re-binding the callback (which would trigger downstream re-renders
+    // every keystroke). Used to merge device-derived structural fields
+    // (custom_keycodes, payload, etc.) into file-loaded keymaps.
+    const keyboardRef = useRef<KeyboardInfo | null>(null);
     useEffect(() => {
+        keyboardRef.current = keyboard;
         console.log("keyboard changed", keyboard);
     }, [keyboard]);
 
@@ -189,6 +196,31 @@ export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const loadFromFile = useCallback(async (file: File) => {
         try {
             const kbinfo = await fileService.loadFile(file);
+
+            // .viable / .vil files only carry user-editable data (keymap,
+            // macros, combos, etc.). Device-derived structural fields come
+            // from the keyboard payload at connect time and are not in the
+            // file format. If a board is currently connected, merge those
+            // fields in so things like SV_* mouse keys (read from
+            // custom_keycodes) keep showing up after a file load instead of
+            // disappearing until the user reconnects.
+            const deviceState = keyboardRef.current;
+            if (deviceState) {
+                if (deviceState.custom_keycodes) kbinfo.custom_keycodes = deviceState.custom_keycodes;
+                if (deviceState.payload) kbinfo.payload = deviceState.payload;
+                if (deviceState.name && !kbinfo.name) kbinfo.name = deviceState.name;
+                if (deviceState.feature_flags !== undefined && kbinfo.feature_flags === undefined) {
+                    kbinfo.feature_flags = deviceState.feature_flags;
+                }
+                if (deviceState.macros_size !== undefined && kbinfo.macros_size === undefined) {
+                    kbinfo.macros_size = deviceState.macros_size;
+                }
+                if (!kbinfo.menus && deviceState.menus) kbinfo.menus = deviceState.menus;
+                if (!kbinfo.fragments && deviceState.fragments) kbinfo.fragments = deviceState.fragments;
+                if (!kbinfo.composition && deviceState.composition) kbinfo.composition = deviceState.composition;
+                if (!kbinfo.keylayout && deviceState.keylayout) kbinfo.keylayout = deviceState.keylayout;
+            }
+
             svalService.setupCosmeticLayerNames(kbinfo);
             keyService.generateAllKeycodes(kbinfo);
             setKeyboard(kbinfo);
