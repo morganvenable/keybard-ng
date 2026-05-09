@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Clock, Crosshair, ListOrdered } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Clock, Crosshair, ListOrdered, Zap } from "lucide-react";
 import MouseIcon from "@/components/icons/Mouse";
 import LayersIcon from "@/components/icons/Layers";
 import MacrosIcon from "@/components/icons/MacrosIcon";
@@ -12,21 +12,25 @@ export const getHeaderIcons = (keycode: string, label: string) => {
     const lowerLabel = String(label).toLowerCase();
     const mouseWords = ["mouse", "ms"];
     const sniperWords = ["sniper"];
+    const boostWords = ["boost"];
     const timerWords = ["timer"];
 
     const isMouse = mouseWords.some((w) => lowerLabel.includes(w));
     const isSniper = sniperWords.some((w) => lowerLabel.includes(w)) || keycode.includes("SNIPER");
+    const isBoost = boostWords.some((w) => lowerLabel.includes(w)) || keycode.includes("BOOST");
     const isTimer = timerWords.some((w) => lowerLabel.includes(w)) || keycode.includes("TIMEOUTS");
 
     const icons: React.ReactNode[] = [];
     if (isMouse) icons.push(<MouseIcon key="mouse" className="w-3.5 h-3.5" />);
     if (isSniper) icons.push(<Crosshair key="sniper" className="w-3.5 h-3.5" />);
+    if (isBoost) icons.push(<Zap key="boost" className="w-3.5 h-3.5" />);
     if (isTimer) icons.push(<Clock key="timer" className="w-3.5 h-3.5" />);
 
     return {
         icons,
         isMouse,
         isSniper,
+        isBoost,
         isTimer
     };
 };
@@ -75,7 +79,7 @@ export const getCenterContent = (
     if (showArrowsOnly) return null;
 
     let clean = label;
-    const wordsToRemove = ["mouse", "ms", "sniper", "timer"];
+    const wordsToRemove = ["mouse", "ms", "sniper", "boost", "timer"];
     wordsToRemove.forEach((w) => {
         clean = clean.replace(new RegExp(`\\b${w}\\b`, "i"), "").trim();
     });
