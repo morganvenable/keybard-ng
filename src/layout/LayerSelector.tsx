@@ -123,13 +123,12 @@ const LayerSelector: FC<LayerSelectorProps> = ({
                         { vialService }
                     );
 
-                    // Merge fragment definitions and state from connected keyboard
-                    if (keyboard.fragments) {
-                        newKbInfo.fragments = keyboard.fragments;
-                    }
-                    if (keyboard.composition) {
-                        newKbInfo.composition = keyboard.composition;
-                    }
+                    // Carry device-derived fields (custom_keycodes, payload,
+                    // menus, fragments, hw counts, ...) onto the file-loaded
+                    // KBINFO so the UI keeps rendering SV_* mouse keys and
+                    // dynamic menus after import.
+                    importService.mergeDeviceFields(newKbInfo, keyboard);
+
                     // Merge hardware detection/EEPROM from connected keyboard with user selections from file
                     const ensureMap = <K, V>(obj: Map<K, V> | Record<string, V> | undefined): Map<K, V> => {
                         if (!obj) return new Map();
@@ -153,6 +152,11 @@ const LayerSelector: FC<LayerSelectorProps> = ({
                         if (Object.keys(composedLayout).length > 0) {
                             newKbInfo.keylayout = composedLayout;
                         }
+                    }
+
+                    // Fall back to device keylayout if neither file nor fragments provided one.
+                    if (!newKbInfo.keylayout && keyboard.keylayout) {
+                        newKbInfo.keylayout = keyboard.keylayout;
                     }
                 }
 
