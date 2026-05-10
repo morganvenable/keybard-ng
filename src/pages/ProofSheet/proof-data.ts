@@ -61,6 +61,12 @@ export const mockKeyboardInfo: KeyboardInfo = {
         { name: "SV_SCROLL_TOGGLE", title: "Scroll Toggle", shortName: "Scroll\nTgl" },
         { name: "SV_OUTPUT_STATUS", title: "Output Status", shortName: "Output\nStatus" },
         { name: "SV_NATURAL_SCROLL_TOGGLE", title: "Natural Scroll Toggle", shortName: "Nat Scrl\nTgl" },
+        { name: "SV_BOOST_2", title: "Boost 2x", shortName: "Boost\n2x" },
+        { name: "SV_BOOST_3", title: "Boost 3x", shortName: "Boost\n3x" },
+        { name: "SV_BOOST_5", title: "Boost 5x", shortName: "Boost\n5x" },
+        { name: "SV_BOOST_2_TG", title: "Boost 2x Toggle", shortName: "Boost\n2xTG" },
+        { name: "SV_BOOST_3_TG", title: "Boost 3x Toggle", shortName: "Boost\n3xTG" },
+        { name: "SV_BOOST_5_TG", title: "Boost 5x Toggle", shortName: "Boost\n5xTG" },
     ],
 };
 

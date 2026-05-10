@@ -197,6 +197,7 @@ const MouseKeysSection = ({ compact, variant: variantOverride }: Props) => {
                     {sniperKeys.map((k) => renderKey(k, false))}
                 </div>
             </div>
+
         </div>
     );
 };
