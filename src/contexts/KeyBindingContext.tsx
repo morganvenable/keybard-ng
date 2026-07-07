@@ -4,6 +4,7 @@ import { MATRIX_COLS, SVALBOARD_LAYOUT } from "@/constants/svalboard-layout";
 import { useChanges } from "@/contexts/ChangesContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { keyService } from "@/services/key.service";
+import { isTapdanceKeycode } from "@/utils/keys";
 import { vialService } from "@/services/vial.service";
 import { KEYBOARD_EVENT_MAP } from "@/utils/keyboard-mapper";
 import { getOrderedKeyPositions, SerialMode } from "@/utils/serial-assignment";
@@ -349,6 +350,16 @@ export const KeyBindingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 case "tapdance": {
                     const { tapdanceId, tapdanceSlot } = target;
                     if (tapdanceId === undefined || tapdanceSlot === undefined) break;
+
+                    // A tap dance must never contain another tap dance. Nesting causes an
+                    // infinite-recursion render crash (getKeyContents <-> describeTapdance),
+                    // so refuse the assignment outright.
+                    if (isTapdanceKeycode(keycode)) {
+                        console.warn(
+                            `Blocked: cannot place a tap dance inside tap dance ${tapdanceId} (${tapdanceSlot}). Tap dances cannot contain other tap dances.`
+                        );
+                        break;
+                    }
 
                     // tapdance is actually an array with objects having tap/hold/doubletap/taphold properties
                     const tapdances = (updatedKeyboard as any).tapdances;

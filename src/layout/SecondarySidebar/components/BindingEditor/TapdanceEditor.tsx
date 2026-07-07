@@ -9,6 +9,7 @@ import { useDebounce } from "@uidotdev/usehooks";
 import { TapdanceEntry } from "@/types/vial.types";
 import { DragItem } from "@/contexts/DragContext";
 import { vialService } from "@/services/vial.service";
+import { isTapdanceKeycode } from "@/utils/keys";
 
 import EditorKey from "./EditorKey";
 
@@ -85,6 +86,14 @@ const TapdanceEditor: FC = () => {
 
     const updateKeyAssignment = async (slot: string, keycode: string) => {
         if (!keyboard?.tapdances || itemToEdit === null) return;
+        // Prohibit nesting a tap dance inside a tap dance (drag-drop path). Nesting
+        // triggers an infinite-recursion render crash. Clearing (KC_NO) is always allowed.
+        if (isTapdanceKeycode(keycode)) {
+            console.warn(
+                `Blocked: cannot place a tap dance inside tap dance ${itemToEdit} (${slot}). Tap dances cannot contain other tap dances.`
+            );
+            return;
+        }
         const tapdances = [...keyboard.tapdances];
         if (tapdances[itemToEdit]) {
             tapdances[itemToEdit] = {

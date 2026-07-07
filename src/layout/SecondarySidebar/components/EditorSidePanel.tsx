@@ -1,6 +1,7 @@
 import LayersDefaultIcon from "@/components/icons/LayersDefault";
 import MacrosIcon from "@/components/icons/MacrosIcon";
 import MouseIcon from "@/components/icons/Mouse";
+import PointingDeviceBall01Icon from "@/components/icons/PointingDeviceBall01Icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { cn } from "@/lib/utils";
@@ -8,13 +9,18 @@ import { FC } from "react";
 
 import { Keyboard, Piano } from "lucide-react";
 
-export type PickerMode = "keyboard" | "layers" | "macros" | "qmk" | "oneshot" | "special" | "mouse";
+export type PickerMode = "keyboard" | "layers" | "macros" | "qmk" | "oneshot" | "special" | "mouse" | "pointing";
 
 const iconsToShow: { icon: React.ReactNode; panel: PickerMode; title: string }[] = [
     {
         icon: <Keyboard className="w-4 h-4" />,
         panel: "keyboard",
         title: "Standard Keys",
+    },
+    {
+        icon: <PointingDeviceBall01Icon className="w-4 h-4" />,
+        panel: "pointing",
+        title: "Pointing Devices",
     },
     {
         icon: <Piano className="w-4 h-4" />,

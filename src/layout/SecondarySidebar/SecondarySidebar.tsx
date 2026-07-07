@@ -260,6 +260,7 @@ const SecondarySidebar = () => {
                     {pickerMode === "qmk" && <QmkKeyPanel isPicker />}
                     {pickerMode === "oneshot" && <OneShotComposerPanel isPicker />}
                     {pickerMode === "special" && <SpecialKeysPanel isPicker />}
+                    {pickerMode === "pointing" && <PointingPanel isPicker />}
                     {pickerMode === "mouse" && <MousePanel isPicker />}
                 </div>
             </div>

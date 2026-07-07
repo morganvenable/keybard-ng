@@ -26,8 +26,16 @@ const BOOST_KEYS = [
  * Unified Pointing Devices panel
  * - When disconnected: shows placeholder text
  * - When connected: shows Mouse Keys section at top, then dynamic VIA3 menu content
+ * - As a picker (isPicker): renders the SAME content as the main panel (Mouse Keys,
+ *   Boost row, and the VIA3 pointing menu) so any assignable pointing-device key is
+ *   available. The picker bypasses the "not connected" gate because the keys work
+ *   whether the board was connected live or loaded from a file.
  */
-const PointingPanel = () => {
+interface Props {
+    isPicker?: boolean;
+}
+
+const PointingPanel = ({ isPicker }: Props) => {
     const { keyboard, isConnected, connect } = useVial();
     const { assignKeycode } = useKeyBinding();
     const { selectedLayer } = useLayer();
@@ -75,8 +83,8 @@ const PointingPanel = () => {
         (menu) => menu.label?.toLowerCase().includes('pointing')
     ) ?? -1;
 
-    // Not connected
-    if (!isConnected) {
+    // Not connected (skipped in picker mode — the keys don't need a live connection)
+    if (!isConnected && !isPicker) {
         return (
             <section className="h-full flex flex-col pt-2">
                 <DescriptionBlock>
