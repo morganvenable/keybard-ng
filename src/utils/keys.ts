@@ -2,6 +2,20 @@ import { CODEMAP } from "@/constants/keygen";
 import { keyService } from "@/services/key.service";
 import { KeyboardInfo } from "@/types/vial.types";
 
+/**
+ * True if a keycode refers to a tap dance, e.g. "TD(3)" or its numeric form.
+ * Tap dances must never contain other tap dances (see describeTapdance).
+ */
+export function isTapdanceKeycode(keystr: any): boolean {
+    if (keystr === undefined || keystr === null) return false;
+    let s: any = keystr;
+    if (typeof s === "number") {
+        s = keyService.stringify(s);
+    }
+    if (typeof s !== "string") return false;
+    return /^TD\(\d+\)$/.test(keyService.canonical(s) as string);
+}
+
 const describeTapdance = (KBINFO: KeyboardInfo, tdid: number, tapdance?: any): string => {
     if (!tapdance) {
         tapdance = (KBINFO as any).tapdances[tdid];
@@ -11,8 +25,16 @@ const describeTapdance = (KBINFO: KeyboardInfo, tdid: number, tapdance?: any): s
     }
     const ret = [];
     for (const k of ["tap", "hold", "doubletap", "taphold"]) {
-        if (tapdance[k]) {
-            ret.push(getKeyContents(KBINFO!, tapdance[k])!.str);
+        const slot = tapdance[k];
+        if (slot) {
+            // A tap dance must never reference another tap dance. Recursing into one
+            // (getKeyContents -> describeTapdance -> getKeyContents ...) blows the call
+            // stack and white-screens the app, so show the raw reference instead.
+            if (isTapdanceKeycode(slot)) {
+                ret.push(typeof slot === "string" ? slot : keyService.stringify(slot));
+            } else {
+                ret.push(getKeyContents(KBINFO!, slot)!.str);
+            }
         }
     }
     return ret.join(" ");

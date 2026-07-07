@@ -57,6 +57,7 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ leftOffset, pickerMode, heigh
             case "qmk": return <QmkKeyPanel isPicker />;
             case "oneshot": return <OneShotComposerPanel isPicker />;
             case "special": return <SpecialKeysPanel isPicker />;
+            case "pointing": return <PointingPanel isPicker />;
             case "mouse": return <MousePanel isPicker />;
             default: return <BasicKeyboards isPicker />;
         }
