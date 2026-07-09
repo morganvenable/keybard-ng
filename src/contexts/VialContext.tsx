@@ -159,6 +159,9 @@ export const VialProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (loadedInfo.menus) {
                     console.log("[VialContext] Loading VIA3 custom values from keyboard...");
                     try {
+                        // Drop any values cached from a previous connect so a stale
+                        // reading can't survive a reconnect within the same page session.
+                        customValueService.clearCache();
                         loadedInfo.custom_values = await customValueService.loadAllMenuValues(loadedInfo.menus);
                         console.log("[VialContext] Custom values loaded:", loadedInfo.custom_values.length, "entries");
                     } catch (error) {
