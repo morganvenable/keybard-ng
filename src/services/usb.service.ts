@@ -792,7 +792,21 @@ export class ViableUSB {
     const resp = await this.send(
       ViableUSB.CMD_VIA_LIGHTING_GET_VALUE,
       [channel, valueId],
-      { uint8: true, skipBytes: 3 } // Skip cmd_echo, channel, value_id
+      {
+        uint8: true,
+        skipBytes: 3, // Skip cmd_echo, channel, value_id
+        // Only resolve on the report that echoes THIS request. Without this,
+        // the listener accepts any wrapper/clientId-matched report, so a stray or
+        // duplicated report (common on the first connect after a reboot, when the
+        // WebHID buffer holds a leftover reply) can be consumed by the wrong
+        // customValueGet in the sequential read loop, shifting every subsequent
+        // read by one slot and showing a neighboring value's data (e.g. right-hand
+        // DPI reading as 1200 when the device holds 400).
+        validateInput: (u) =>
+          u[0] === ViableUSB.CMD_VIA_LIGHTING_GET_VALUE &&
+          u[1] === channel &&
+          u[2] === valueId,
+      }
     );
     return (resp as Uint8Array).slice(0, size);
   }
