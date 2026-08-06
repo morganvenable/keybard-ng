@@ -72,37 +72,11 @@ const SettingsPanel = () => {
                         { vialService }
                     );
 
-                    // Merge hardware-specific properties from connected keyboard
-                    // These come from the keyboard definition and aren't in save files
-                    if (keyboard.menus) newKbInfo.menus = keyboard.menus;
-                    if (keyboard.payload) newKbInfo.payload = keyboard.payload;
-                    if (keyboard.cosmetic) {
-                        // Preserve layer names from connected keyboard, but allow file to override colors
-                        newKbInfo.cosmetic = {
-                            ...keyboard.cosmetic,
-                            ...(newKbInfo.cosmetic || {}),
-                            layer: keyboard.cosmetic.layer || newKbInfo.cosmetic?.layer,
-                        };
-                    }
-                    // Preserve hardware counts from connected keyboard
-                    newKbInfo.combo_count = keyboard.combo_count;
-                    newKbInfo.key_override_count = keyboard.key_override_count;
-                    newKbInfo.macro_count = keyboard.macro_count;
-                    newKbInfo.tapdance_count = keyboard.tapdance_count;
-                    newKbInfo.alt_repeat_key_count = keyboard.alt_repeat_key_count;
-                    newKbInfo.leader_count = keyboard.leader_count;
-                    // Preserve hardware dimensions
-                    newKbInfo.rows = keyboard.rows;
-                    newKbInfo.cols = keyboard.cols;
-                    newKbInfo.layers = keyboard.layers;
-
-                    // Merge fragment definitions and state from connected keyboard
-                    if (keyboard.fragments) {
-                        newKbInfo.fragments = keyboard.fragments;
-                    }
-                    if (keyboard.composition) {
-                        newKbInfo.composition = keyboard.composition;
-                    }
+                    // Carry device-derived fields (custom_keycodes, payload,
+                    // menus, fragments, hw counts, ...) onto the file-loaded
+                    // KBINFO so the UI keeps rendering SV_* mouse keys and
+                    // dynamic menus after import.
+                    importService.mergeDeviceFields(newKbInfo, keyboard);
                     // Merge hardware detection/EEPROM from connected keyboard with user selections from file
                     // Ensure Maps are actual Maps (they may have been serialized to plain objects)
                     const ensureMap = <K, V>(obj: Map<K, V> | Record<string, V> | undefined): Map<K, V> => {

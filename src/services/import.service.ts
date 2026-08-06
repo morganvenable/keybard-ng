@@ -4,6 +4,59 @@ import { customValueService } from "./custom-value.service";
 import { keyService } from "./key.service";
 
 export class ImportService {
+    /**
+     * Merge device-derived structural fields from a connected keyboard into
+     * a file-loaded KBINFO. .viable / .vil files only carry user-editable data
+     * (keymap, macros, combos, etc.) — the keyboard payload (custom_keycodes,
+     * payload, menus, fragments, hardware counts, etc.) only exists at connect
+     * time. Without this merge, importing a file wipes those fields and
+     * downstream UI (e.g. the MousePanel SV_* keys, which read from
+     * custom_keycodes) breaks until the user reconnects.
+     *
+     * Device wins on hardware-shaped fields; file wins on user-editable fields.
+     * Caller is responsible for fragmentState merging and keylayout
+     * recomposition since those mix device data with file selections.
+     */
+    mergeDeviceFields(newKb: KeyboardInfo, deviceKb: KeyboardInfo): void {
+        // Fields that exist only in the device payload — always copy from device.
+        if (deviceKb.custom_keycodes) newKb.custom_keycodes = deviceKb.custom_keycodes;
+        if (deviceKb.payload) newKb.payload = deviceKb.payload;
+        if (deviceKb.name && !newKb.name) newKb.name = deviceKb.name;
+        if (deviceKb.feature_flags !== undefined && newKb.feature_flags === undefined) {
+            newKb.feature_flags = deviceKb.feature_flags;
+        }
+        if (deviceKb.macros_size !== undefined) newKb.macros_size = deviceKb.macros_size;
+
+        // VIA3 menu definitions come from the device.
+        if (deviceKb.menus) newKb.menus = deviceKb.menus;
+
+        // Hardware shape: connected device is the source of truth.
+        if (deviceKb.rows) newKb.rows = deviceKb.rows;
+        if (deviceKb.cols) newKb.cols = deviceKb.cols;
+        if (deviceKb.layers) newKb.layers = deviceKb.layers;
+        if (deviceKb.combo_count !== undefined) newKb.combo_count = deviceKb.combo_count;
+        if (deviceKb.key_override_count !== undefined) newKb.key_override_count = deviceKb.key_override_count;
+        if (deviceKb.macro_count !== undefined) newKb.macro_count = deviceKb.macro_count;
+        if (deviceKb.tapdance_count !== undefined) newKb.tapdance_count = deviceKb.tapdance_count;
+        if (deviceKb.alt_repeat_key_count !== undefined) newKb.alt_repeat_key_count = deviceKb.alt_repeat_key_count;
+        if (deviceKb.leader_count !== undefined) newKb.leader_count = deviceKb.leader_count;
+
+        // Cosmetic data: device fills in defaults, file overrides where present,
+        // but layer names from the device always win (they're hardware-defined).
+        if (deviceKb.cosmetic) {
+            newKb.cosmetic = {
+                ...deviceKb.cosmetic,
+                ...(newKb.cosmetic || {}),
+                layer: deviceKb.cosmetic.layer || newKb.cosmetic?.layer,
+            };
+        }
+
+        // Fragment definitions: device defines what fragments exist. File only
+        // carries user selections (handled by caller via fragmentState).
+        if (deviceKb.fragments) newKb.fragments = deviceKb.fragments;
+        if (deviceKb.composition) newKb.composition = deviceKb.composition;
+    }
+
     async syncWithKeyboard(
         newKb: KeyboardInfo,
         currentKb: KeyboardInfo,
