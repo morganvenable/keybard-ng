@@ -1,81 +1,104 @@
-# Keybard Context — Windows draft
+# Keybard Context — Windows layer-switching draft
 
-A native companion for **context-specific tap-dance variants**, without changing numbered layers or rewriting the keyboard's saved definitions. Your existing tap-dance key can send an ordinary key outside Onshape and use its stored dance (or an alternate dance) inside Onshape.
+This first draft selects an **existing keyboard layer when an application gains focus**. It supports native Windows apps by executable name and Onshape in Chrome through an optional browser extension. You configure the layer's keys in Keybard; this companion only chooses when the layer applies.
 
-This is an experimental first Windows draft. It has no cloud dependency, input hook, or automatic firmware flashing. It starts **paused**, including after restarting with a saved configuration.
+It starts **paused**, including after restoring a saved configuration. Tap-dance variants are deferred. There is no automatic flashing, cloud dependency, or input hook.
 
-## Download and run
+## Run on Windows
 
-In this repository's **Actions → Windows Context Companion Draft**, open a successful run and download its `KeybardContext-Windows-…` artifact. Extract both the artifact and the included `KeybardContext-Windows.zip`. Keep the entire `KeybardContext` folder together, then run `KeybardContext.exe`. This first draft is not code-signed.
+Extract the supplied `KeybardContext-Windows.zip`, keep the entire `KeybardContext` folder together, and launch `KeybardContext.exe`. The package is experimental and unsigned. `build-info.json` identifies the build; `SHA256SUMS` provides the packaged checksums.
 
-Try the interface with `KeybardContext.exe --demo` before connecting hardware. The demo uses a simulated keyboard and offers Desktop / Onshape / Other browser tab scenarios. It never opens a HID device.
+For a hardware-free preview, run:
 
-For a source checkout on Windows with Python 3.12:
+```powershell
+.\KeybardContext.exe --demo
+```
+
+The demo simulates a keyboard and offers Desktop / Onshape / Other Chrome tab focus. Its example Onshape rule uses layer 1 only as a simulation. The sample configuration is cleared before connecting real hardware; an explicitly opened configuration is retained.
+
+For a source checkout with Python 3.12:
 
 ```powershell
 cd companion
 py -3.12 -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 .venv\Scripts\python -m context_companion --demo
-# Real hardware:
+# Real hardware, still paused until you enable it:
 .venv\Scripts\python -m context_companion
 ```
 
-## Matching firmware is required
+## Matching PMW3389 firmware
 
-Ordinary Sval firmware does not implement the RAM context protocol. The companion probes the feature bit and refuses to enable on unsupported firmware. The draft firmware source is in [morganvenable/sval-qmk, feat/context-tap-dance](https://github.com/morganvenable/sval-qmk/tree/feat/context-tap-dance). Its `modules/svalboard/core/docs/CONTEXT_OVERRIDES.md` documents the protocol.
+The companion requires the **context-layer firmware draft**, whose source branch is `feat/context-layers` in the Sval QMK repository. An ordinary firmware build, or the earlier tap-dance draft, does not provide this layer protocol. The app probes support and refuses incompatible firmware.
 
-Export your current layout through Keybard before installing experimental firmware. Choose the UF2 for your exact board side and pointing sensor, using the existing Svalboard flashing procedure. Generic left/right builds do not replace PMW3360/PMW3389/trackpoint builds. The companion never flashes a board for you.
+For your PMW3389 hardware, use the matching board-side artifacts:
 
-Close Keybard/Vial device connections before connecting this draft. It serializes its own HID traffic, but is not a general multi-client broker. Run one companion instance per keyboard. A second instance's clear/commit commands can replace the first instance's temporary state.
+- `svalboard_trackball_pmw3389_left_sval.uf2`
+- `svalboard_trackball_pmw3389_right_sval.uf2`
 
-## Try an existing Onshape tap dance
+Export your current layout through Keybard first. Flash the correct file to each corresponding side using the normal Svalboard procedure. Do not substitute a generic, PMW3360, or trackpoint build. The companion never flashes the keyboard.
 
-1. Start the companion, select your keyboard, and **Connect / read**. It reads the stored tap-dance definitions. Export the onboard snapshot if desired; this is a tap-dance reference, not a full layout backup.
-2. In **Default**, add an override for the tap-dance index you want to simplify. Choose **plain** and an ordinary key, such as `KC_A`. Indices are zero-based; verify the corresponding dance in Keybard first.
-3. Add an **Onshape** context. Set the executable to `chrome.exe` or `msedge.exe`, and the origin to `https://cad.onshape.com` (or your actual Onshape origin).
-4. In that context, add the same tap-dance index with **stored**. This restores the keyboard's saved dance while Onshape is active. Alternatively choose **dance**, enter tap/hold/double/tap-hold actions and timing, and use an entirely different temporary definition.
-5. Pair the browser extension below. Then explicitly **Enable** the companion.
-6. Switch between an Onshape canvas and another browser tab/application. The status should change between Onshape and Default. Test an ordinary key first in a disposable document.
-7. **Pause** or quit to restore all stored keyboard behavior. **Use defaults** temporarily applies your Default overrides; **Pin** holds the selected context across focus changes.
+Close Keybard/Vial device connections before connecting this draft. It serializes its own HID operations but does not coordinate other applications' device connections. Use one companion instance per keyboard.
 
-`examples/onshape.json` is an illustration using **TD index 0 and KC_A**, not a recommendation for your actual layout. Change it before enabling on hardware. It is never loaded automatically for a real connection.
+## Try Onshape in Chrome
 
-## Pair Chrome or Edge
+1. In Keybard, identify an existing layer you want to use for Onshape. Layer indices are **zero-based**. Choose the actual index in your layout; do not assume layer 1 is appropriate. Create/configure a layer in Keybard if needed.
+2. Launch the companion. Select the real keyboard and click **Connect**. It checks layer support and remains paused.
+3. Keep **Default → Onboard / manual** for the initial trial. This removes the app's temporary layer when no rule matches.
+4. Click **Add app**, name it Onshape, use `chrome.exe`, leave the origin as `https://cad.onshape.com` (or your actual HTTPS Onshape origin), and choose your existing Onshape layer. Check **Rule enabled**, then click **Apply rule / default**. New rules are disabled until you do this.
+5. Pair the extension using the instructions below.
+6. Click **Enable app switching**, then focus the Onshape tab. The status should acknowledge the Onshape context and your chosen layer. Test a harmless key first in a disposable document.
+7. Switch to a different Chrome tab, then a native app. The status should return to Default / Onboard. Return to Onshape and confirm it selects the layer again.
+8. While Onshape is selected, hold one of your existing manual momentary-layer keys. Its non-base manual layer should take precedence; releasing it should expose the Onshape layer again.
+9. Hold an ordinary keyboard key while switching context with the mouse. Verify release is handled correctly and no key remains held. This needs a physical test; automated simulation does not establish it.
+10. Test **Pause app switching**, which clears only the app contribution. After re-enabling, use Task Manager to end the companion and confirm the app contribution disappears within about five seconds without further control traffic.
+11. **Save config** when satisfied. On the next launch, the last opened/saved file is restored, but connection and enabling remain explicit.
 
-1. Open `chrome://extensions` or `edge://extensions` and turn on Developer mode.
-2. Choose **Load unpacked** and select the included `browser-extension` folder.
-3. In the companion, copy the browser pairing token. Open the extension's options (click its toolbar action), paste the token, and choose **Save and test connection**.
-4. Reload already-open Onshape tabs. Keep Onshape's tab and browser window focused.
+No real hardware trial or interactive Windows/Chrome validation is claimed by these instructions. They describe the checks to perform on your setup.
 
-The extension sends only the HTTPS Onshape **origin**, focus state, browser identity, and sequence/timing metadata to `127.0.0.1:19732`. It does not send document names, full URLs, model contents, or keystrokes. It has access to Onshape and the loopback endpoint, not all browsing URLs. A stored random token authenticates requests. Incognito is excluded. Only Chrome and Edge are supported by this draft's browser provider.
+## Pair the Chrome extension
 
-Onshape context expires after 2.5 seconds without a fresh observation. The receiver binds observations to the locally foreground browser window and the engine checks that identity again. Browser notifications and OS focus cannot be atomic; rapid same-browser/profile/window switches retain a short race. No sketch-mode, text-field, or game-state detection is claimed. “Onshape active” includes its editable fields; use Defaults/Pause or suitable mappings when typing there.
+1. Open `chrome://extensions` and enable Developer mode.
+2. Choose **Load unpacked** and select the supplied `browser-extension` folder.
+3. In the companion, click **Copy pairing token**. Click the extension's toolbar icon to open its options, paste the token, and choose **Save and test connection**.
+4. Reload already-open Onshape tabs. Keep both the Onshape tab and its browser window focused.
 
-## Behavior and recovery
+The extension sends only the HTTPS Onshape origin, focus, browser identity, and sequence/timing metadata to `127.0.0.1:19732`. It sends no document names, full document URLs, model contents, or keystrokes. Requests use a locally stored random pairing token. Incognito is excluded. Edge is also supported using `msedge.exe` and `edge://extensions`; Chrome is the primary trial path.
 
-- Default overrides apply while enabled; the first enabled matching rule overlays them. Unspecified dance indices inherit.
-- **stored** removes the host override for an index, revealing the saved onboard definition.
-- **plain** sends a basic HID key or modified basic key immediately, without the tap-dance wait. It does not support layer keys, macros, or other synthetic actions.
-- **dance** uses four QMK keycodes plus a 1–32767 ms tapping term. Common `KC_` names and numeric codes are accepted; advanced codes must match your firmware's definitions.
-- A started gesture retains its original definition and timing through release, even if the context changes.
-- Up to 32 overrides can be active at once. Definitions are staged in RAM and committed together; the app renews a five-second firmware lease.
-- If the app crashes or USB control traffic stops, new gestures return to **stored onboard behavior** after lease expiry. That may be your original Onshape dance, not an ordinary key. A disconnected host cannot keep its Default overrides installed. Active held gestures still finish with their original definition.
-- Pause and normal exit explicitly clear temporary overrides. Exceptions pause automation; a failed clear still relies on the lease expiry.
-- The draft never sends persistent tap-dance/keymap/save commands. Existing layers, assignments, and calibration remain unchanged.
-- Config is tied to numeric tap-dance indices in this first draft. Recheck it after changing your layout; stable layout-revision binding is future work. Configuration and pairing token are local, under your Windows user profile.
+Only Onshape website matching is implemented. Leave the origin field empty to match an entire app, such as a CAD executable, video editor, or game. Recognizing an app does not detect its editing mode, focused text field, game chat, or other internal state. An Onshape rule also applies while typing into Onshape's fields.
 
-The application window remains available while enabled; minimize it as needed. Closing exits and clears overrides. Tray startup, automatic reconnect, general website matching, and a Keybard web editor bridge are not part of this draft.
+Browser signals expire after 2.5 seconds without a fresh observation and must match the foreground browser window. Browser and operating-system focus updates cannot be atomic, so rapid tab/window/profile changes can briefly retain the previous context.
+
+## Controls and layer behavior
+
+| Control | Effect |
+|---|---|
+| Enable app switching | Start evaluating ordered app rules. |
+| Pause app switching | Stop following apps and remove the host layer contribution. |
+| Pin selected app layer | Keep that app's selected layer across focus changes. |
+| Use default | Keep the configured Default behavior until Follow apps or Pin. |
+| Follow apps | Release Pin/Use default and resume rule matching while enabled. |
+| Default: Onboard / manual | No host layer when no rule matches. |
+| Default: numbered layer | Select that layer when no rule matches. |
+
+The first enabled matching rule wins. Edits become active while enabled; pause before editing if you want to finish configuration first. Saving persists the file, not an enabled state. Closing exits the companion and attempts to clear its layer contribution.
+
+Firmware keeps host context separate from manual layer state. Active **manual non-base layers take precedence**, followed by the app layer, then the normal base/default layers. Transparent keys fall through. Manual layer priority does not depend on whether its index is higher than the app layer. Layer 0 and firmware default layers are treated as base layers.
+
+The companion displays the app layer separately. This draft changes key resolution, not QMK's global manual layer state: RGB indicators, ordinary Keybard active-layer display, layer-constrained combos, auto-mouse gating, and existing layer hooks/constraints still see manual state only. Ordinary `KC_TRNS` fallthrough is supported; the special `MT(mod, KC_TRNS)` tap-through helper on an app layer is unverified. A physical `TO(base)` changes manual state but does not clear the app contribution; use Pause to clear it.
+
+A context switch selects existing assignments without rewriting the saved keymap, saved tap-dance definitions, or calibration. Ordinary held-key releases use QMK's existing source-layer cache; this draft requires normal release behavior, not strict layer release. The app renews a five-second firmware lease. On crash or loss of USB control traffic, lease expiry removes only the host contribution, preserving manual/base state.
+
+This is a layer selector, not a layout editor. Rules refer to numeric layer indices: recheck them after changing your keyboard layout. Tray startup, automatic reconnect, general website matching, and per-app tap-dance variants are deferred.
 
 ## Build and validate
 
-On Windows, run `./build-windows.ps1` from PowerShell with `python` pointing at your Python 3.12 environment. It runs tests, launches/closes the native demo UI, builds with PyInstaller, smoke-tests the packaged executable, and creates `dist/KeybardContext-Windows.zip`.
+Run `./build-windows.ps1` in PowerShell with Python 3.12 available. It runs tests, exercises the native demo UI, builds with PyInstaller, tests the packaged executable, and creates the ZIP. The UI smoke test checks paused connection, automatic Onshape selection, pinning, returning to default, and pausing; callback or worker failures fail the test.
 
 ```sh
-# Portable logic, protocol and receiver tests (no keyboard):
 cd companion
 python -m unittest discover -s tests -v
 node --test browser-extension/tests/*.test.cjs
 ```
 
-The GitHub workflow runs Windows packaging and a separate Linux logic-test job. Tests with fake HID establish protocol behavior, not end-to-end physical keyboard correctness. Real hardware and interactive Windows/browser checks remain necessary.
+Fake-HID and simulated UI tests establish software behavior. They do not establish correctness of a physical PMW3389 keyboard, every Windows foreground transition, or browser timing under real workloads.

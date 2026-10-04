@@ -1,7 +1,6 @@
 """Native draft editor. All device changes require an explicit Enable action."""
 from __future__ import annotations
 
-import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
@@ -10,7 +9,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-from . import device, engine, keycodes, model, windows
+from . import device, engine, model, windows
 
 
 class App:
@@ -21,10 +20,10 @@ class App:
         self.root = root
         self.browser_provider = browser_provider or (lambda: None)
         self.browser_bridge = browser_bridge
-        self.config = model.Config(defaults=[], rules=[])
+        self.config = model.Config(default_layer=None, rules=[])
         self.device = None
         self.engine = None
-        self.dances = []
+        self.layer_count = 16
         self.path = None
         self.settings_dir = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".config")) / "KeybardContext"
         self.enabled = False
@@ -41,109 +40,76 @@ class App:
         if not demo:
             self.restore_config()
         if demo:
-            self.config = model.Config(defaults=[model.Override(index=0, mode="plain", keycode=4)], rules=[model.Rule(name="Onshape", overrides=[model.Override(index=0, mode="stored")])])
+            self.config = model.Config(default_layer=None, rules=[model.Rule(name="Onshape", exe="chrome.exe", origin="https://cad.onshape.com", layer=1)])
             self.refresh_rules()
             self.connect()
         self.root.after(250, self.tick)
 
     def _build(self):
-        outer = ttk.Frame(self.root, padding=16)
+        outer = ttk.Frame(self.root, padding=18)
         outer.pack(fill="both", expand=True)
-        ttk.Label(outer, text="Context-specific tap dances", font=("Segoe UI", 20, "bold")).pack(anchor="w")
-        ttk.Label(outer, text="Keep your layout. Override selected tap-dance behaviors for an app or website.").pack(anchor="w", pady=(4, 14))
+        ttk.Label(outer, text="App-specific layers", font=("Segoe UI", 22, "bold")).pack(anchor="w")
+        ttk.Label(outer, text="Select an existing keyboard layer when an app or Onshape has focus.").pack(anchor="w", pady=(4, 16))
         connection = ttk.Frame(outer)
         connection.pack(fill="x")
-        self.device_choice = ttk.Combobox(connection, state="readonly", width=55)
+        self.device_choice = ttk.Combobox(connection, state="readonly", width=53)
         self.device_choice.pack(side="left")
         ttk.Button(connection, text="Refresh", command=self.refresh_devices).pack(side="left", padx=4)
-        ttk.Button(connection, text="Connect / read", command=self.connect).pack(side="left")
-        self.enable_button = ttk.Button(connection, text="Enable automation", command=self.toggle_enabled, state="disabled")
+        ttk.Button(connection, text="Connect", command=self.connect).pack(side="left")
+        self.enable_button = ttk.Button(connection, text="Enable app switching", command=self.toggle_enabled, state="disabled")
         self.enable_button.pack(side="left", padx=4)
-        self.status = tk.StringVar(value="Disconnected. Connect to read your existing tap dances.")
-        ttk.Label(outer, textvariable=self.status, wraplength=1040).pack(anchor="w", pady=(10, 4))
-        self.context_status = tk.StringVar(value="Browser context requires the companion extension; app matching works without it.")
+        self.status = tk.StringVar(value="Disconnected. Prepare your layers in Keybard, then connect here.")
+        ttk.Label(outer, textvariable=self.status, wraplength=1040, font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(12, 4))
+        self.context_status = tk.StringVar(value="App matching works directly; Onshape tab matching needs the browser extension.")
         ttk.Label(outer, textvariable=self.context_status, wraplength=1040).pack(anchor="w", pady=(0, 10))
         simulator = ttk.Frame(outer)
-        simulator.pack(fill="x", pady=(0, 8))
-        ttk.Label(simulator, text="Demo context (demo keyboard only):").pack(side="left")
+        simulator.pack(fill="x", pady=(0, 10))
+        ttk.Label(simulator, text="Demo keyboard only — simulate focus:").pack(side="left")
         self.demo_context = ttk.Combobox(simulator, values=("Desktop", "Onshape in Chrome", "Another Chrome tab"), state="readonly", width=26)
         self.demo_context.current(0)
         self.demo_context.pack(side="left", padx=8)
-
         bar = ttk.Frame(outer)
-        bar.pack(fill="x", pady=(0, 10))
+        bar.pack(fill="x", pady=(0, 12))
         ttk.Button(bar, text="Open config…", command=self.load).pack(side="left")
         ttk.Button(bar, text="Save config…", command=self.save).pack(side="left", padx=4)
-        ttk.Button(bar, text="Export onboard snapshot…", command=self.export_snapshot).pack(side="left")
-        ttk.Button(bar, text="Use defaults", command=self.typing).pack(side="right")
+        ttk.Button(bar, text="Use default", command=self.typing).pack(side="right")
         ttk.Button(bar, text="Follow apps", command=lambda: self.pin(None)).pack(side="right", padx=4)
-        ttk.Button(bar, text="Pin selected context", command=self.pin_selected).pack(side="right")
-
+        ttk.Button(bar, text="Pin selected app layer", command=self.pin_selected).pack(side="right")
         if self.browser_bridge:
             bridge_row = ttk.Frame(outer)
-            bridge_row.pack(fill="x", pady=(0, 10))
-            ttk.Label(bridge_row, text="Browser extension: load browser-extension, then paste this pairing token in its options.").pack(side="left")
+            bridge_row.pack(fill="x", pady=(0, 12))
+            ttk.Label(bridge_row, text="Onshape: load browser-extension in Chrome, then paste the pairing token into its options.").pack(side="left")
             ttk.Button(bridge_row, text="Copy pairing token", command=self.copy_token).pack(side="right")
-
         pane = ttk.Panedwindow(outer, orient="horizontal")
         pane.pack(fill="both", expand=True)
-        left = ttk.Frame(pane, padding=(0, 0, 12, 0))
-        right = ttk.Frame(pane)
+        left, right = ttk.Frame(pane, padding=(0, 0, 16, 0)), ttk.Frame(pane)
         pane.add(left, weight=1)
         pane.add(right, weight=3)
-        ttk.Label(left, text="Contexts", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        ttk.Label(left, text="App rules", font=("Segoe UI", 13, "bold")).pack(anchor="w")
         self.rules = tk.Listbox(left, exportselection=False, height=9)
-        self.rules.pack(fill="both", expand=True, pady=6)
+        self.rules.pack(fill="both", expand=True, pady=8)
         self.rules.bind("<<ListboxSelect>>", self.select_rule)
         buttons = ttk.Frame(left)
         buttons.pack(fill="x")
-        ttk.Button(buttons, text="Add", command=self.add_rule).pack(side="left")
+        ttk.Button(buttons, text="Add app", command=self.add_rule).pack(side="left")
         ttk.Button(buttons, text="Remove", command=self.remove_rule).pack(side="left", padx=4)
-        ttk.Label(left, text="Rules match top to bottom.\nDefault overrides apply otherwise.\nUnlisted dances keep onboard behavior.\n\nOnshape setup:\n1. Default: set a TD to plain.\n2. Add Onshape: same TD → stored.\n3. Enable and focus Onshape.\n\nEdits take effect while enabled. Save to keep them after closing.", wraplength=230).pack(anchor="w", pady=10)
-
-        match = ttk.LabelFrame(right, text="Context matching", padding=10)
-        match.pack(fill="x")
-        self.rule_name = tk.StringVar()
-        self.exe = tk.StringVar()
-        self.origin = tk.StringVar()
+        ttk.Label(left, text="First enabled match wins.\nDefault applies when no app matches.\n\nPause removes this app's temporary layer selection.", wraplength=240).pack(anchor="w", pady=12)
+        edit = ttk.LabelFrame(right, text="App → existing keyboard layer", padding=16)
+        edit.pack(fill="x")
+        self.rule_name, self.exe, self.origin = tk.StringVar(), tk.StringVar(), tk.StringVar()
+        self.layer = tk.StringVar(value="Onboard / manual")
         self.rule_enabled = tk.BooleanVar(value=True)
         for row, (label, variable) in enumerate((("Name", self.rule_name), ("Executable", self.exe), ("Onshape origin (optional)", self.origin))):
-            ttk.Label(match, text=label).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=3)
-            ttk.Entry(match, textvariable=variable).grid(row=row, column=1, sticky="ew", pady=3)
-        match.columnconfigure(1, weight=1)
-        ttk.Checkbutton(match, text="Rule enabled", variable=self.rule_enabled).grid(row=3, column=0, sticky="w")
-        ttk.Button(match, text="Apply rule", command=self.apply_rule).grid(row=3, column=1, sticky="e")
-
-        self.override_list = ttk.Treeview(right, columns=("index", "mode", "details"), show="headings", height=5)
-        for col, title, width in (("index", "TD index", 75), ("mode", "Behavior", 110), ("details", "Definition", 370)):
-            self.override_list.heading(col, text=title)
-            self.override_list.column(col, width=width)
-        self.override_list.pack(fill="both", expand=True, pady=10)
-        self.override_list.bind("<<TreeviewSelect>>", self.select_override)
-
-        edit = ttk.LabelFrame(right, text="Behavior override", padding=10)
-        edit.pack(fill="x")
-        self.index = tk.StringVar(value="0")
-        self.mode = tk.StringVar(value="plain")
-        self.code = tk.StringVar(value="KC_A")
-        self.actions = [tk.StringVar(value=x) for x in ("KC_A", "KC_NO", "KC_NO", "KC_NO", "200")]
-        ttk.Label(edit, text="Onboard tap-dance index").grid(row=0, column=0, sticky="w")
-        self.index_choice = ttk.Combobox(edit, textvariable=self.index, width=10)
-        self.index_choice.grid(row=0, column=1, sticky="w")
-        ttk.Button(edit, text="Copy onboard definition", command=self.copy_onboard).grid(row=0, column=2, columnspan=2, sticky="e")
-        ttk.Label(edit, text="Behavior").grid(row=1, column=0, sticky="w", pady=5)
-        ttk.Combobox(edit, textvariable=self.mode, values=("plain", "dance", "stored"), state="readonly", width=15).grid(row=1, column=1, sticky="w")
-        ttk.Label(edit, text="Ordinary key code").grid(row=1, column=2, padx=(10, 4))
-        ttk.Entry(edit, textvariable=self.code, width=12).grid(row=1, column=3)
-        labels = ("Tap", "Hold", "Double tap", "Tap then hold", "Term (ms)")
-        fields = ttk.Frame(edit)
-        fields.grid(row=2, column=0, columnspan=4, sticky="ew", pady=5)
-        for col, (label, variable) in enumerate(zip(labels, self.actions)):
-            ttk.Label(fields, text=label).grid(row=0, column=col, sticky="w", padx=(0, 8))
-            ttk.Entry(fields, textvariable=variable, width=12).grid(row=1, column=col, sticky="ew", padx=(0, 8))
-        ttk.Label(edit, text="Codes: KC_A, KC_ENTER, decimal or 0x hex. 0 = no action. Stored uses the onboard dance.", wraplength=640).grid(row=3, column=0, columnspan=4, sticky="w", pady=5)
-        ttk.Button(edit, text="Set override", command=self.set_override).grid(row=4, column=0, sticky="w")
-        ttk.Button(edit, text="Remove override / inherit", command=self.remove_override).grid(row=4, column=1, columnspan=3, sticky="e")
+            ttk.Label(edit, text=label).grid(row=row, column=0, sticky="w", padx=(0, 14), pady=7)
+            ttk.Entry(edit, textvariable=variable).grid(row=row, column=1, sticky="ew", pady=7)
+        ttk.Label(edit, text="Layer").grid(row=3, column=0, sticky="w", pady=7)
+        self.layer_choice = ttk.Combobox(edit, textvariable=self.layer, state="readonly", values=["Onboard / manual"] + [str(n) for n in range(self.layer_count)])
+        self.layer_choice.grid(row=3, column=1, sticky="ew", pady=7)
+        ttk.Checkbutton(edit, text="Rule enabled", variable=self.rule_enabled).grid(row=4, column=0, sticky="w", pady=7)
+        ttk.Button(edit, text="Apply rule / default", command=self.apply_rule).grid(row=4, column=1, sticky="e", pady=7)
+        edit.columnconfigure(1, weight=1)
+        ttk.Label(right, text="Quick start", font=("Segoe UI", 13, "bold")).pack(anchor="w", pady=(22, 8))
+        ttk.Label(right, text="1. Configure a useful layer in Keybard and note its zero-based index.\n2. Add an app, enter its executable (for example chrome.exe), and choose that layer.\n3. For Onshape only, keep https://cad.onshape.com and pair the extension.\n4. Check Rule enabled, click Apply, then Enable app switching.\n\nLeave origin empty to match the entire app. Other layers are configured on the keyboard; this editor only chooses them.\n\nDefault: Onboard / manual leaves layer selection to the keyboard when no rule matches. Choosing a numbered default adds that layer instead.\n\nUse default stays selected until Follow apps or Pin. Edits take effect while enabled. Save your configuration to keep it after closing.", wraplength=650, justify="left").pack(anchor="w")
         self.refresh_rules()
 
     def copy_token(self):
@@ -175,7 +141,7 @@ class App:
                     callback(result)
             except Exception as exc:
                 self.enabled = False
-                self.enable_button.configure(text="Enable automation")
+                self.enable_button.configure(text="Enable app switching")
                 if not self.closing:
                     self.error(exc)
 
@@ -184,7 +150,7 @@ class App:
         if self.pending or self.closing:
             self.status.set("Please wait for the current keyboard operation to finish.")
             return
-        self.status.set("Connecting and reading onboard tap dances…")
+        self.status.set("Connecting and checking layer-switching support…")
         self.enable_button.configure(state="disabled")
         selection = self.device_choice.current()
         self.demo = selection == 0
@@ -205,18 +171,18 @@ class App:
                 previous_device.close()
             board = device.SimulatedDevice() if info is None else device.HidDevice(info)
             try:
-                dances = board.stored_dances()
                 resolver = engine.ContextEngine(config, board)
-                return board, dances, resolver
+                return board, resolver
             except Exception:
                 board.close()
                 raise
 
         def connected(result):
-            self.device, self.dances, self.engine = result
-            self.index_choice["values"] = tuple(str(n) for n in range(len(self.dances)))
-            self.enable_button.configure(state="normal", text="Enable automation")
-            self.status.set(f"{'DEMO — ' if self.demo else ''}Connected; {len(self.dances)} onboard tap dances read. Automation paused.")
+            self.device, self.engine = result
+            self.layer_count = self.device.layer_count
+            self.layer_choice["values"] = ["Onboard / manual"] + [str(n) for n in range(self.layer_count)]
+            self.enable_button.configure(state="normal", text="Enable app switching")
+            self.status.set(f"{'DEMO — ' if self.demo else ''}Connected; {self.layer_count} layer indices available. App switching paused.")
 
         self.submit(work, connected)
 
@@ -224,7 +190,7 @@ class App:
         if self.engine and not self.closing:
             enabling = not self.enabled
             self.enabled = enabling
-            self.enable_button.configure(text="Pause automation" if enabling else "Enable automation")
+            self.enable_button.configure(text="Pause app switching" if enabling else "Enable app switching")
             resolver = self.engine
             self.submit(lambda: resolver.pause(not enabling))
 
@@ -248,9 +214,10 @@ class App:
 
     def refresh_rules(self, selection=0):
         self.rules.delete(0, "end")
-        self.rules.insert("end", "Default behaviors")
+        default = "Onboard / manual" if self.config.default_layer is None else f"Layer {self.config.default_layer}"
+        self.rules.insert("end", f"Default → {default}")
         for rule in self.config.rules:
-            self.rules.insert("end", rule.name + (" (disabled)" if not rule.enabled else ""))
+            self.rules.insert("end", f"{rule.name} → Layer {rule.layer}" + (" (disabled)" if not rule.enabled else ""))
         selection = min(selection, len(self.config.rules))
         self.rules.selection_set(selection)
         self.select_rule()
@@ -261,28 +228,20 @@ class App:
             return
         self.selected_rule = self.config.rules[selection[0] - 1] if selection[0] else None
         rule = self.selected_rule
-        self.rule_name.set(rule.name if rule else "Default behaviors")
+        self.rule_name.set(rule.name if rule else "Default")
         self.exe.set(rule.exe if rule else "")
         self.origin.set(rule.origin or "" if rule else "")
         self.rule_enabled.set(rule.enabled if rule else True)
-        self.refresh_overrides()
-
-    def overrides(self):
-        return self.selected_rule.overrides if self.selected_rule else self.config.defaults
-
-    def refresh_overrides(self):
-        self.override_list.delete(*self.override_list.get_children())
-        for override in self.overrides():
-            detail = keycodes.format_keycode(override.keycode) if override.mode == "plain" else ("Stored onboard behavior" if override.mode == "stored" else ", ".join(keycodes.format_keycode(v) for v in override.dance[:4]) + f" · {override.dance[4]} ms")
-            self.override_list.insert("", "end", iid=str(override.index), values=(override.index, override.mode, detail))
+        layer = rule.layer if rule else self.config.default_layer
+        self.layer.set("Onboard / manual" if layer is None else str(layer))
 
     def add_rule(self):
-        name = simpledialog.askstring("New context", "Context name", initialvalue="Onshape", parent=self.root)
+        name = simpledialog.askstring("New app rule", "Name", initialvalue="Onshape", parent=self.root)
         name = name.strip() if name else ""
         if name:
             if any(r.name == name for r in self.config.rules):
-                return self.error(ValueError("Choose a unique context name."))
-            self.config.rules.append(model.Rule(name=name, exe="chrome.exe", origin="https://cad.onshape.com", overrides=[], enabled=True))
+                return self.error(ValueError("Choose a unique app rule name."))
+            self.config.rules.append(model.Rule(name=name, exe="chrome.exe", origin="https://cad.onshape.com", layer=1, enabled=False))
             self.refresh_rules(len(self.config.rules))
 
     def remove_rule(self):
@@ -291,85 +250,40 @@ class App:
             self.refresh_rules()
 
     def apply_rule(self):
-        if not self.selected_rule:
-            return self.error(ValueError("Default behaviors have no app matching rule. Add or select a context first."))
         try:
-            name = self.rule_name.get().strip()
-            exe = self.exe.get().strip()
-            origin = self.origin.get().strip()
+            layer = None if self.layer.get() == "Onboard / manual" else int(self.layer.get())
+            if layer is not None and not 0 <= layer < self.layer_count:
+                raise ValueError(f"Choose a layer index between 0 and {self.layer_count - 1}.")
+            if not self.selected_rule:
+                self.config.default_layer = layer
+                self.refresh_rules()
+                return
+            if layer is None:
+                raise ValueError("Choose a numbered layer for an app rule. Onboard / manual is a Default option.")
+            name, exe, origin = self.rule_name.get().strip(), self.exe.get().strip(), self.origin.get().strip()
             if not name or not exe:
                 raise ValueError("Name and executable are required.")
             if '/' in exe or '\\' in exe:
-                raise ValueError("Use an executable basename, such as chrome.exe, without a path.")
+                raise ValueError("Use an executable basename such as chrome.exe, without a path.")
             if any(r is not self.selected_rule and r.name == name for r in self.config.rules):
-                raise ValueError("Context names must be unique.")
+                raise ValueError("App rule names must be unique.")
             if origin:
                 from urllib.parse import urlsplit
                 url = urlsplit(origin)
-                if url.scheme not in ("http", "https") or not url.netloc or url.path not in ("", "/") or url.query or url.fragment:
-                    raise ValueError("Use a website origin such as https://cad.onshape.com, without a path.")
+                if url.path not in ("", "/") or url.query or url.fragment:
+                    raise ValueError("Use an origin such as https://cad.onshape.com without a document path.")
                 origin = model.origin_of(origin.rstrip("/"))
                 host = urlsplit(origin).hostname
                 if urlsplit(origin).scheme != 'https' or not (host == 'onshape.com' or host.endswith('.onshape.com')):
                     raise ValueError("This draft's browser extension supports HTTPS Onshape sites only. Leave origin empty to match a whole app.")
-            self.selected_rule.name = name
-            self.selected_rule.exe = exe
-            self.selected_rule.origin = origin
-            self.selected_rule.enabled = self.rule_enabled.get()
-            self.refresh_rules(self.rules.curselection()[0])
+            candidate = deepcopy(self.config)
+            position = self.config.rules.index(self.selected_rule)
+            candidate.rules[position] = model.Rule(name=name, exe=exe, origin=origin, layer=layer, enabled=self.rule_enabled.get())
+            candidate.validate()
+            self.config = candidate
+            self.refresh_rules(position + 1)
         except Exception as exc:
             self.error(exc)
-
-    def select_override(self, _event=None):
-        selected = self.override_list.selection()
-        if not selected:
-            return
-        item = next(o for o in self.overrides() if o.index == int(selected[0]))
-        self.index.set(str(item.index))
-        self.mode.set(item.mode)
-        self.code.set(keycodes.format_keycode(item.keycode))
-        for n, (variable, value) in enumerate(zip(self.actions, item.dance)):
-            variable.set(keycodes.format_keycode(value) if n < 4 else str(value))
-
-    @staticmethod
-    def number(value):
-        value = value.strip()
-        return int(value, 16 if value.lower().startswith("0x") else 10)
-
-    def set_override(self):
-        try:
-            index = self.number(self.index.get())
-            if index < 0 or (self.dances and index >= len(self.dances)):
-                raise ValueError("Choose an existing onboard tap-dance index.")
-            code = keycodes.parse_keycode(self.code.get())
-            dance = tuple(keycodes.parse_keycode(v.get()) for v in self.actions[:4]) + (self.number(self.actions[4].get()),)
-            override = model.Override(index=index, mode=self.mode.get(), keycode=code, dance=dance)
-            override.validate()
-            items = self.overrides()
-            items[:] = [o for o in items if o.index != index] + [override]
-            items.sort(key=lambda o: o.index)
-            self.refresh_overrides()
-        except Exception as exc:
-            self.error(exc)
-
-    def remove_override(self):
-        try:
-            index = self.number(self.index.get())
-            self.overrides()[:] = [o for o in self.overrides() if o.index != index]
-            self.refresh_overrides()
-        except Exception as exc:
-            self.error(exc)
-
-    def copy_onboard(self):
-        try:
-            index = self.number(self.index.get())
-            if index < 0:
-                raise ValueError("Index must be nonnegative.")
-            for n, (variable, value) in enumerate(zip(self.actions, self.dances[index])):
-                variable.set(keycodes.format_keycode(value) if n < 4 else str(value))
-            self.mode.set("dance")
-        except Exception as exc:
-            self.error(ValueError(f"Connect and select an existing tap dance first: {exc}"))
 
     def load(self):
         path = filedialog.askopenfilename(filetypes=[("Context configuration", "*.json")])
@@ -383,7 +297,7 @@ class App:
             self.config = config
             self.demo_seeded = False
             self.enabled = False
-            self.enable_button.configure(text="Enable automation")
+            self.enable_button.configure(text="Enable app switching")
             self.path = path
             self.remember_path()
             self.refresh_rules()
@@ -397,16 +311,6 @@ class App:
                 self.config.save(path)
                 self.path = path
                 self.remember_path()
-            except Exception as exc:
-                self.error(exc)
-
-    def export_snapshot(self):
-        if not self.device:
-            return self.error(ValueError("Connect / read a keyboard first."))
-        path = filedialog.asksaveasfilename(initialfile="onboard-tap-dances.json", defaultextension=".json")
-        if path:
-            try:
-                Path(path).write_text(json.dumps({"description": "Onboard actions and timing in milliseconds (enabled flag normalized); reference only, not a bit-exact backup or context configuration.", "dances": self.dances}, indent=2), encoding="utf-8")
             except Exception as exc:
                 self.error(exc)
 
@@ -469,8 +373,11 @@ class App:
     def show_state(self, state):
         if state.get('state') == 'Error':
             self.enabled = False
-            self.enable_button.configure(text="Enable automation")
-        self.status.set(("DEMO — " if self.demo else "") + f"{state.get('state', '')} · Context: {state.get('context', 'Default')} · Applied overrides: {state.get('applied_count', 0)}" + (f" · {state['error']}" if state.get('error') else ""))
+            self.enable_button.configure(text="Enable app switching")
+        layer = state.get('applied_layer')
+        applied = "Onboard / manual" if layer is None else f"Layer {layer}"
+        mode = "Manual default" if state.get('state') == 'Typing' else state.get('state', '')
+        self.status.set(("DEMO — " if self.demo else "") + f"{mode} · Context: {state.get('context', 'Default')} · Applied: {applied}" + (f" · {state['error']}" if state.get('error') else ""))
 
     def close(self):
         if not self.closing:
@@ -508,6 +415,51 @@ class App:
 def run(browser_provider=None, demo=False, browser_bridge=None, smoke_test=False):
     root = tk.Tk()
     app = App(root, browser_provider=browser_provider, demo=demo, browser_bridge=browser_bridge)
+    errors = []
     if smoke_test:
-        root.after(750, app.close)
+        def fail(exc):
+            errors.append(str(exc))
+            app.close()
+        app.error = fail
+        root.report_callback_exception = lambda _kind, exc, _trace: fail(exc)
+        deadline = time.monotonic() + 20
+        phase = [0]
+
+        def exercise():
+            try:
+                if app.closing:
+                    return
+                if time.monotonic() > deadline:
+                    raise RuntimeError(f"UI smoke test timed out at step {phase[0]}")
+                resolver = app.engine
+                state = resolver.status if resolver else {}
+                if state.get('state') == 'Error':
+                    raise RuntimeError(state.get('error', 'Worker failed'))
+                if phase[0] == 0 and resolver:
+                    assert resolver.paused, "Connection must start paused"
+                    app.demo_context.set("Onshape in Chrome")
+                    app.toggle_enabled()
+                    phase[0] = 1
+                elif phase[0] == 1 and state.get('applied_layer') == 1:
+                    assert state.get('context') == 'Onshape'
+                    app.pin('Onshape')
+                    app.demo_context.set("Desktop")
+                    phase[0] = 2
+                elif phase[0] == 2 and state.get('state') == 'Pinned':
+                    assert state.get('applied_layer') == 1
+                    app.pin(None)
+                    phase[0] = 3
+                elif phase[0] == 3 and state.get('state') == 'Following' and state.get('applied_layer') is None:
+                    app.toggle_enabled()
+                    phase[0] = 4
+                elif phase[0] == 4 and state.get('state') == 'Paused':
+                    assert app.device.active_layer is None
+                    app.close()
+                    return
+                root.after(50, exercise)
+            except Exception as exc:
+                fail(exc)
+        root.after(50, exercise)
     root.mainloop()
+    if errors:
+        raise RuntimeError("UI smoke test failed: " + "; ".join(errors))

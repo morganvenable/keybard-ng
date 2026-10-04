@@ -45,6 +45,7 @@ jobs:
           path: |
             companion/dist/KeybardContext-Windows.zip
             companion/dist/dependencies.txt
+            companion/dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
 

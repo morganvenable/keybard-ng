@@ -7,18 +7,17 @@ class ContextEngine:
     def __init__(self, config: Config, device, clock=time.monotonic):
         self.config, self.device, self.clock = config, device, clock
         self.paused, self.pinned, self.typing_only = True, None, False
-        self._typing_hwnd = None
-        self._signature = None
+        self._signature = object()
         self._renewed = 0
-        self.status = dict(state='Paused', context='Default', applied_count=0, error='', foreground='', origin='')
+        self.status = dict(state='Paused', context='Default', applied_count=0, applied_layer=None, error='', foreground='', origin='')
         self.device.clear()
 
     def pause(self, value=True):
         self.paused = bool(value)
         if self.paused:
             self.device.clear()
-            self._signature = None
-            self.status.update(state='Paused', context='Default', applied_count=0, error='')
+            self._signature = object()
+            self.status.update(state='Paused', context='Default', applied_count=0, applied_layer=None, error='')
 
     def pin(self, name=None):
         if name is not None and name not in [r.name for r in self.config.rules]:
@@ -27,8 +26,8 @@ class ContextEngine:
         self.typing_only = False
 
     def typing(self, value=True):
+        """Use configured defaults until Resume following or Pin is selected."""
         self.typing_only = bool(value)
-        self._typing_hwnd = None
 
     def _browser(self, value):
         if isinstance(value, dict):
@@ -59,35 +58,29 @@ class ContextEngine:
             return self.status
         try:
             self.config.validate()
-            if self.typing_only:
-                if self._typing_hwnd is None:
-                    self._typing_hwnd = foreground.hwnd
-                elif foreground.hwnd != self._typing_hwnd:
-                    self.typing_only = False
             rule = None
             if not self.typing_only:
                 rule = next((r for r in self.config.rules if r.name == self.pinned), None) if self.pinned else next(
                     (r for r in self.config.rules if self._matches(r, foreground, browser, now)), None)
-            merged = {o.index: o for o in self.config.defaults}
-            if rule:
-                merged.update({o.index: o for o in rule.overrides})
-            overrides = [o for _, o in sorted(merged.items()) if o.mode != 'stored']
-            signature = tuple((o.index, o.mode, o.keycode, tuple(o.dance)) for o in overrides)
-            if signature != self._signature:
-                self.device.replace(overrides)
-                self._signature, self._renewed = signature, now
-            elif signature and now - self._renewed >= 1:
+            layer = rule.layer if rule else self.config.default_layer
+            if layer is not None and layer >= self.device.layer_count:
+                raise ValueError(f'Layer {layer} is unavailable; keyboard has {self.device.layer_count} layers')
+            if layer != self._signature:
+                self.device.replace_layer(layer)
+                self._signature, self._renewed = layer, now
+            elif layer is not None and now - self._renewed >= 1:
                 self.device.renew()
                 self._renewed = now
             self.status.update(state='Typing' if self.typing_only else 'Pinned' if self.pinned else 'Following',
-                               context=rule.name if rule else 'Default', applied_count=len(overrides), error='')
+                               context=rule.name if rule else 'Default', applied_count=int(layer is not None), applied_layer=layer, error='')
         except Exception as exc:
-            self._signature = None
+            self._signature = object()
             self.paused = True
             try:
                 self.device.clear()
                 count = 0
             except Exception:
                 count = self.status['applied_count']
-            self.status.update(state='Error', error=str(exc), applied_count=count)
+            self.status.update(state='Error', error=str(exc), applied_count=count,
+                               applied_layer=self.status.get('applied_layer') if count else None)
         return self.status

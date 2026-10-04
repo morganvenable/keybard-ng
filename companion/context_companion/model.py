@@ -15,62 +15,47 @@ def origin_of(value: str) -> str:
     return f'{p.scheme}://{p.hostname.lower()}' + (f':{port}' if port and port != (443 if p.scheme == 'https' else 80) else '')
 
 
-@dataclass
-class Override:
-    index: int
-    mode: str = 'plain'
-    keycode: int = 4
-    dance: tuple[int, ...] = (0, 0, 0, 0, 200)
-
-    def validate(self):
-        if type(self.index) is not int or not 0 <= self.index <= 65535:
-            raise ValueError('Tap dance index must be 0..65535')
-        if self.mode not in ('stored', 'plain', 'dance'):
-            raise ValueError('Unknown override mode')
-        if type(self.keycode) is not int or not 0 <= self.keycode <= 65535:
-            raise ValueError('Keycode must be 0..65535')
-        if self.mode == 'plain' and self.keycode > 0x1fff:
-            raise ValueError('Immediate keys support basic or modified QMK keycodes up to 0x1FFF')
-        if len(self.dance) != 5 or any(type(x) is not int or not 0 <= x <= 65535 for x in self.dance):
-            raise ValueError('Dance requires four keycodes and a 16-bit tapping term')
-        if self.mode == 'dance' and not 1 <= self.dance[4] <= 32767:
-            raise ValueError('Tapping term must be 1..32767 milliseconds')
+def validate_layer(layer):
+    if layer is not None and (type(layer) is not int or not 0 <= layer < 32):
+        raise ValueError('Layer must be 0..31 or null for onboard/manual state')
 
 
 @dataclass
 class Rule:
     name: str
     exe: str = 'chrome.exe'
-    origin: str = 'https://cad.onshape.com'
-    overrides: list[Override] = field(default_factory=list)
+    origin: str = ''
+    layer: int = 1
     enabled: bool = True
 
 
 @dataclass
 class Config:
-    defaults: list[Override] = field(default_factory=list)
+    default_layer: int | None = None
     rules: list[Rule] = field(default_factory=list)
-    schema_version: int = 1
+    schema_version: int = 2
 
     def validate(self):
-        if self.schema_version != 1:
-            raise ValueError('Unsupported configuration version')
+        if self.schema_version != 2:
+            raise ValueError('Unsupported configuration version; this draft uses layer rules (schema 2)')
+        validate_layer(self.default_layer)
         names = set()
         for rule in self.rules:
             if not rule.name.strip() or rule.name in names:
                 raise ValueError('Context names must be nonempty and unique')
             names.add(rule.name)
-            if not rule.exe or '/' in rule.exe or '\\' in rule.exe:
+            if not rule.exe or '/' in rule.exe or chr(92) in rule.exe:
                 raise ValueError('Application must be an executable basename')
             if rule.origin:
-                origin_of(rule.origin)
-        for group in [self.defaults] + [r.overrides for r in self.rules]:
-            seen = set()
-            for item in group:
-                item.validate()
-                if item.index in seen:
-                    raise ValueError('Duplicate tap dance index in one context')
-                seen.add(item.index)
+                if rule.exe.casefold() not in ('chrome.exe', 'msedge.exe'):
+                    raise ValueError('Browser-origin rules currently support chrome.exe and msedge.exe')
+                normalized = origin_of(rule.origin)
+                host = urlsplit(normalized).hostname
+                if normalized != rule.origin or not normalized.startswith('https://') or not (host == 'onshape.com' or host.endswith('.onshape.com')):
+                    raise ValueError('Browser rules currently require an exact HTTPS Onshape origin, such as https://cad.onshape.com')
+            validate_layer(rule.layer)
+            if rule.layer is None:
+                raise ValueError('Application rules require a layer index')
 
     @classmethod
     def load(cls, path):
@@ -78,9 +63,10 @@ class Config:
         if not path.exists():
             return cls()
         data = json.loads(path.read_text(encoding='utf-8'))
-        result = cls(defaults=[Override(**x) for x in data.get('defaults', [])],
-                     rules=[Rule(**{**r, 'overrides': [Override(**x) for x in r.get('overrides', [])]}) for r in data.get('rules', [])],
-                     schema_version=data.get('schema_version', 1))
+        if data.get('schema_version') != 2:
+            raise ValueError('This file is not a layer configuration (schema 2); tap-dance drafts are not supported')
+        result = cls(default_layer=data.get('default_layer'),
+                     rules=[Rule(**r) for r in data.get('rules', [])], schema_version=data['schema_version'])
         result.validate()
         return result
 
