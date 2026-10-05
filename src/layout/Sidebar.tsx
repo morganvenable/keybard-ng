@@ -32,10 +32,13 @@ const DIVIDER_HEIGHT_PX = 17; // 1px + 2*8px (my-2)
 const FLEX_GAP_PX = 16; // Gap-4
 const DIVIDER_OFFSET = DIVIDER_HEIGHT_PX + FLEX_GAP_PX;
 
-// Icon layout helpers - keep icons at the same position regardless of collapsed state
-const getIconGutterWidth = (isCollapsed: boolean) => isCollapsed ? "w-full" : "w-[43px]";
-const getIconPadding = (isCollapsed: boolean) => (isCollapsed ? "pl-0" : "pl-[11px]");
-const getIconJustify = (isCollapsed: boolean) => isCollapsed ? "justify-center" : "justify-start";
+// Icon gutter - identical in both states so icons stay put while the width animates.
+// Switching to a centered layout on toggle made icons jump to the middle of the
+// still-wide sidebar and then slide back. Padding is chosen so each icon lands on
+// the collapsed sidebar's center line: 24px logo -> 11px, 20px nav icon -> 13px.
+const ICON_GUTTER = "w-[43px] shrink-0 flex items-center justify-start";
+const LOGO_GUTTER_PADDING = "pl-[11px]";
+const NAV_GUTTER_PADDING = "pl-[13px]";
 
 export type SidebarItem = {
     title: string;
@@ -128,8 +131,8 @@ const SidebarNavItem = ({
                 (alternativeHeader ? isPreviousPanel : isActive) ? "text-sidebar-foreground" : "text-gray-400"
             )}
         >
-            <button type="button" onClick={() => onClick(item)} className={cn("flex w-full items-center", getIconJustify(isCollapsed))}>
-                <div className={cn(getIconGutterWidth(isCollapsed), "h-full flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
+            <button type="button" onClick={() => onClick(item)} className="flex w-full items-center">
+                <div className={cn(ICON_GUTTER, "h-full", NAV_GUTTER_PADDING)}>
                     <item.icon className="h-5 w-5 shrink-0" />
                 </div>
                 <span className={cn("truncate", isCollapsed && "hidden")}>
@@ -276,10 +279,10 @@ const AppSidebar = () => {
                             >
                                 <button
                                     type="button"
-                                    className={cn("flex w-full items-center", getIconJustify(isCollapsed))}
+                                    className="flex w-full items-center"
                                     onClick={() => toggleSidebar()}
                                 >
-                                    <div className={cn(getIconGutterWidth(isCollapsed), "h-8 flex items-center shrink-0", getIconJustify(isCollapsed), getIconPadding(isCollapsed))}>
+                                    <div className={cn(ICON_GUTTER, "h-8", LOGO_GUTTER_PADDING)}>
                                         <Logo className="!w-6 !h-6 !min-w-6 !min-h-6" />
                                     </div>
                                     <KeybardLogo className={cn("shrink-0 !h-[32px] !w-auto", isCollapsed && "hidden")} />
